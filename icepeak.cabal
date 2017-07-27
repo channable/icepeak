@@ -40,6 +40,21 @@ executable icepeak-websockets
                , icepeak
                , websockets           >= 0.12.0.0 && < 0.13.0.0
 
+executable icepeak-api
+  default-language: Haskell2010
+  hs-source-dirs:   app
+  main-is:          API.hs
+  -- Use the multi-threaded runtime (-threaded), and use as many threads as
+  -- cores on the system (+RTS -N). The -I0 flag prevents high CPU usage when
+  -- the process is idle, see http://stackoverflow.com/q/12886604/135889.
+  ghc-options:      -Wall -Werror -O2 -threaded "-with-rtsopts=-N -I0"
+  ghc-options:      -Wall -Werror
+
+  build-depends: base >= 4.8 && < 5.0
+              , icepeak
+              , scotty    < 0.12
+              , text      < 1.3
+
 executable icepeak
   default-language: Haskell2010
   hs-source-dirs:   app
