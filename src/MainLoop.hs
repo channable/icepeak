@@ -7,8 +7,9 @@ module MainLoop
 )
 where
 
-import Control.Concurrent.STM.TVar (TVar, newTVarIO)
-import Control.Concurrent.STM.TBQueue (TBQueue, newTBQueueIO)
+import Control.Concurrent.STM (atomically)
+import Control.Concurrent.STM.TVar (TVar, newTVarIO, writeTVar)
+import Control.Concurrent.STM.TBQueue (TBQueue, newTBQueueIO, readTBQueue)
 import Data.Aeson (Value (..))
 import Data.Void (Void)
 import Data.Text (Text)
@@ -44,5 +45,11 @@ handlePut (Put path newValue) value = case path of
       Object newDict
 
 mainLoop :: State -> IO Void
-mainLoop state =
-  mainLoop state
+mainLoop state = go Null
+  where
+    go val = do
+      put <- atomically $ readTBQueue (stQueue state)
+      let newValue = handlePut put val
+      -- TODO: Send out notifications here.
+      atomically $ writeTVar (stValue state) newValue
+      go newValue
