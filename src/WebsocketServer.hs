@@ -28,45 +28,22 @@ broadcast message clients = do
     T.putStrLn message
     forM_ clients $ \(_, conn) -> WS.sendTextData conn message
 
-application :: MVar ServerState -> WS.ServerApp
-
-
--- Note that `WS.ServerApp` is nothing but a type synonym for
--- `WS.PendingConnection -> IO ()`.
-
--- Our application starts by accepting the connection. In a more realistic
--- application, you probably want to check the path and headers provided by the
--- pending request.
---
--- We also fork a pinging thread in the background. This will ensure the connection
--- stays alive on some browsers.
-
+-- type WS.ServerApp = WS.PendingConnection -> IO ()
+application :: MVar ServerState -> WS.PendingConnection -> IO ()
 application state pending = do
+    -- accept the connection
+    -- TODO: Validate the path and headers of the pending request
     conn <- WS.acceptRequest pending
+    -- fork a pinging thread, because browsers...
     WS.forkPingThread conn 30
-
--- When a client is succesfully connected, we read the first message. This should
--- be in the format of "Hi! I am Jasper", where Jasper is the requested username.
-
     msg <- WS.receiveData conn
     -- clients <- readMVar state
+    -- TODO: Come up with a wire protocol and validate it
     case msg of
-
--- Check that the first message has the right format:
-
         _   | not (prefix `T.isPrefixOf` msg) -> do
                 putStrLn (show $ "Invalid message: " `mappend` msg)
                 WS.sendTextData conn ("Wrong announcement" :: Text)
-
--- All is right! We're going to allow the client, but for safety reasons we *first*
--- setup a `disconnect` function that will be run when the connection is closed.
-
             | otherwise -> flip finally disconnect $ do
-
--- We send a "Welcome!", according to our own little protocol. We add the client to
--- the list and broadcast the fact that he has joined. Then, we give control to the
--- 'talk' function.
-
                modifyMVar_ state $ \s -> do
                    let s' = addClient client s
                    WS.sendTextData conn $
