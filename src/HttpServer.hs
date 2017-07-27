@@ -2,7 +2,6 @@
 
 module HttpServer (new) where
 
-import Data.Text (Text)
 import Control.Monad.IO.Class
 import Network.HTTP.Types
 import Network.Wai (Application)
@@ -30,10 +29,3 @@ new core =
       let putCommand = Core.Put (Wai.pathInfo req) value
       liftIO $ Core.enqueuePut putCommand core
       status status201
-
--- stub
-statusFor :: [Text] -> Text
-statusFor ["a"] = "{downloading}"
-statusFor ["a", "b"] = "{failed}"
-statusFor ["a", "b", "c"] = "{succeeded}"
-statusFor _ = "{dikke Kip}"
