@@ -52,6 +52,7 @@ executable icepeak-api
 
   build-depends:
                 aeson       < 1.2
+              , async       < 2.2
               , base        >= 4.8 && < 5.0
               , icepeak
               , http-types  < 0.10

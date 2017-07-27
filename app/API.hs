@@ -3,19 +3,23 @@
 import Web.Scotty
 import  Data.Text (Text)
 import qualified Network.Wai        as Wai
--- import Data.Aeson (Value(..))
 import Network.HTTP.Types
 import qualified Core
+import Control.Monad.IO.Class
 
 main :: IO ()
-main = scotty 3000 $ do
+main = do
+  core <- Core.newCore
+
+  scotty 3000 $ do
     get (regex "^") $
         request >>= json . statusFor . Wai.pathInfo
 
     put (regex "^") $ do
       req <- request
       value <- jsonData
-      let _updatedValue = Core.handlePut $ Core.Put (Wai.pathInfo req) value
+      let putCommand = Core.Put (Wai.pathInfo req) value
+      liftIO $ Core.enqueuePut putCommand core
       status status201
 
 -- stub

@@ -6,7 +6,8 @@ module Core
   processPuts,
   processUpdates,
   newCore,
-  postQuit
+  postQuit,
+  enqueuePut
 )
 where
 
@@ -42,6 +43,9 @@ newCore = do
 -- Tell the put handler loop and the update handler loop to quit.
 postQuit :: Core -> IO ()
 postQuit core = atomically $ writeTBQueue (coreQueue core) Nothing
+
+enqueuePut :: Put -> Core -> IO ()
+enqueuePut put core = atomically $ writeTBQueue (coreQueue core) (Just put)
 
 -- Execute a "put" operation.
 handlePut :: Put -> Value -> Value
