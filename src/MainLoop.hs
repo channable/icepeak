@@ -3,7 +3,7 @@ module MainLoop
   Put (..),
   handlePut,
   mainLoop,
-  newState,
+  newCore,
 )
 where
 
@@ -24,18 +24,18 @@ data Put = Put [Text] Value
 -- entire new value. (So not only the inner value at the updated path.)
 data Updated = Updated [Text] Value
 
-data State = State
-  { stateValue :: TVar Value
-  , stateQueue :: TBQueue Put
-  , stateUpdates :: TBQueue Updated
+data Core = Core
+  { coreCurrentValue :: TVar Value
+  , coreQueue :: TBQueue Put
+  , coreUpdates :: TBQueue Updated
   }
 
-newState :: IO State
-newState = do
+newCore :: IO Core
+newCore = do
   tvalue <- newTVarIO Null
   tqueue <- newTBQueueIO 128
   tupdates <- newTBQueueIO 128
-  pure (State tvalue tqueue tupdates)
+  pure (Core tvalue tqueue tupdates)
 
 -- Execute a "put" operation.
 handlePut :: Put -> Value -> Value
@@ -50,12 +50,12 @@ handlePut (Put path newValue) value = case path of
     in
       Object newDict
 
-mainLoop :: State -> IO Void
-mainLoop state = go Null
+mainLoop :: Core -> IO Void
+mainLoop core = go Null
   where
     go val = do
-      Put path pvalue <- atomically $ readTBQueue (stateQueue state)
+      Put path pvalue <- atomically $ readTBQueue (coreQueue core)
       let newValue = handlePut (Put path pvalue) val
-      atomically $ writeTVar (stateValue state) newValue
-      atomically $ writeTBQueue (stateUpdates state) (Updated path newValue)
+      atomically $ writeTVar (coreCurrentValue core) newValue
+      atomically $ writeTBQueue (coreUpdates core) (Updated path newValue)
       go newValue

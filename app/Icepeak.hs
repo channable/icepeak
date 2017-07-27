@@ -6,5 +6,5 @@ import qualified MainLoop
 
 main :: IO ()
 main = do
-  initialState <- MainLoop.newState
-  absurd <$> MainLoop.mainLoop initialState
+  core <- MainLoop.newCore
+  absurd <$> MainLoop.mainLoop core
