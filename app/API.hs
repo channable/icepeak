@@ -6,9 +6,8 @@ import qualified Network.Wai        as Wai
 
 main :: IO ()
 main = scotty 3000 $ do
-    get (regex "^") $ do
-        req <- request
-        json $ statusFor $ Wai.pathInfo req
+    get (regex "^") $
+        request >>= json . statusFor . Wai.pathInfo
 
     post "/status/:key" $ do
         json ("{ status: ok }" :: Text)
