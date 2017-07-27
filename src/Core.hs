@@ -12,7 +12,6 @@ import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TVar (TVar, newTVarIO, writeTVar)
 import Control.Concurrent.STM.TBQueue (TBQueue, newTBQueueIO, readTBQueue, writeTBQueue)
 import Data.Aeson (Value (..))
-import Data.Void (Void)
 import Data.Text (Text)
 import Data.Maybe (fromMaybe)
 
@@ -27,8 +26,8 @@ data Updated = Updated [Text] Value deriving (Eq, Show)
 
 data Core = Core
   { coreCurrentValue :: TVar Value
-  , coreQueue :: TBQueue Put
-  , coreUpdates :: TBQueue Updated
+  , coreQueue :: TBQueue (Maybe Put)
+  , coreUpdates :: TBQueue (Maybe Updated)
   }
 
 newCore :: IO Core
@@ -53,20 +52,31 @@ handlePut (Put path newValue) value = case path of
 
 -- Drain the queue of put operations and apply them. Once applied, publish the
 -- new value as the current one, and also broadcast updates.
-processPuts :: Core -> IO Void
+processPuts :: Core -> IO Value
 processPuts core = go Null
   where
     go val = do
-      Put path pvalue <- atomically $ readTBQueue (coreQueue core)
-      let newValue = handlePut (Put path pvalue) val
-      atomically $ writeTVar (coreCurrentValue core) newValue
-      atomically $ writeTBQueue (coreUpdates core) (Updated path newValue)
-      go newValue
+      maybePut <- atomically $ readTBQueue (coreQueue core)
+      case maybePut of
+        Just (Put path pvalue) -> do
+          let newValue = handlePut (Put path pvalue) val
+          atomically $ writeTVar (coreCurrentValue core) newValue
+          atomically $ writeTBQueue (coreUpdates core) (Just $ Updated path newValue)
+          go newValue
+        Nothing -> do
+          -- Stop the loop when we receive a Nothing. Tell the update loop to
+          -- quit as well.
+          atomically $ writeTBQueue (coreUpdates core) Nothing
+          pure val
 
-processUpdates :: Core -> IO Void
+processUpdates :: Core -> IO ()
 processUpdates core = go
   where
     go = do
-      Updated path value <- atomically $ readTBQueue (coreUpdates core)
-      putStrLn $ "Update at " ++ (show path) ++ ", new value: " ++ (show value)
-      go
+      maybeUpdate <- atomically $ readTBQueue (coreUpdates core)
+      case maybeUpdate of
+        Just (Updated path value) -> do
+          putStrLn $ "Update at " ++ (show path) ++ ", new value: " ++ (show value)
+          go
+        -- Stop the loop when we receive a Nothing.
+        Nothing -> pure ()

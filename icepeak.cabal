@@ -69,9 +69,10 @@ executable icepeak
   ghc-options:      -Wall -Werror -O2 -threaded "-with-rtsopts=-N -I0"
   ghc-options:      -Wall -Werror
 
-  build-depends: base >= 4.8 && < 5.0
+  build-depends: async   >= 2.1  && < 2.2
+               , base    >= 4.8  && < 5.0
+               , scotty  >= 0.11 && < 0.12
                , icepeak
-               , scotty < 0.12
 
 test-suite spec
   default-language: Haskell2010

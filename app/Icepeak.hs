@@ -1,8 +1,7 @@
 module Main where
 
-import Control.Concurrent (forkIO)
+import Control.Concurrent.Async (async, wait)
 import Control.Monad (void)
-import Data.Void (absurd)
 
 import qualified Core
 
@@ -12,7 +11,8 @@ loop = loop
 main :: IO ()
 main = do
   core <- Core.newCore
-  void $ forkIO (absurd <$> Core.processPuts core)
-  void $ forkIO (absurd <$> Core.processUpdates core)
+  puts <- async $ Core.processPuts core
+  upds <- async $ Core.processUpdates core
   -- TODO: Start servers instead.
-  loop
+  void $ wait puts
+  wait upds
