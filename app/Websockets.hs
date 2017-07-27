@@ -5,8 +5,6 @@ import Control.Concurrent (newMVar)
 
 import qualified Network.WebSockets as WS
 
--- main :: IO ()
--- main = putStrLn "I'm a websocket"
 
 main :: IO ()
 main = do

@@ -54,7 +54,8 @@ application state pending = do
 
 -- Check that the first message has the right format:
 
-        _   | not (prefix `T.isPrefixOf` msg) ->
+        _   | not (prefix `T.isPrefixOf` msg) -> do
+                putStrLn (show $ "Invalid message: " `mappend` msg)
                 WS.sendTextData conn ("Wrong announcement" :: Text)
 
 -- All is right! We're going to allow the client, but for safety reasons we *first*
@@ -78,6 +79,7 @@ application state pending = do
             prefix     = "Hi! I am "
             client     = (T.drop (T.length prefix) msg, conn)
             disconnect = do
+                putStrLn $ "Disconnected client"
                 -- Remove client and return new state
                 s <- modifyMVar state $ \s ->
                     let s' = removeClient client s in return (s', s')
