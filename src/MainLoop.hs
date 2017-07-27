@@ -9,7 +9,7 @@ where
 
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TVar (TVar, newTVarIO, writeTVar)
-import Control.Concurrent.STM.TBQueue (TBQueue, newTBQueueIO, readTBQueue)
+import Control.Concurrent.STM.TBQueue (TBQueue, newTBQueueIO, readTBQueue, writeTBQueue)
 import Data.Aeson (Value (..))
 import Data.Void (Void)
 import Data.Text (Text)
@@ -20,16 +20,22 @@ import qualified Data.HashMap.Strict as HashMap
 -- Put is a command to put a value at a given path.
 data Put = Put [Text] Value
 
+-- The main value has been updated at the given path. The payload contains the
+-- entire new value. (So not only the inner value at the updated path.)
+data Updated = Updated [Text] Value
+
 data State = State
-  { stValue :: TVar Value
-  , stQueue :: TBQueue Put
+  { stateValue :: TVar Value
+  , stateQueue :: TBQueue Put
+  , stateUpdates :: TBQueue Updated
   }
 
 newState :: IO State
 newState = do
   tvalue <- newTVarIO Null
   tqueue <- newTBQueueIO 128
-  pure (State tvalue tqueue)
+  tupdates <- newTBQueueIO 128
+  pure (State tvalue tqueue tupdates)
 
 -- Execute a "put" operation.
 handlePut :: Put -> Value -> Value
@@ -48,8 +54,8 @@ mainLoop :: State -> IO Void
 mainLoop state = go Null
   where
     go val = do
-      put <- atomically $ readTBQueue (stQueue state)
-      let newValue = handlePut put val
-      -- TODO: Send out notifications here.
-      atomically $ writeTVar (stValue state) newValue
+      Put path pvalue <- atomically $ readTBQueue (stateQueue state)
+      let newValue = handlePut (Put path pvalue) val
+      atomically $ writeTVar (stateValue state) newValue
+      atomically $ writeTBQueue (stateUpdates state) (Updated path newValue)
       go newValue
