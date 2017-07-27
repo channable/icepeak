@@ -52,6 +52,7 @@ executable icepeak
 
   build-depends: base >= 4.8 && < 5.0
                , icepeak
+               , scotty < 0.12
 
 test-suite spec
   default-language: Haskell2010
