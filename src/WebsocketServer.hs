@@ -37,8 +37,8 @@ broadcast message clients = do
     forM_ clients $ \(_, conn) -> WS.sendTextData conn message
 
 -- called for each new client that connects
-onConnect :: MVar ServerState -> WS.PendingConnection -> IO ()
-onConnect state pending = do
+onConnect :: Eq identity => identity -> MVar ServerState -> WS.PendingConnection -> IO ()
+onConnect _identity state pending = do
     printRequest pending
     -- accept the connection
     -- TODO: Validate the path and headers of the pending request
@@ -46,13 +46,11 @@ onConnect state pending = do
     -- fork a pinging thread, because browsers...
     WS.forkPingThread conn 30
 
-    -- broadcast ("Number of clients: " `mappend` (T.pack $ show $ length s)) s
-
     flip finally (onDisconnect ("bla", conn) state) $ do
-        acceptMessages conn state
+        handleFirstMessage conn state
 
-acceptMessages :: WS.Connection -> MVar ServerState -> IO ()
-acceptMessages conn state = do
+handleFirstMessage :: WS.Connection -> MVar ServerState -> IO ()
+handleFirstMessage conn state = do
     -- TODO: Come up with a wire protocol and validate it
     msg <- WS.receiveData conn
     let parsedMessage = parseMessage msg
