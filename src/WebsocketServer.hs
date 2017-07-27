@@ -1,12 +1,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 module WebsocketServer where
 
-import qualified Network.WebSockets as WS
-import Data.Monoid (mappend)
+import Data.Monoid (mappend, (<>))
 import Data.Text (Text)
 import Control.Exception (finally)
 import Control.Monad (forM_, forever)
 import Control.Concurrent (MVar, modifyMVar_, modifyMVar, readMVar)
+
+import qualified Network.WebSockets as WS
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 
@@ -28,9 +29,10 @@ broadcast message clients = do
     T.putStrLn message
     forM_ clients $ \(_, conn) -> WS.sendTextData conn message
 
--- type WS.ServerApp = WS.PendingConnection -> IO ()
-application :: MVar ServerState -> WS.PendingConnection -> IO ()
-application state pending = do
+-- called for each new client that connects
+onConnect :: MVar ServerState -> WS.PendingConnection -> IO ()
+onConnect state pending = do
+    printRequest pending
     -- accept the connection
     -- TODO: Validate the path and headers of the pending request
     conn <- WS.acceptRequest pending
@@ -41,7 +43,7 @@ application state pending = do
     -- TODO: Come up with a wire protocol and validate it
     case msg of
         _   | not (prefix `T.isPrefixOf` msg) -> do
-                putStrLn (show $ "Invalid message: " `mappend` msg)
+                T.putStrLn ("Invalid message: " <> msg)
                 WS.sendTextData conn ("Wrong announcement" :: Text)
             | otherwise -> flip finally (onDisconnect ("bla", conn) state) $ do
                modifyMVar_ state $ \s -> do
@@ -64,6 +66,15 @@ onDisconnect client state = do
     s <- modifyMVar state $ \s ->
         let s' = removeClient client s in return (s', s')
     broadcast (fst client `mappend` " disconnected") s
+
+-- Print the path and headers of the pending request
+printRequest :: WS.PendingConnection -> IO ()
+printRequest pending = do
+     -- print (WS.pendingRequest pending)
+     putStrLn $ show ("\nPath: " <> (WS.requestPath $ WS.pendingRequest pending))
+     let headers = WS.requestHeaders $ WS.pendingRequest pending
+     T.putStrLn "Headers:"
+     forM_  headers print
 
 -- The talk function continues to read messages from a single client until he
 -- disconnects. All messages are broadcasted to the other clients.
