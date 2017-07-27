@@ -37,8 +37,8 @@ broadcast message clients = do
     forM_ clients $ \(_, conn) -> WS.sendTextData conn message
 
 -- called for each new client that connects
-onConnect :: Eq identity => identity -> MVar ServerState -> WS.PendingConnection -> IO ()
-onConnect _identity state pending = do
+onConnect :: MVar ServerState -> WS.PendingConnection -> IO ()
+onConnect state pending = do
     printRequest pending
     -- accept the connection
     -- TODO: Validate the path and headers of the pending request
