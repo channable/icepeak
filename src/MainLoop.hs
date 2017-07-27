@@ -1,4 +1,11 @@
-module MainLoop (mainLoop) where
+module MainLoop
+(
+  Put (..),
+  handlePut,
+  mainLoop,
+  newState,
+)
+where
 
 import Control.Concurrent.STM.TVar (TVar, newTVarIO)
 import Control.Concurrent.STM.TBQueue (TBQueue, newTBQueueIO)

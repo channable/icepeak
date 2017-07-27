@@ -1,6 +1,10 @@
 module Main where
 
+import Data.Void (absurd)
+
 import qualified MainLoop
 
 main :: IO ()
-main = MainLoop.mainLoop
+main = do
+  initialState <- MainLoop.newState
+  absurd <$> MainLoop.mainLoop initialState
