@@ -1,1 +1,5 @@
 resolver: lts-9.0
+
+extra-deps:
+  # We want the latest and greatest websockets
+  - websockets-0.12.1.0
