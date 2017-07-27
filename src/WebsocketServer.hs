@@ -6,9 +6,9 @@ import Data.Aeson (Value)
 import Data.Monoid ((<>))
 import Data.Text (Text)
 import Data.UUID
--- import Control.Exception (finally)
-import Control.Monad (forM_)
-import Control.Concurrent (MVar, modifyMVar_)
+import Control.Exception (finally)
+import Control.Monad (forM_, forever)
+import Control.Concurrent (MVar, modifyMVar_, yield)
 import System.Random (randomIO)
 
 import qualified Data.Aeson as Aeson
@@ -69,13 +69,14 @@ handleFirstMessage conn state = do
         -- add the connection to the server state
         uuid <- newUUID
         let client = (uuid, path, conn)
-        --flip finally (onDisconnect client state) $ do
-        putStrLn "Adding client"
-        modifyMVar_ state (pure . addClient client)
-        let
-          loop :: IO ()
-          loop = loop
-        loop
+        flip finally (onDisconnect client state) $ do
+          putStrLn "Adding client"
+          modifyMVar_ state (pure . addClient client)
+          -- We don't send any messages here; sending is done by the update
+          -- loop; it finds the client in the set of subscriptions. But we do
+          -- need to keep the thread running, otherwise the connection will be
+          -- closed. So we go into an infinite loop here.
+          forever yield
 
 parseMessage :: Text -> Maybe Path
 parseMessage msg = case msg of
