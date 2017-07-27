@@ -3,8 +3,9 @@
 import Web.Scotty
 import  Data.Text (Text)
 import qualified Network.Wai        as Wai
-import Data.Aeson (Value(..))
+-- import Data.Aeson (Value(..))
 import Network.HTTP.Types
+import qualified MainLoop as ML
 
 main :: IO ()
 main = scotty 3000 $ do
@@ -13,16 +14,13 @@ main = scotty 3000 $ do
 
     put (regex "^") $ do
       req <- request
-      payload <- jsonData
-      status $ mkStatus (setStatus (Wai.pathInfo req) payload) "Created"
+      value <- jsonData
+      let _updatedValue = ML.handlePut $ ML.Put (Wai.pathInfo req) value
+      status status201
 
-
+-- stub
 statusFor :: [Text] -> Text
 statusFor ["a"] = "{downloading}"
 statusFor ["a", "b"] = "{failed}"
 statusFor ["a", "b", "c"] = "{succeeded}"
 statusFor _ = "{dikke Kip}"
-
-setStatus :: [Text] -> Value -> Int
-setStatus ["a", "b"] _ = 201
-setStatus _ _ = 404
