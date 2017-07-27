@@ -1,10 +1,12 @@
 module Core
 (
+  Core,
   Put (..),
   handlePut,
   processPuts,
   processUpdates,
   newCore,
+  postQuit
 )
 where
 
@@ -36,6 +38,10 @@ newCore = do
   tqueue <- newTBQueueIO 128
   tupdates <- newTBQueueIO 128
   pure (Core tvalue tqueue tupdates)
+
+-- Tell the put handler loop and the update handler loop to quit.
+postQuit :: Core -> IO ()
+postQuit core = atomically $ writeTBQueue (coreQueue core) Nothing
 
 -- Execute a "put" operation.
 handlePut :: Put -> Value -> Value

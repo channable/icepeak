@@ -72,6 +72,7 @@ executable icepeak
   build-depends: async   >= 2.1  && < 2.2
                , base    >= 4.8  && < 5.0
                , scotty  >= 0.11 && < 0.12
+               , unix    >= 2.7  && < 2.8
                , icepeak
 
 test-suite spec
