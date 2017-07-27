@@ -52,6 +52,7 @@ executable icepeak-api
 
   build-depends: base >= 4.8 && < 5.0
               , icepeak
+              , wai       < 3.3
               , scotty    < 0.12
               , text      < 1.3
 

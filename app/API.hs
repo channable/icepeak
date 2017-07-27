@@ -1,19 +1,20 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 import Web.Scotty
-import qualified Data.Text.Lazy as LT
+import  Data.Text (Text)
+import qualified Network.Wai        as Wai
 
 main :: IO ()
 main = scotty 3000 $ do
-    get "/status/:key" $ do
-        key <- param "key"
-        json $ statusFor key
+    get (regex "^") $ do
+        req <- request
+        json $ statusFor $ Wai.pathInfo req
 
     post "/status/:key" $ do
-        json ("{ status: ok }" :: LT.Text)
+        json ("{ status: ok }" :: Text)
 
-statusFor :: LT.Text -> LT.Text
-statusFor "a" = "{downloading}"
-statusFor "b" = "{failed}"
-statusFor "c" = "{succeeded}"
-statusFor _ = "{dikkip}"
+statusFor :: [Text] -> Text
+statusFor ["a"] = "{downloading}"
+statusFor ["a", "b"] = "{failed}"
+statusFor ["a", "b", "c"] = "{succeeded}"
+statusFor _ = "{dikke Kip}"
