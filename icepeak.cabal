@@ -27,7 +27,7 @@ library
                , wai                  >= 3.2  && < 3.3
                , wai-websockets       >= 3.0  && < 3.1
                , warp                 >= 3.2  && < 3.3
-               , websockets           >= 0.12.0.0 && < 0.13.0.0
+               , websockets           >= 0.12 && < 0.13
 
 executable icepeak-websockets
   default-language: Haskell2010
