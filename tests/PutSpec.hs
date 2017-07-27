@@ -7,11 +7,11 @@ import Test.Hspec (Spec, describe, it, shouldBe)
 
 import qualified Data.HashMap.Strict as HashMap
 
-import MainLoop (Put (..), handlePut)
+import Core (Put (..), handlePut)
 
 spec :: Spec
 spec = do
-  describe "MainLoop.handlePut" $ do
+  describe "Core.handlePut" $ do
 
     it "creates an object when putting 'x' into Null" $
       let

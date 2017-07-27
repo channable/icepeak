@@ -1,8 +1,9 @@
-module MainLoop
+module Core
 (
   Put (..),
   handlePut,
-  mainLoop,
+  processPuts,
+  processUpdates,
   newCore,
 )
 where
@@ -18,11 +19,11 @@ import Data.Maybe (fromMaybe)
 import qualified Data.HashMap.Strict as HashMap
 
 -- Put is a command to put a value at a given path.
-data Put = Put [Text] Value
+data Put = Put [Text] Value deriving (Eq, Show)
 
 -- The main value has been updated at the given path. The payload contains the
 -- entire new value. (So not only the inner value at the updated path.)
-data Updated = Updated [Text] Value
+data Updated = Updated [Text] Value deriving (Eq, Show)
 
 data Core = Core
   { coreCurrentValue :: TVar Value
@@ -50,8 +51,10 @@ handlePut (Put path newValue) value = case path of
     in
       Object newDict
 
-mainLoop :: Core -> IO Void
-mainLoop core = go Null
+-- Drain the queue of put operations and apply them. Once applied, publish the
+-- new value as the current one, and also broadcast updates.
+processPuts :: Core -> IO Void
+processPuts core = go Null
   where
     go val = do
       Put path pvalue <- atomically $ readTBQueue (coreQueue core)
@@ -59,3 +62,11 @@ mainLoop core = go Null
       atomically $ writeTVar (coreCurrentValue core) newValue
       atomically $ writeTBQueue (coreUpdates core) (Updated path newValue)
       go newValue
+
+processUpdates :: Core -> IO Void
+processUpdates core = go
+  where
+    go = do
+      Updated path value <- atomically $ readTBQueue (coreUpdates core)
+      putStrLn $ "Update at " ++ (show path) ++ ", new value: " ++ (show value)
+      go

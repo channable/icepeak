@@ -1,10 +1,13 @@
 module Main where
 
+import Control.Monad (void)
 import Data.Void (absurd)
+import Control.Concurrent (forkIO)
 
-import qualified MainLoop
+import qualified Core
 
 main :: IO ()
 main = do
-  core <- MainLoop.newCore
-  absurd <$> MainLoop.mainLoop core
+  core <- Core.newCore
+  void $ forkIO (absurd <$> Core.processPuts core)
+  void $ forkIO (absurd <$> Core.processUpdates core)
