@@ -10,6 +10,7 @@ import qualified Control.Concurrent.Async as Async
 import Core (Core)
 
 import qualified Core
+import qualified HttpServer
 import qualified Server
 import qualified WebsocketServer
 
@@ -33,9 +34,10 @@ main = do
   core <- Core.newCore
   -- TODO: Can this be abstracted?
   state <- newMVar WebsocketServer.newServerState
+  httpServer <- HttpServer.new core
   puts <- Async.async $ Core.processPuts core
   upds <- Async.async $ Core.processUpdates core
-  serv <- Async.async $ Server.runServer (WebsocketServer.onConnect state) undefined
+  serv <- Async.async $ Server.runServer (WebsocketServer.onConnect state) httpServer
   installHandlers core serv
   putStrLn "System online. ** robot sounds **"
   void $ Async.wait puts

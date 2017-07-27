@@ -5,7 +5,6 @@ import Control.Concurrent (newMVar)
 
 import qualified Network.WebSockets as WS
 
-
 main :: IO ()
 main = do
     state <- newMVar newServerState

@@ -1,19 +1,22 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module HttpServer (main) where
+module HttpServer (new) where
 
-import Web.Scotty
-import  Data.Text (Text)
-import qualified Network.Wai        as Wai
-import Network.HTTP.Types
-import qualified Core
+import Data.Text (Text)
 import Control.Monad.IO.Class
+import Network.HTTP.Types
+import Network.Wai (Application)
+import Web.Scotty (scottyApp, get, put, status, jsonData, regex, request, json)
 
-main :: IO ()
-main = do
-  core <- Core.newCore
+import qualified Network.Wai as Wai
 
-  scotty 3000 $ do
+import Core (Core)
+
+import qualified Core
+
+new :: Core -> IO Application
+new core =
+  scottyApp $ do
     get (regex "^") $
         request >>= json . statusFor . Wai.pathInfo
 
