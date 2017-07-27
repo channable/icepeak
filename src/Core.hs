@@ -1,6 +1,6 @@
 module Core
 (
-  Core,
+  Core (coreClients), -- TODO: Expose only put for clients.
   Put (..),
   handlePut,
   processPuts,
@@ -15,12 +15,17 @@ where
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TVar (TVar, newTVarIO, writeTVar, readTVar)
 import Control.Concurrent.STM.TBQueue (TBQueue, newTBQueueIO, readTBQueue, writeTBQueue)
+import Control.Concurrent.MVar (MVar, newMVar, readMVar)
 import Data.Aeson (Value (..))
 import Data.Text (Text)
 import Data.Maybe (fromMaybe)
 import Prelude hiding (lookup)
 
 import qualified Data.HashMap.Strict as HashMap
+
+import WebsocketServer (ServerState)
+
+import qualified WebsocketServer
 
 -- Put is a command to put a value at a given path.
 data Put = Put [Text] Value deriving (Eq, Show)
@@ -33,6 +38,7 @@ data Core = Core
   { coreCurrentValue :: TVar Value
   , coreQueue :: TBQueue (Maybe Put)
   , coreUpdates :: TBQueue (Maybe Updated)
+  , coreClients :: MVar ServerState
   }
 
 newCore :: IO Core
@@ -40,7 +46,8 @@ newCore = do
   tvalue <- newTVarIO Null
   tqueue <- newTBQueueIO 128
   tupdates <- newTBQueueIO 128
-  pure (Core tvalue tqueue tupdates)
+  tclients <- newMVar WebsocketServer.newServerState
+  pure (Core tvalue tqueue tupdates tclients)
 
 -- Tell the put handler loop and the update handler loop to quit.
 postQuit :: Core -> IO ()
@@ -99,6 +106,8 @@ processUpdates core = go
       maybeUpdate <- atomically $ readTBQueue (coreUpdates core)
       case maybeUpdate of
         Just (Updated path value) -> do
+          clients <- readMVar (coreClients core)
+          WebsocketServer.broadcast value clients
           putStrLn $ "Update at " ++ (show path) ++ ", new value: " ++ (show value)
           go
         -- Stop the loop when we receive a Nothing.

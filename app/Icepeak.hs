@@ -2,7 +2,6 @@ module Main where
 
 import Control.Monad (void)
 import Control.Concurrent.Async
-import Control.Concurrent.MVar (newMVar)
 
 import qualified System.Posix.Signals as Signals
 import qualified Control.Concurrent.Async as Async
@@ -33,11 +32,11 @@ main :: IO ()
 main = do
   core <- Core.newCore
   -- TODO: Can this be abstracted?
-  state <- newMVar WebsocketServer.newServerState
   httpServer <- HttpServer.new core
+  let wsServer = WebsocketServer.onConnect $ Core.coreClients core
   puts <- Async.async $ Core.processPuts core
   upds <- Async.async $ Core.processUpdates core
-  serv <- Async.async $ Server.runServer (WebsocketServer.onConnect state) httpServer
+  serv <- Async.async $ Server.runServer wsServer httpServer
   installHandlers core serv
   putStrLn "System online. ** robot sounds **"
   void $ Async.wait puts

@@ -2,15 +2,16 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module WebsocketServer where
 
+import Data.Aeson (Value)
 import Data.Monoid ((<>))
 import Data.Text (Text)
-import Data.ByteString.Lazy (ByteString)
 import Data.UUID
-import Control.Exception (finally)
-import Control.Monad (forM_, forever)
-import Control.Concurrent (MVar, modifyMVar_, readMVar)
+-- import Control.Exception (finally)
+import Control.Monad (forM_)
+import Control.Concurrent (MVar, modifyMVar_)
 import System.Random (randomIO)
 
+import qualified Data.Aeson as Aeson
 import qualified Network.WebSockets as WS
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
@@ -35,9 +36,11 @@ addClient client clients = client : clients
 removeClient :: Client -> ServerState -> ServerState
 removeClient (uuid, _, _) cs = filter (\(x, _, _) -> uuid /= x) cs
 
-broadcast :: ByteString -> ServerState -> IO ()
-broadcast message clients = do
-  forM_ clients $ \(_, _, conn) -> WS.sendBinaryData conn message
+broadcast :: Value -> ServerState -> IO ()
+broadcast value clients = do
+  forM_ clients $ \(uuid, _, conn) -> do
+    putStrLn $ "Sending binary data to " ++ (show uuid)
+    WS.sendBinaryData conn (Aeson.encode value)
 
 -- called for each new client that connects
 onConnect :: MVar ServerState -> WS.PendingConnection -> IO ()
@@ -66,15 +69,13 @@ handleFirstMessage conn state = do
         -- add the connection to the server state
         uuid <- newUUID
         let client = (uuid, path, conn)
-        flip finally (onDisconnect client state) $ do
-          modifyMVar_ state (pure . addClient client)
-          pushUpdates state client
-
-pushUpdates :: MVar ServerState -> Client -> IO ()
-pushUpdates state (_uuid, _path, conn) = forever $ do
-    -- TODO: Get the actual updates from Core
-    _updates <- readMVar state
-    WS.sendTextData conn ("Something changed..." :: Text)
+        --flip finally (onDisconnect client state) $ do
+        putStrLn "Adding client"
+        modifyMVar_ state (pure . addClient client)
+        let
+          loop :: IO ()
+          loop = loop
+        loop
 
 parseMessage :: Text -> Maybe Path
 parseMessage msg = case msg of
