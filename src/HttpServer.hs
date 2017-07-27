@@ -17,8 +17,10 @@ import qualified Core
 new :: Core -> IO Application
 new core =
   scottyApp $ do
-    get (regex "^") $
-        request >>= json . statusFor . Wai.pathInfo
+    get (regex "^") $ do
+      _path <- Wai.pathInfo <$> request
+      value <- liftIO $ Core.getCurrentValue core
+      json value
 
     put (regex "^") $ do
       req <- request

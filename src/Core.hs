@@ -7,12 +7,13 @@ module Core
   processUpdates,
   newCore,
   postQuit,
-  enqueuePut
+  enqueuePut,
+  getCurrentValue
 )
 where
 
 import Control.Concurrent.STM (atomically)
-import Control.Concurrent.STM.TVar (TVar, newTVarIO, writeTVar)
+import Control.Concurrent.STM.TVar (TVar, newTVarIO, writeTVar, readTVar)
 import Control.Concurrent.STM.TBQueue (TBQueue, newTBQueueIO, readTBQueue, writeTBQueue)
 import Data.Aeson (Value (..))
 import Data.Text (Text)
@@ -46,6 +47,9 @@ postQuit core = atomically $ writeTBQueue (coreQueue core) Nothing
 
 enqueuePut :: Put -> Core -> IO ()
 enqueuePut put core = atomically $ writeTBQueue (coreQueue core) (Just put)
+
+getCurrentValue :: Core -> IO Value
+getCurrentValue core = atomically $ readTVar (coreCurrentValue core)
 
 -- Execute a "put" operation.
 handlePut :: Put -> Value -> Value
