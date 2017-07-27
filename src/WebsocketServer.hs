@@ -67,12 +67,13 @@ acceptMessages conn state = do
         let client = (path, conn)
         _ <- modifyMVar state $ \s ->
           let s' = addClient client s in return (s', s')
-        pushUpdates conn state client
+        pushUpdates state client
 
-pushUpdates :: WS.Connection -> MVar ServerState -> Client -> IO ()
-pushUpdates _conn state _client = forever $ do
-  _updates <- readMVar state
-  putStrLn "bla"
+pushUpdates :: MVar ServerState -> Client -> IO ()
+pushUpdates state (_path, conn) = forever $ do
+    -- TODO: Get the actual updates from Core
+    _updates <- readMVar state
+    WS.sendTextData conn ("Something changed..." :: Text)
 
 parseMessage :: Text -> Maybe Path
 parseMessage msg = case msg of
