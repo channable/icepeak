@@ -43,24 +43,27 @@ application state pending = do
         _   | not (prefix `T.isPrefixOf` msg) -> do
                 putStrLn (show $ "Invalid message: " `mappend` msg)
                 WS.sendTextData conn ("Wrong announcement" :: Text)
-            | otherwise -> flip finally disconnect $ do
+            | otherwise -> flip finally (onDisconnect ("bla", conn) state) $ do
                modifyMVar_ state $ \s -> do
-                   let s' = addClient client s
+                   let clients' = addClient client s
                    WS.sendTextData conn $
                        "Welcome! Users: " `mappend`
                        T.intercalate ", " (map fst s)
-                   broadcast (fst client `mappend` " joined") s'
-                   return s'
+                   broadcast (fst client `mappend` " joined") clients'
+                   putStrLn $ "Number of clients: " ++ show (length clients')
+                   return clients'
                talk conn state client
           where
             prefix     = "Hi! I am "
             client     = (T.drop (T.length prefix) msg, conn)
-            disconnect = do
-                putStrLn $ "Disconnected client"
-                -- Remove client and return new state
-                s <- modifyMVar state $ \s ->
-                    let s' = removeClient client s in return (s', s')
-                broadcast (fst client `mappend` " disconnected") s
+
+onDisconnect :: (Text, WS.Connection) -> MVar ServerState -> IO ()
+onDisconnect client state = do
+    putStrLn $ "Disconnected client"
+    -- Remove client and return new state
+    s <- modifyMVar state $ \s ->
+        let s' = removeClient client s in return (s', s')
+    broadcast (fst client `mappend` " disconnected") s
 
 -- The talk function continues to read messages from a single client until he
 -- disconnects. All messages are broadcasted to the other clients.
