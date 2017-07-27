@@ -1,6 +1,6 @@
 module Main where
 
-import WebsocketServer
+import WebsocketServer (newServerState, onConnect)
 import Control.Concurrent (newMVar)
 
 import qualified Network.WebSockets as WS

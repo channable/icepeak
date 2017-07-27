@@ -1,11 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module WebsocketServer where
 
 import Data.Monoid (mappend, (<>))
 import Data.Text (Text)
 import Control.Exception (finally)
 import Control.Monad (forM_, forever)
-import Control.Concurrent (MVar, modifyMVar_, modifyMVar, readMVar)
+import Control.Concurrent (MVar, modifyMVar)
 
 import qualified Network.WebSockets as WS
 import qualified Data.Text as T
@@ -36,28 +37,24 @@ onConnect state pending = do
     -- accept the connection
     -- TODO: Validate the path and headers of the pending request
     conn <- WS.acceptRequest pending
+    let client = ("bla2", conn)
     -- fork a pinging thread, because browsers...
     WS.forkPingThread conn 30
-    msg <- WS.receiveData conn
-    -- clients <- readMVar state
+
+    -- add the connection to the server state
+    s <- modifyMVar state $ \s ->
+        let s' = addClient client s in return (s', s')
+
+    broadcast ("Number of clients: " `mappend` (T.pack $ show $ length s)) s
+
+    flip finally (onDisconnect ("bla", conn) state) $ do
+        acceptMessages conn
+
+acceptMessages :: WS.Connection -> IO ()
+acceptMessages conn = forever $ do
     -- TODO: Come up with a wire protocol and validate it
-    case msg of
-        _   | not (prefix `T.isPrefixOf` msg) -> do
-                T.putStrLn ("Invalid message: " <> msg)
-                WS.sendTextData conn ("Wrong announcement" :: Text)
-            | otherwise -> flip finally (onDisconnect ("bla", conn) state) $ do
-               modifyMVar_ state $ \s -> do
-                   let clients' = addClient client s
-                   WS.sendTextData conn $
-                       "Welcome! Users: " `mappend`
-                       T.intercalate ", " (map fst s)
-                   broadcast (fst client `mappend` " joined") clients'
-                   putStrLn $ "Number of clients: " ++ show (length clients')
-                   return clients'
-               talk conn state client
-          where
-            prefix     = "Hi! I am "
-            client     = (T.drop (T.length prefix) msg, conn)
+    msg <- WS.receiveData conn
+    T.putStrLn $ "Received message: " <> msg
 
 onDisconnect :: (Text, WS.Connection) -> MVar ServerState -> IO ()
 onDisconnect client state = do
@@ -74,13 +71,4 @@ printRequest pending = do
      putStrLn $ show ("\nPath: " <> (WS.requestPath $ WS.pendingRequest pending))
      let headers = WS.requestHeaders $ WS.pendingRequest pending
      T.putStrLn "Headers:"
-     forM_  headers print
-
--- The talk function continues to read messages from a single client until he
--- disconnects. All messages are broadcasted to the other clients.
-
-talk :: WS.Connection -> MVar ServerState -> Client -> IO ()
-talk conn state (user, _) = forever $ do
-    msg <- WS.receiveData conn
-    readMVar state >>= broadcast
-        (user `mappend` ": " `mappend` msg)
+     forM_ headers print
