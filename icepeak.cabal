@@ -76,7 +76,7 @@ test-suite spec
   main-is:          Spec.hs
   ghc-options:      -Wall -Werror -Wno-orphans
 
-  extra-modules: ApiSpec
+  other-modules: ApiSpec
                , SocketSpec
 
   build-depends: aeson                >= 1.1  && < 1.2
