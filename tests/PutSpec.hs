@@ -17,6 +17,46 @@ spec = do
       let
         put = Put ["x"] (String "Robert")
         before = Null
-        after = Object (HashMap.singleton "x" (String "Robert"))
+        after = Object $ HashMap.singleton "x" (String "Robert")
+      in
+        handlePut put before `shouldBe` after
+
+    it "overwrites a key when putting 'x' into {'x': ...}" $
+      let
+        put = Put ["x"] (String "Robert")
+        before = Object $ HashMap.singleton "x" (String "Arian")
+        after = Object $ HashMap.singleton "x" (String "Robert")
+      in
+        handlePut put before `shouldBe` after
+
+    it "adds a key when putting 'x' into {'y': ...}" $
+      let
+        put = Put ["x"] (String "Robert")
+        before = Object $ HashMap.singleton "y" (String "Arian")
+        after = Object $ HashMap.fromList [("x", String "Robert"), ("y", String "Arian")]
+      in
+        handlePut put before `shouldBe` after
+
+    it "creates a nested object when putting 'x/y' into Null" $
+      let
+        put = Put ["x", "y"] (String "Stefan")
+        before = Null
+        after = Object $ HashMap.singleton "x" $ Object $ HashMap.singleton "y" "Stefan"
+      in
+        handlePut put before `shouldBe` after
+
+    it "updates a nested object when putting 'x/y' into {'x': {'y': ...}}" $
+      let
+        put = Put ["x", "y"] (String "Stefan")
+        before = Object $ HashMap.singleton "x" $ Object $ HashMap.singleton "y" "Radek"
+        after = Object $ HashMap.singleton "x" $ Object $ HashMap.singleton "y" "Stefan"
+      in
+        handlePut put before `shouldBe` after
+
+    it "adds a nested key when putting 'x/y' into {'x': {'y': ...}, 'z': ...}" $
+      let
+        put = Put ["x", "y"] (String "Stefan")
+        before = Object $ HashMap.fromList [("x", Object $ HashMap.singleton "y" "Nuno"), ("z", Null)]
+        after = Object $ HashMap.fromList [("x", Object $ HashMap.singleton "y" "Stefan"), ("z", Null)]
       in
         handlePut put before `shouldBe` after
