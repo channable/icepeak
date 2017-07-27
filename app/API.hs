@@ -5,7 +5,7 @@ import  Data.Text (Text)
 import qualified Network.Wai        as Wai
 -- import Data.Aeson (Value(..))
 import Network.HTTP.Types
-import qualified MainLoop as ML
+import qualified Core
 
 main :: IO ()
 main = scotty 3000 $ do
@@ -15,7 +15,7 @@ main = scotty 3000 $ do
     put (regex "^") $ do
       req <- request
       value <- jsonData
-      let _updatedValue = ML.handlePut $ ML.Put (Wai.pathInfo req) value
+      let _updatedValue = Core.handlePut $ Core.Put (Wai.pathInfo req) value
       status status201
 
 -- stub
