@@ -18,6 +18,7 @@ import Control.Concurrent.STM.TBQueue (TBQueue, newTBQueueIO, readTBQueue, write
 import Data.Aeson (Value (..))
 import Data.Text (Text)
 import Data.Maybe (fromMaybe)
+import Prelude hiding (lookup)
 
 import qualified Data.HashMap.Strict as HashMap
 
@@ -48,8 +49,16 @@ postQuit core = atomically $ writeTBQueue (coreQueue core) Nothing
 enqueuePut :: Put -> Core -> IO ()
 enqueuePut put core = atomically $ writeTBQueue (coreQueue core) (Just put)
 
-getCurrentValue :: Core -> IO Value
-getCurrentValue core = atomically $ readTVar (coreCurrentValue core)
+getCurrentValue :: Core -> [Text] -> IO (Maybe Value)
+getCurrentValue core path =
+  fmap (lookup path) $ atomically $ readTVar $ coreCurrentValue core
+
+lookup :: [Text] -> Value -> Maybe Value
+lookup path value = case path of
+  [] -> Just value
+  key : pathTail -> case value of
+    Object dict -> HashMap.lookup key dict >>= lookup pathTail
+    _notObject -> Nothing
 
 -- Execute a "put" operation.
 handlePut :: Put -> Value -> Value

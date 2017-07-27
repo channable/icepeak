@@ -18,9 +18,11 @@ new :: Core -> IO Application
 new core =
   scottyApp $ do
     get (regex "^") $ do
-      _path <- Wai.pathInfo <$> request
-      value <- liftIO $ Core.getCurrentValue core
-      json value
+      path <- Wai.pathInfo <$> request
+      maybeValue <- liftIO $ Core.getCurrentValue core path
+      case maybeValue of
+        Just value -> json value
+        Nothing -> status status404
 
     put (regex "^") $ do
       req <- request
