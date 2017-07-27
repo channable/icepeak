@@ -2,12 +2,13 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module WebsocketServer where
 
-import Data.Monoid (mappend, (<>))
+import Data.Monoid ((<>))
 import Data.Text (Text)
+import Data.ByteString.Lazy (ByteString)
 import Data.UUID
 import Control.Exception (finally)
 import Control.Monad (forM_, forever)
-import Control.Concurrent (MVar, modifyMVar, readMVar)
+import Control.Concurrent (MVar, modifyMVar_, readMVar)
 import System.Random (randomIO)
 
 import qualified Network.WebSockets as WS
@@ -34,10 +35,9 @@ addClient client clients = client : clients
 removeClient :: Client -> ServerState -> ServerState
 removeClient (uuid, _, _) cs = filter (\(x, _, _) -> uuid /= x) cs
 
-broadcast :: Text -> ServerState -> IO ()
+broadcast :: ByteString -> ServerState -> IO ()
 broadcast message clients = do
-    T.putStrLn message
-    forM_ clients $ \(_, _, conn) -> WS.sendTextData conn message
+  forM_ clients $ \(_, _, conn) -> WS.sendBinaryData conn message
 
 -- called for each new client that connects
 onConnect :: MVar ServerState -> WS.PendingConnection -> IO ()
@@ -67,9 +67,7 @@ handleFirstMessage conn state = do
         uuid <- newUUID
         let client = (uuid, path, conn)
         flip finally (onDisconnect client state) $ do
-
-          _ <- modifyMVar state $ \s ->
-            let s' = addClient client s in return (s', s')
+          modifyMVar_ state (pure . addClient client)
           pushUpdates state client
 
 pushUpdates :: MVar ServerState -> Client -> IO ()
@@ -86,12 +84,10 @@ parseMessage msg = case msg of
       prefix = "Path: "
 
 onDisconnect :: Client -> MVar ServerState -> IO ()
-onDisconnect client@(uuid, _, _) state = do
+onDisconnect client state = do
     putStrLn $ "Disconnected client"
     -- Remove client and return new state
-    s <- modifyMVar state $ \s ->
-        let s' = removeClient client s in return (s', s')
-    broadcast ((T.pack $ show uuid) `mappend` " disconnected") s
+    modifyMVar_ state (pure . removeClient client)
 
 -- Print the path and headers of the pending request
 printRequest :: WS.PendingConnection -> IO ()
