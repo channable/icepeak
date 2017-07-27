@@ -1,5 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
+module HttpServer (main) where
+
 import Web.Scotty
 import  Data.Text (Text)
 import qualified Network.Wai        as Wai
