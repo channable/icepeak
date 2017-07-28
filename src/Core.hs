@@ -62,8 +62,8 @@ newServerState = empty
 newCore :: IO Core
 newCore = do
   tvalue <- newTVarIO Null
-  tqueue <- newTBQueueIO 128
-  tupdates <- newTBQueueIO 128
+  tqueue <- newTBQueueIO 256
+  tupdates <- newTBQueueIO 256
   tclients <- newMVar newServerState
   pure (Core tvalue tqueue tupdates tclients)
 

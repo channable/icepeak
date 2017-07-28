@@ -95,7 +95,6 @@ processUpdates core = go
         Just (Updated path value) -> do
           clients <- readMVar (coreClients core)
           broadcast path value clients
-          putStrLn $ "Update at " ++ (show path) ++ ", new value: " ++ (show value)
           go
         -- Stop the loop when we receive a Nothing.
         Nothing -> pure ()
