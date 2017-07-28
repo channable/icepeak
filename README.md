@@ -1,4 +1,10 @@
-# Icepeak
+<h1 align="center">
+  <a href="https://github.com/channable/icepeak"><img src="docs/icepeak.png" alt="Icepeak" width="256"></a>
+</h1>
+
+Icepeak is a fast json document store with push notification support.
+
+## Disclaimer
 
 This is alpha-quality software developed under Hackathon conditions.
 Do not use it.
