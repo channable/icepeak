@@ -27,8 +27,6 @@ install:
   - stack setup -j2 --no-terminal
 
 script:
-  # Build and test. Pass --split-objs to produce smaller binaries. (It is a kind
-  # of hack to do dead code elimination by putting every function in a separate
-  # object, so the linker will not link unused functions.)
-  - stack build -j2 --no-terminal --split-objs
-  - stack test  -j2 --no-terminal --split-objs
+  # Build and test.
+  - stack build -j2 --no-terminal
+  - stack test  -j2 --no-terminal
