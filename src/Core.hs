@@ -21,8 +21,6 @@ import Control.Concurrent.STM.TVar (TVar, newTVarIO, writeTVar, readTVar)
 import Control.Monad (unless)
 import Data.Aeson (Value (..))
 
-import qualified Data.HashMap.Strict as HashMap
-
 import Store (Path)
 import WebsocketServer (ServerState)
 
@@ -75,21 +73,10 @@ getCurrentValue :: Core -> Path -> IO (Maybe Value)
 getCurrentValue core path =
   fmap (Store.lookup path) $ atomically $ readTVar $ coreCurrentValue core
 
--- Execute a command.
+-- Execute an operation.
 handleOp :: Op -> Value -> Value
 handleOp op value = case op of
-  Delete path -> case path of
-    [] -> Null -- Deleting the root replaces it with null.
-    key : [] -> case value of
-      Object dict -> Object $ HashMap.delete key dict
-      notObject   -> notObject
-    key : pathTail  ->
-      let
-        deleteInner = handleOp (Delete pathTail)
-      in case value of
-        Object dict -> Object $ HashMap.adjust deleteInner key dict
-        notObject   -> notObject
-
+  Delete path -> Store.delete path value
   Put path newValue -> Store.insert path newValue value
 
 -- Drain the queue of operations and apply them. Once applied, publish the

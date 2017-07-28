@@ -1,6 +1,7 @@
 module Store
 (
   Path,
+  delete,
   insert,
   lookup,
   lookupOrNull,
@@ -37,3 +38,15 @@ insert path newValue value =
     key : pathTail -> Object $ case value of
       Object dict -> HashMap.alter (Just . (insert pathTail newValue) . fromMaybe Null) key dict
       _notObject  -> HashMap.singleton key $ insert pathTail newValue Null
+
+-- Delete key at the given path. If the path is empty, return null.
+delete :: Path -> Value -> Value
+delete path value =
+  case path of
+    [] -> Null
+    key : [] -> case value of
+      Object dict -> Object $ HashMap.delete key dict
+      notObject   -> notObject
+    key : pathTail -> case value of
+      Object dict -> Object $ HashMap.adjust (delete pathTail) key dict
+      notObject   -> notObject
