@@ -2,7 +2,7 @@
 
 module Subscription
 (
-  SubscriptionTree,
+  SubscriptionTree (..),
   broadcast,
   empty,
   subscribe,
@@ -23,7 +23,7 @@ import qualified Data.HashMap.Strict as HashMap
 -- which clients need to be notified for a given update.
 data SubscriptionTree k v =
   SubscriptionTree (HashMap k v) (HashMap Text (SubscriptionTree k v))
-  deriving (Functor)
+  deriving (Eq, Functor, Show)
 
 empty :: SubscriptionTree k v
 empty = SubscriptionTree HashMap.empty HashMap.empty
