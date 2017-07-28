@@ -12,13 +12,13 @@ module Core
 )
 where
 
-import Control.Concurrent.STM (atomically)
-import Control.Concurrent.STM.TVar (TVar, newTVarIO, writeTVar, readTVar)
-import Control.Concurrent.STM.TBQueue (TBQueue, newTBQueueIO, readTBQueue, writeTBQueue)
 import Control.Concurrent.MVar (MVar, newMVar, readMVar)
+import Control.Concurrent.STM (atomically)
+import Control.Concurrent.STM.TBQueue (TBQueue, newTBQueueIO, readTBQueue, writeTBQueue)
+import Control.Concurrent.STM.TVar (TVar, newTVarIO, writeTVar, readTVar)
 import Data.Aeson (Value (..))
-import Data.Text (Text)
 import Data.Maybe (fromMaybe)
+import Data.Text (Text)
 import Prelude hiding (lookup)
 
 import qualified Data.HashMap.Strict as HashMap
