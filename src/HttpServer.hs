@@ -9,6 +9,7 @@ import Web.Scotty (delete, get, json, jsonData, put, regex, request, scottyApp, 
 import qualified Data.ByteString        as B
 import           Control.Monad          (join)
 import qualified Network.Wai as Wai
+import           Data.SecureMem                  (toSecureMem)
 
 import Core (Core, EnqueueResult (..))
 
@@ -50,7 +51,10 @@ protected action = do
     if authorized then action else status status401
 
 auth :: Wai.Request -> Bool
-auth = maybe False (==accessToken) . getAuthToken
+auth = maybe False (timeSafeEquals accessToken) . getAuthToken
+
+timeSafeEquals :: B.ByteString -> B.ByteString -> Bool
+timeSafeEquals a b = toSecureMem a == toSecureMem b
 
 accessToken :: B.ByteString
 accessToken = "mS7karSP9QbD2FFdgBk2QmuTna7fJyp7ll0Vg8gnffIBHKILSrusMslucBzMhwO"
