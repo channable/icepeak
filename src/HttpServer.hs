@@ -2,15 +2,16 @@
 
 module HttpServer (new) where
 
-import           Control.Monad.IO.Class
-import           Network.HTTP.Types
-import           Network.Wai            (Application)
-import           Web.Scotty             (delete, get, json, jsonData, put,
-                                         regex, request, scottyApp, status)
+import Control.Monad.IO.Class
+import Network.HTTP.Types
+import Network.Wai (Application)
+import Web.Scotty (delete, get, json, jsonData, put, regex, request, scottyApp, status)
 import qualified Data.ByteString        as B
-import qualified Network.Wai            as Wai
 import           Control.Monad          (when, join)
+import qualified Network.Wai as Wai
+
 import Core (Core, EnqueueResult (..))
+
 import qualified Core
 
 new :: Core -> IO Application
@@ -28,8 +29,7 @@ new core =
       when authorized $ do
         path <- Wai.pathInfo <$> request
         value <- jsonData
-        let putCommand = Core.Put path value
-        result <- liftIO $ Core.enqueuePut putCommand core
+        result <- liftIO $ Core.enqueueOp (Core.Put path value) core
         case result of
           Enqueued -> status accepted202
           Dropped  -> status serviceUnavailable503
@@ -41,9 +41,9 @@ new core =
         -- we should add Delete ADT and then enqueueDelete.
         -- if the delete queue if full, we should return a 503,
         -- otherwise a 202.
-        liftIO $ Core.deleteValue path core
+        -- TODO(nuno): Dry this enqueue->202/503 up.
+        _ <- liftIO $ Core.enqueueOp (Core.Delete path) core
         status status202
-
 
 auth :: Wai.Request -> Bool
 auth = maybe False (==accessToken) . getAuthToken

@@ -1,11 +1,11 @@
 import Test.Hspec
 
 import qualified ApiSpec
+import qualified CoreSpec
 import qualified SocketSpec
-import qualified PutSpec
 
 main :: IO ()
 main = hspec $ do
   ApiSpec.spec
   SocketSpec.spec
-  PutSpec.spec
+  CoreSpec.spec

@@ -33,12 +33,12 @@ main = do
   core <- Core.newCore
   httpServer <- HttpServer.new core
   let wsServer = WebsocketServer.acceptConnection $ Core.coreClients core
-  puts <- Async.async $ Core.processPuts core
+  pops <- Async.async $ Core.processOps core
   upds <- Async.async $ Core.processUpdates core
   serv <- Async.async $ Server.runServer wsServer httpServer
   installHandlers core serv
   putStrLn "System online. ** robot sounds **"
-  void $ Async.wait puts
+  void $ Async.wait pops
   void $ Async.wait upds
   void $ Async.wait serv
   putStrLn "okdoei"
