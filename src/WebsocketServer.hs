@@ -3,7 +3,6 @@
 module WebsocketServer (
   ServerState,
   acceptConnection,
-  broadcast,
   processUpdates
 ) where
 
@@ -31,9 +30,11 @@ import qualified Subscription
 newUUID :: IO UUID
 newUUID = randomIO
 
+-- send the updated data to all subscribers to the path
 broadcast :: [Text] -> Value -> ServerState -> IO ()
 broadcast =
   let
+    send :: Value -> WS.Connection -> IO ()
     send value conn = do
       putStrLn $ "Sending binary data ..."
       WS.sendBinaryData conn (Aeson.encode value)
@@ -83,6 +84,8 @@ printRequest pending = do
    Text.putStrLn "Headers:"
    forM_ headers print
 
+-- loop that is called for every update and that broadcasts the values to all
+-- subscribers of the updated path
 processUpdates :: Core -> IO ()
 processUpdates core = go
   where
@@ -91,7 +94,7 @@ processUpdates core = go
       case maybeUpdate of
         Just (Updated path value) -> do
           clients <- readMVar (coreClients core)
-          WebsocketServer.broadcast path value clients
+          broadcast path value clients
           putStrLn $ "Update at " ++ (show path) ++ ", new value: " ++ (show value)
           go
         -- Stop the loop when we receive a Nothing.

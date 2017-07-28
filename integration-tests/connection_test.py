@@ -17,3 +17,5 @@ parsed_result = json.loads(result)
 
 assert new_data == parsed_result, 'Input data: {} is different from output data: {}'.format(
         new_data, parsed_result)
+
+print 'Initial data was successfully sent to client!'
