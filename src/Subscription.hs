@@ -69,4 +69,4 @@ broadcast f path value (SubscriptionTree here inner) =
       Nothing -> pure ()
       -- TODO: Extract the inner thing from the value as well; the client is not
       -- subscribed to the top-level thing after all.
-      Just subs -> broadcast f pathTail value subs
+      Just subs -> broadcast f pathTail (Store.lookupOrNull [key] value) subs

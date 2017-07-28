@@ -20,7 +20,6 @@ import Control.Concurrent.STM.TBQueue (TBQueue, newTBQueueIO, readTBQueue, write
 import Control.Concurrent.STM.TVar (TVar, newTVarIO, writeTVar, readTVar)
 import Control.Monad (unless)
 import Data.Aeson (Value (..))
-import Data.Maybe (fromMaybe)
 
 import qualified Data.HashMap.Strict as HashMap
 
@@ -91,16 +90,7 @@ handleOp op value = case op of
         Object dict -> Object $ HashMap.adjust deleteInner key dict
         notObject   -> notObject
 
-  Put path newValue -> case path of
-    [] -> newValue
-    key : pathTail ->
-      let
-        putInner = handleOp (Put pathTail newValue)
-        newDict = case value of
-          Object dict -> HashMap.alter (Just . putInner . fromMaybe Null) key dict
-          _notObject  -> HashMap.singleton key (putInner Null)
-      in
-        Object newDict
+  Put path newValue -> Store.insert path newValue value
 
 -- Drain the queue of operations and apply them. Once applied, publish the
 -- new value as the current one, and also broadcast updates.
