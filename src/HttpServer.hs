@@ -34,9 +34,7 @@ new core =
     delete (regex "^") $
       protected $ do
         path <- Wai.pathInfo <$> request
-        -- we should add Delete ADT and then enqueueDelete.
-        -- if the delete queue if full, we should return a 503,
-        -- otherwise a 202.
-        -- TODO(nuno): Dry this enqueue->202/503 up.
-        _ <- liftIO $ Core.enqueueOp (Core.Delete path) core
-        status status202
+        result <- liftIO $ Core.enqueueOp (Core.Delete path) core
+        case result of
+          Enqueued -> status accepted202
+          Dropped  -> status serviceUnavailable503
