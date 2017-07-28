@@ -2,7 +2,7 @@
 module SubscriptionTreeSpec (spec) where
 
 import Test.Hspec (Spec, describe, it, shouldBe)
-import Subscription (SubscriptionTree (..), empty, subscribe)
+import Subscription (SubscriptionTree (..), empty, subscribe, unsubscribe)
 
 import qualified Data.HashMap.Strict as HM
 
@@ -52,3 +52,17 @@ spec = do
         lhs = subscribe root conn_id conn (subscribe path conn_id2 conn2 empty)
         rhs = subscribe path conn_id2 conn2 (subscribe root conn_id conn empty)
       lhs `shouldBe` rhs
+
+    it "adding and removing a client is identity" $ do
+      let
+        path = []
+        conn_id = 1 :: Int
+        conn = "dummy connection" :: String
+      unsubscribe path conn_id (subscribe path conn_id conn empty) `shouldBe` empty
+
+    it "removing a non-existing client does nothing" $ do
+      let
+        path = []
+        conn_id = 1 :: Int
+      unsubscribe path conn_id (empty :: SubscriptionTree Int String)`shouldBe` empty
+
