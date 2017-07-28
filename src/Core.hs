@@ -107,7 +107,7 @@ processUpdates core = go
       case maybeUpdate of
         Just (Updated path value) -> do
           clients <- readMVar (coreClients core)
-          WebsocketServer.broadcast value clients
+          WebsocketServer.broadcast path value clients
           putStrLn $ "Update at " ++ (show path) ++ ", new value: " ++ (show value)
           go
         -- Stop the loop when we receive a Nothing.

@@ -15,17 +15,11 @@ import System.Random (randomIO)
 
 import qualified Data.Aeson as Aeson
 import qualified Data.HashMap.Strict as HashMap
-import qualified Data.Text as T
-import qualified Data.Text.IO as T
+import qualified Data.Text as Text
+import qualified Data.Text.IO as Text
 import qualified Network.WebSockets as WS
 
--- the path that a client subscribes to, e.g. imports/1/status
-type Path = Text
-
--- a client subscribes to a specific path, for which it will receive updates
-type Client = (UUID, Path, WS.Connection)
-
-type ServerState = [Client]
+type ServerState = SubscriptionTree
 
 -- Keeps subscriptions in a tree data structure, so we can efficiently determine
 -- which clients need to be notified for a given update.
@@ -46,72 +40,71 @@ subscribe path uuid conn (SubscriptionTree here inner) =
       in
         SubscriptionTree here newInner
 
+unsubscribe :: [Text] -> UUID -> SubscriptionTree -> SubscriptionTree
+unsubscribe path uuid (SubscriptionTree here inner) =
+  case path of
+    [] -> SubscriptionTree (HashMap.delete uuid here) inner
+    key : pathTail ->
+      let
+        unsubscribeInner = unsubscribe pathTail uuid
+        newInner = HashMap.adjust unsubscribeInner key inner
+        -- TODO: Prune empty branches in the tree.
+      in
+        SubscriptionTree here newInner
+
 newUUID :: IO UUID
 newUUID = randomIO
 
 newServerState :: ServerState
-newServerState = []
+newServerState = emptySubsTree
 
-addClient :: Client -> ServerState -> ServerState
-addClient client clients = client : clients
-
-removeClient :: Client -> ServerState -> ServerState
-removeClient (uuid, _, _) cs = filter (\(x, _, _) -> uuid /= x) cs
-
-broadcast :: Value -> ServerState -> IO ()
-broadcast value clients = do
-  forM_ clients $ \(uuid, _, conn) -> do
-    putStrLn $ "Sending binary data to " ++ (show uuid)
+broadcast :: [Text] -> Value -> ServerState -> IO ()
+broadcast path value (SubscriptionTree here inner) = do
+  forM_ here $ \ conn -> do
+    putStrLn $ "Sending binary data ..."
     WS.sendBinaryData conn (Aeson.encode value)
+  case path of
+    [] -> pure ()
+    key : pathTail -> case HashMap.lookup key inner of
+      Nothing -> pure ()
+      -- TODO: Extract the inner thing from the value as well; the client is not
+      -- subscribed to the top-level thing after all.
+      Just subs -> broadcast pathTail value subs
 
--- called for each new client that connects
-onConnect :: MVar ServerState -> WS.PendingConnection -> IO ()
-onConnect state pending = do
+-- Called for each new client that connects.
+acceptConnection :: MVar ServerState -> WS.PendingConnection -> IO ()
+acceptConnection state pending = do
     printRequest pending
     -- accept the connection
     -- TODO: Validate the path and headers of the pending request
     conn <- WS.acceptRequest pending
     -- fork a pinging thread, because browsers...
     WS.forkPingThread conn 30
-
     handleFirstMessage conn state
 
 handleFirstMessage :: WS.Connection -> MVar ServerState -> IO ()
 handleFirstMessage conn state = do
-    -- TODO: Come up with a wire protocol and validate it
-    msg <- WS.receiveData conn
-    let parsedMessage = parseMessage msg
-    T.putStrLn $ "Received message: " <> msg
-
-    case parsedMessage of
-      -- TODO: Disconnect the client
-      Nothing -> T.putStrLn $ "Invalid message: " <> msg
-      Just path -> do
-        T.putStrLn $ "Parsed path: " <> path
-        -- add the connection to the server state
-        uuid <- newUUID
-        let client = (uuid, path, conn)
-        flip finally (onDisconnect client state) $ do
-          putStrLn "Adding client"
-          modifyMVar_ state (pure . addClient client)
-          -- We don't send any messages here; sending is done by the update
-          -- loop; it finds the client in the set of subscriptions. But we do
-          -- need to keep the thread running, otherwise the connection will be
-          -- closed. So we go into an infinite loop here.
-          forever yield
-
-parseMessage :: Text -> Maybe Path
-parseMessage msg = case msg of
-    _ | prefix `T.isPrefixOf` msg -> Just $ T.drop (T.length prefix) msg
-      | otherwise -> Nothing
-    where
-      prefix = "Path: "
-
-onDisconnect :: Client -> MVar ServerState -> IO ()
-onDisconnect client state = do
-    putStrLn $ "Disconnected client"
-    -- Remove client and return new state
-    modifyMVar_ state (pure . removeClient client)
+  msg <- WS.receiveData conn
+  uuid <- newUUID
+  let
+    -- TODO: Use a proper url reader. Url decode the parts, allow empty strings,
+    -- to strip the root leading slash, etc. Also, read until a newline, rather
+    -- than an arbitrary end of buffer?
+    path = filter (not . Text.null) $ Text.split (== '/') msg
+    onConnect = do
+      modifyMVar_ state (pure . subscribe path uuid conn)
+      putStrLn $ "Client " ++ (show uuid) ++ " connected, subscribed to " ++ (show path) ++ "."
+    onDisconnect = do
+      modifyMVar_ state (pure . unsubscribe path uuid)
+      putStrLn $ "Client " ++ (show uuid) ++ " disconnected."
+    -- We don't send any messages here; sending is done by the update
+    -- loop; it finds the client in the set of subscriptions. But we do
+    -- need to keep the thread running, otherwise the connection will be
+    -- closed. So we go into an infinite loop here.
+    keepAlive = forever yield
+  -- Put the client in the subscription tree and keep the connection open.
+  -- Remove it when the connection is closed.
+  finally (onConnect >> keepAlive) onDisconnect
 
 -- Print the path and headers of the pending request
 printRequest :: WS.PendingConnection -> IO ()
@@ -119,5 +112,5 @@ printRequest pending = do
      -- print (WS.pendingRequest pending)
      putStrLn $ show ("\nPath: " <> (WS.requestPath $ WS.pendingRequest pending))
      let headers = WS.requestHeaders $ WS.pendingRequest pending
-     T.putStrLn "Headers:"
+     Text.putStrLn "Headers:"
      forM_ headers print
