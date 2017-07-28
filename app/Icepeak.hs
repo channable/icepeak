@@ -31,7 +31,6 @@ installHandlers core serverThread =
 main :: IO ()
 main = do
   core <- Core.newCore
-  -- TODO: Can this be abstracted?
   httpServer <- HttpServer.new core
   let wsServer = WebsocketServer.acceptConnection $ Core.coreClients core
   puts <- Async.async $ Core.processPuts core

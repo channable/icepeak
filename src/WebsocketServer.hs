@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-module WebsocketServer where
+
+module WebsocketServer (acceptClient) where
 
 import Control.Concurrent (MVar, modifyMVar_, yield)
 import Control.Exception (finally)
@@ -74,13 +75,13 @@ broadcast path value (SubscriptionTree here inner) = do
 -- Called for each new client that connects.
 acceptConnection :: MVar ServerState -> WS.PendingConnection -> IO ()
 acceptConnection state pending = do
-    printRequest pending
-    -- accept the connection
-    -- TODO: Validate the path and headers of the pending request
-    conn <- WS.acceptRequest pending
-    -- fork a pinging thread, because browsers...
-    WS.forkPingThread conn 30
-    handleFirstMessage conn state
+  printRequest pending
+  -- accept the connection
+  -- TODO: Validate the path and headers of the pending request
+  conn <- WS.acceptRequest pending
+  -- fork a pinging thread, because browsers...
+  WS.forkPingThread conn 30
+  handleFirstMessage conn state
 
 handleFirstMessage :: WS.Connection -> MVar ServerState -> IO ()
 handleFirstMessage conn state = do
@@ -109,8 +110,7 @@ handleFirstMessage conn state = do
 -- Print the path and headers of the pending request
 printRequest :: WS.PendingConnection -> IO ()
 printRequest pending = do
-     -- print (WS.pendingRequest pending)
-     putStrLn $ show ("\nPath: " <> (WS.requestPath $ WS.pendingRequest pending))
-     let headers = WS.requestHeaders $ WS.pendingRequest pending
-     Text.putStrLn "Headers:"
-     forM_ headers print
+   putStrLn $ show ("\nPath: " <> (WS.requestPath $ WS.pendingRequest pending))
+   let headers = WS.requestHeaders $ WS.pendingRequest pending
+   Text.putStrLn "Headers:"
+   forM_ headers print
