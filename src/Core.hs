@@ -1,6 +1,7 @@
 module Core
 (
   Core (coreClients), -- TODO: Expose only put for clients.
+  EnqueueResult (..),
   Put (..),
   handlePut,
   processPuts,
@@ -14,8 +15,9 @@ where
 
 import Control.Concurrent.MVar (MVar, newMVar, readMVar)
 import Control.Concurrent.STM (atomically)
-import Control.Concurrent.STM.TBQueue (TBQueue, newTBQueueIO, readTBQueue, writeTBQueue)
+import Control.Concurrent.STM.TBQueue (TBQueue, newTBQueueIO, readTBQueue, writeTBQueue, isFullTBQueue)
 import Control.Concurrent.STM.TVar (TVar, newTVarIO, writeTVar, readTVar)
+import Control.Monad (when)
 import Data.Aeson (Value (..))
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
@@ -53,8 +55,13 @@ newCore = do
 postQuit :: Core -> IO ()
 postQuit core = atomically $ writeTBQueue (coreQueue core) Nothing
 
-enqueuePut :: Put -> Core -> IO ()
-enqueuePut put core = atomically $ writeTBQueue (coreQueue core) (Just put)
+data EnqueueResult = Enqueued | Dropped
+
+enqueuePut :: Put -> Core -> IO EnqueueResult
+enqueuePut put core = atomically $ do
+  isFull <- isFullTBQueue (coreQueue core)
+  when (not isFull) $ writeTBQueue (coreQueue core) (Just put)
+  pure $ if isFull then Dropped else Enqueued
 
 getCurrentValue :: Core -> [Text] -> IO (Maybe Value)
 getCurrentValue core path =

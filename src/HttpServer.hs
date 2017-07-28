@@ -9,7 +9,7 @@ import Web.Scotty (scottyApp, get, put, status, jsonData, regex, request, json)
 
 import qualified Network.Wai as Wai
 
-import Core (Core)
+import Core (Core, EnqueueResult (..))
 
 import qualified Core
 
@@ -27,5 +27,7 @@ new core =
       req <- request
       value <- jsonData
       let putCommand = Core.Put (Wai.pathInfo req) value
-      liftIO $ Core.enqueuePut putCommand core
-      status status201
+      result <- liftIO $ Core.enqueuePut putCommand core
+      case result of
+        Enqueued -> status accepted202
+        Dropped  -> status serviceUnavailable503
