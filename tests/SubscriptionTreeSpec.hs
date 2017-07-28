@@ -27,3 +27,16 @@ spec = do
                   HM.empty
                   (HM.fromList [("some", SubscriptionTree (HM.fromList [(conn_id,conn)]) HM.empty)])
       subscribe path conn_id conn empty `shouldBe` after
+
+    it "adds two clients: ones listening to the root and one to \"some\"" $ do
+      let
+        root = []
+        path = ["some"]
+        conn_id = 1 :: Int
+        conn_id2 = 2 :: Int
+        conn = "dummy connection" :: [Char]
+        conn2 = "dummy connection2" :: [Char]
+        after = SubscriptionTree
+                  (HM.fromList [(conn_id, conn)])
+                  (HM.fromList [("some", SubscriptionTree (HM.fromList [(conn_id2,conn2)]) HM.empty)])
+      subscribe root conn_id conn (subscribe path conn_id2 conn2 empty) `shouldBe` after
