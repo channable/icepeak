@@ -4,11 +4,23 @@ module StoreSpec (spec) where
 
 import Data.Aeson (Value (..))
 import Test.Hspec (Spec, describe, it, shouldBe)
+import Test.Hspec.QuickCheck (prop)
+import Test.QuickCheck.Instances ()
+import Test.QuickCheck.Arbitrary (Arbitrary (..))
 
 import qualified Data.HashMap.Strict as HashMap
+import qualified Test.QuickCheck.Gen as Gen
 
 import qualified Store
 
+instance Arbitrary Value where
+  arbitrary = Gen.oneof
+    [ Object <$> arbitrary
+    , Array  <$> arbitrary
+    , String <$> arbitrary
+    , Bool   <$> arbitrary
+    , pure Null
+    ]
 
 spec :: Spec
 spec = do
@@ -56,3 +68,12 @@ spec = do
       in
         Store.insert ["x", "y"] (String "Stefan") before `shouldBe` after
 
+  describe "Store" $ do
+
+    prop "returns None after (lookup . delete . insert)" $ \ path value ->
+      let
+        lkupDelIns = Store.lookup path . Store.delete path . Store.insert path value
+      in
+        if path == []
+          then lkupDelIns Null `shouldBe` (Just Null)
+          else lkupDelIns Null `shouldBe` Nothing
