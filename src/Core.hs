@@ -8,7 +8,8 @@ module Core
   newCore,
   postQuit,
   enqueuePut,
-  getCurrentValue
+  getCurrentValue,
+  deleteValue
 )
 where
 
@@ -27,12 +28,15 @@ import WebsocketServer (ServerState)
 
 import qualified WebsocketServer
 
+
+type Path = [Text]
+
 -- Put is a command to put a value at a given path.
-data Put = Put [Text] Value deriving (Eq, Show)
+data Put = Put Path Value deriving (Eq, Show)
 
 -- The main value has been updated at the given path. The payload contains the
 -- entire new value. (So not only the inner value at the updated path.)
-data Updated = Updated [Text] Value deriving (Eq, Show)
+data Updated = Updated Path Value deriving (Eq, Show)
 
 data Core = Core
   { coreCurrentValue :: TVar Value
@@ -56,11 +60,14 @@ postQuit core = atomically $ writeTBQueue (coreQueue core) Nothing
 enqueuePut :: Put -> Core -> IO ()
 enqueuePut put core = atomically $ writeTBQueue (coreQueue core) (Just put)
 
-getCurrentValue :: Core -> [Text] -> IO (Maybe Value)
+deleteValue :: Path -> Core -> IO ()
+deleteValue = error "TODO"
+
+getCurrentValue :: Core -> Path -> IO (Maybe Value)
 getCurrentValue core path =
   fmap (lookup path) $ atomically $ readTVar $ coreCurrentValue core
 
-lookup :: [Text] -> Value -> Maybe Value
+lookup :: Path -> Value -> Maybe Value
 lookup path value = case path of
   [] -> Just value
   key : pathTail -> case value of
