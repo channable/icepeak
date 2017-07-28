@@ -17,10 +17,11 @@ import Data.UUID
 import System.Random (randomIO)
 
 import qualified Data.Aeson as Aeson
-import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import qualified Network.WebSockets as WS
+import qualified Network.HTTP.Types.URI as Uri
 
+import Store (Path)
 import Subscription (SubscriptionTree)
 
 import qualified Subscription
@@ -46,22 +47,17 @@ broadcast =
 acceptConnection :: MVar ServerState -> WS.PendingConnection -> IO ()
 acceptConnection state pending = do
   printRequest pending
-  -- accept the connection
   -- TODO: Validate the path and headers of the pending request
+  let path = fst $ Uri.decodePath $ WS.requestPath $ WS.pendingRequest pending
   conn <- WS.acceptRequest pending
   -- fork a pinging thread, because browsers...
   WS.forkPingThread conn 30
-  handleFirstMessage conn state
+  handleClient conn path state
 
-handleFirstMessage :: WS.Connection -> MVar ServerState -> IO ()
-handleFirstMessage conn state = do
-  msg <- WS.receiveData conn
+handleClient :: WS.Connection -> Path -> MVar ServerState -> IO ()
+handleClient conn path state = do
   uuid <- newUUID
   let
-    -- TODO: Use a proper url reader. Url decode the parts, allow empty strings,
-    -- to strip the root leading slash, etc. Also, read until a newline, rather
-    -- than an arbitrary end of buffer?
-    path = filter (not . Text.null) $ Text.split (== '/') msg
     onConnect = do
       modifyMVar_ state (pure . Subscription.subscribe path uuid conn)
       putStrLn $ "Client " ++ (show uuid) ++ " connected, subscribed to " ++ (show path) ++ "."
