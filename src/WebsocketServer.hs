@@ -1,7 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module WebsocketServer (acceptClient) where
+module WebsocketServer (
+  acceptConnection,
+  broadcast,
+  newServerState,
+  ServerState
+) where
 
 import Control.Concurrent (MVar, modifyMVar_, yield)
 import Control.Exception (finally)
