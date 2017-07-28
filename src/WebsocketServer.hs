@@ -49,7 +49,7 @@ acceptConnection core pending = do
   let path = fst $ Uri.decodePath $ WS.requestPath $ WS.pendingRequest pending
   conn <- WS.acceptRequest pending
   -- fork a pinging thread, because browsers...
-  WS.forkPingThread conn 30
+  -- WS.forkPingThread conn 30
   handleClient conn path core
 
 handleClient :: WS.Connection -> Path -> Core -> IO ()

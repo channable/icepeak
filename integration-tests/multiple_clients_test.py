@@ -37,6 +37,10 @@ def main():
     # Make sure all clients get the new data
     validate_data(connections, new_data)
 
+    for connection in connections:
+        connection.send_close()
+        # connection.close()
+
     # Reset the value to make the test idempotent
     requests.put(test_url, json.dumps(None))
 
