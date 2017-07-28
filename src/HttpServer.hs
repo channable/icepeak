@@ -26,8 +26,7 @@ new core =
     put (regex "^") $ do
       path <- Wai.pathInfo <$> request
       value <- jsonData
-      let putCommand = Core.Put path value
-      result <- liftIO $ Core.enqueuePut putCommand core
+      result <- liftIO $ Core.enqueueOp (Core.Put path value) core
       case result of
         Enqueued -> status accepted202
         Dropped  -> status serviceUnavailable503
@@ -37,5 +36,6 @@ new core =
       -- we should add Delete ADT and then enqueueDelete.
       -- if the delete queue if full, we should return a 503,
       -- otherwise a 202.
-      liftIO $ Core.deleteValue path core
+      -- TODO(nuno): Dry this enqueue->202/503 up.
+      _ <- liftIO $ Core.enqueueOp (Core.Delete path) core
       status status202

@@ -2,15 +2,14 @@ module Core
 (
   Core (coreClients), -- TODO: Expose only put for clients.
   EnqueueResult (..),
-  Put (..),
-  handlePut,
-  processPuts,
+  Op (..),
+  handleOp,
+  processOps,
   processUpdates,
   newCore,
   postQuit,
-  enqueuePut,
+  enqueueOp,
   getCurrentValue,
-  deleteValue
 )
 where
 
@@ -30,10 +29,18 @@ import WebsocketServer (ServerState)
 
 import qualified WebsocketServer
 
-
 type Path = [Text]
--- Put is a command to put a value at a given path.
-data Put = Put Path Value deriving (Eq, Show)
+
+-- A modification operation.
+data Op
+  = Put Path Value
+  | Delete Path
+  deriving (Eq, Show)
+
+opPath :: Op -> Path
+opPath op = case op of
+  Put path _ -> path
+  Delete path -> path
 
 -- The main value has been updated at the given path. The payload contains the
 -- entire new value. (So not only the inner value at the updated path.)
@@ -43,7 +50,7 @@ data EnqueueResult = Enqueued | Dropped
 
 data Core = Core
   { coreCurrentValue :: TVar Value
-  , coreQueue :: TBQueue (Maybe Put)
+  , coreQueue :: TBQueue (Maybe Op)
   , coreUpdates :: TBQueue (Maybe Updated)
   , coreClients :: MVar ServerState
   }
@@ -60,15 +67,11 @@ newCore = do
 postQuit :: Core -> IO ()
 postQuit core = atomically $ writeTBQueue (coreQueue core) Nothing
 
-
-enqueuePut :: Put -> Core -> IO EnqueueResult
-enqueuePut put core = atomically $ do
+enqueueOp :: Op -> Core -> IO EnqueueResult
+enqueueOp op core = atomically $ do
   isFull <- isFullTBQueue (coreQueue core)
-  unless isFull $ writeTBQueue (coreQueue core) (Just put)
+  unless isFull $ writeTBQueue (coreQueue core) (Just op)
   pure $ if isFull then Dropped else Enqueued
-
-deleteValue :: Path -> Core -> IO ()
-deleteValue = error "TODO"
 
 getCurrentValue :: Core -> Path -> IO (Maybe Value)
 getCurrentValue core path =
@@ -81,31 +84,44 @@ lookup path value = case path of
     Object dict -> HashMap.lookup key dict >>= lookup pathTail
     _notObject -> Nothing
 
--- Execute a "put" operation.
-handlePut :: Put -> Value -> Value
-handlePut (Put path newValue) value = case path of
-  [] -> newValue
-  key : pathTail ->
-    let
-      putInner = handlePut (Put pathTail newValue)
-      newDict = case value of
-        Object dict -> HashMap.alter (Just . putInner . fromMaybe Null) key dict
-        _notObject  -> HashMap.singleton key (putInner Null)
-    in
-      Object newDict
+-- Execute a command.
+handleOp :: Op -> Value -> Value
+handleOp op value = case op of
+  Delete path -> case path of
+    [] -> Null -- Deleting the root replaces it with null.
+    key : [] -> case value of
+      Object dict -> Object $ HashMap.delete key dict
+      notObject   -> notObject
+    key : pathTail  ->
+      let
+        deleteInner = handleOp (Delete pathTail)
+      in case value of
+        Object dict -> Object $ HashMap.adjust deleteInner key dict
+        notObject   -> notObject
 
--- Drain the queue of put operations and apply them. Once applied, publish the
+  Put path newValue -> case path of
+    [] -> newValue
+    key : pathTail ->
+      let
+        putInner = handleOp (Put pathTail newValue)
+        newDict = case value of
+          Object dict -> HashMap.alter (Just . putInner . fromMaybe Null) key dict
+          _notObject  -> HashMap.singleton key (putInner Null)
+      in
+        Object newDict
+
+-- Drain the queue of operations and apply them. Once applied, publish the
 -- new value as the current one, and also broadcast updates.
-processPuts :: Core -> IO Value
-processPuts core = go Null
+processOps :: Core -> IO Value
+processOps core = go Null
   where
     go val = do
-      maybePut <- atomically $ readTBQueue (coreQueue core)
-      case maybePut of
-        Just (Put path pvalue) -> do
-          let newValue = handlePut (Put path pvalue) val
+      maybeOp <- atomically $ readTBQueue (coreQueue core)
+      case maybeOp of
+        Just op -> do
+          let newValue = handleOp op val
           atomically $ writeTVar (coreCurrentValue core) newValue
-          atomically $ writeTBQueue (coreUpdates core) (Just $ Updated path newValue)
+          atomically $ writeTBQueue (coreUpdates core) (Just $ Updated (opPath op) newValue)
           go newValue
         Nothing -> do
           -- Stop the loop when we receive a Nothing. Tell the update loop to
