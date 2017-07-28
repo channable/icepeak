@@ -40,3 +40,15 @@ spec = do
                   (HM.fromList [(conn_id, conn)])
                   (HM.fromList [("some", SubscriptionTree (HM.fromList [(conn_id2,conn2)]) HM.empty)])
       subscribe root conn_id conn (subscribe path conn_id2 conn2 empty) `shouldBe` after
+
+    it "adding clients is associative" $ do
+      let
+        root = []
+        path = ["some"]
+        conn_id = 1 :: Int
+        conn_id2 = 2 :: Int
+        conn = "dummy connection" :: [Char]
+        conn2 = "dummy connection2" :: [Char]
+        lhs = subscribe root conn_id conn (subscribe path conn_id2 conn2 empty)
+        rhs = subscribe path conn_id2 conn2 (subscribe root conn_id conn empty)
+      lhs `shouldBe` rhs
