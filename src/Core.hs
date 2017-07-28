@@ -18,7 +18,7 @@ import Control.Concurrent.MVar (MVar, newMVar, readMVar)
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TBQueue (TBQueue, newTBQueueIO, readTBQueue, writeTBQueue, isFullTBQueue)
 import Control.Concurrent.STM.TVar (TVar, newTVarIO, writeTVar, readTVar)
-import Control.Monad (when)
+import Control.Monad (unless)
 import Data.Aeson (Value (..))
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
@@ -32,13 +32,14 @@ import qualified WebsocketServer
 
 
 type Path = [Text]
-
 -- Put is a command to put a value at a given path.
 data Put = Put Path Value deriving (Eq, Show)
 
 -- The main value has been updated at the given path. The payload contains the
 -- entire new value. (So not only the inner value at the updated path.)
 data Updated = Updated Path Value deriving (Eq, Show)
+
+data EnqueueResult = Enqueued | Dropped
 
 data Core = Core
   { coreCurrentValue :: TVar Value
@@ -59,12 +60,11 @@ newCore = do
 postQuit :: Core -> IO ()
 postQuit core = atomically $ writeTBQueue (coreQueue core) Nothing
 
-data EnqueueResult = Enqueued | Dropped
 
 enqueuePut :: Put -> Core -> IO EnqueueResult
 enqueuePut put core = atomically $ do
   isFull <- isFullTBQueue (coreQueue core)
-  when (not isFull) $ writeTBQueue (coreQueue core) (Just put)
+  unless (not isFull) $ writeTBQueue (coreQueue core) (Just put)
   pure $ if isFull then Dropped else Enqueued
 
 deleteValue :: Path -> Core -> IO ()
