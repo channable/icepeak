@@ -4,10 +4,12 @@ module WebsocketServer (
   ServerState,
   acceptConnection,
   broadcast,
-  newServerState,
+  processUpdates
 ) where
 
-import Control.Concurrent (MVar, modifyMVar_, yield)
+import Control.Concurrent (modifyMVar_, yield, readMVar)
+import Control.Concurrent.STM (atomically)
+import Control.Concurrent.STM.TBQueue (readTBQueue)
 import Control.Exception (finally)
 import Control.Monad (forM_, forever)
 import Data.Aeson (Value)
@@ -21,18 +23,13 @@ import qualified Data.Text.IO as Text
 import qualified Network.WebSockets as WS
 import qualified Network.HTTP.Types.URI as Uri
 
+import Core (Core (..), ServerState, Updated (..))
 import Store (Path)
-import Subscription (SubscriptionTree)
 
 import qualified Subscription
 
-type ServerState = SubscriptionTree UUID WS.Connection
-
 newUUID :: IO UUID
 newUUID = randomIO
-
-newServerState :: ServerState
-newServerState = Subscription.empty
 
 broadcast :: [Text] -> Value -> ServerState -> IO ()
 broadcast =
@@ -44,26 +41,31 @@ broadcast =
     Subscription.broadcast send
 
 -- Called for each new client that connects.
-acceptConnection :: MVar ServerState -> WS.PendingConnection -> IO ()
-acceptConnection state pending = do
+acceptConnection :: Core -> WS.PendingConnection -> IO ()
+acceptConnection core pending = do
   printRequest pending
   -- TODO: Validate the path and headers of the pending request
   let path = fst $ Uri.decodePath $ WS.requestPath $ WS.pendingRequest pending
   conn <- WS.acceptRequest pending
   -- fork a pinging thread, because browsers...
   WS.forkPingThread conn 30
-  handleClient conn path state
+  handleClient conn path core
 
-handleClient :: WS.Connection -> Path -> MVar ServerState -> IO ()
-handleClient conn path state = do
+handleClient :: WS.Connection -> Path -> Core -> IO ()
+handleClient conn path core = do
   uuid <- newUUID
   let
+    state = coreClients core
     onConnect = do
       modifyMVar_ state (pure . Subscription.subscribe path uuid conn)
       putStrLn $ "Client " ++ (show uuid) ++ " connected, subscribed to " ++ (show path) ++ "."
     onDisconnect = do
       modifyMVar_ state (pure . Subscription.unsubscribe path uuid)
       putStrLn $ "Client " ++ (show uuid) ++ " disconnected."
+    sendInitialValue = do
+      -- currentState <- readMVar state
+      -- value <- getCurrentValue
+      putStrLn "Send initial value to client"
     -- We don't send any messages here; sending is done by the update
     -- loop; it finds the client in the set of subscriptions. But we do
     -- need to keep the thread running, otherwise the connection will be
@@ -71,7 +73,7 @@ handleClient conn path state = do
     keepAlive = forever yield
   -- Put the client in the subscription tree and keep the connection open.
   -- Remove it when the connection is closed.
-  finally (onConnect >> keepAlive) onDisconnect
+  finally (onConnect >> sendInitialValue >> keepAlive) onDisconnect
 
 -- Print the path and headers of the pending request
 printRequest :: WS.PendingConnection -> IO ()
@@ -80,3 +82,17 @@ printRequest pending = do
    let headers = WS.requestHeaders $ WS.pendingRequest pending
    Text.putStrLn "Headers:"
    forM_ headers print
+
+processUpdates :: Core -> IO ()
+processUpdates core = go
+  where
+    go = do
+      maybeUpdate <- atomically $ readTBQueue (coreUpdates core)
+      case maybeUpdate of
+        Just (Updated path value) -> do
+          clients <- readMVar (coreClients core)
+          WebsocketServer.broadcast path value clients
+          putStrLn $ "Update at " ++ (show path) ++ ", new value: " ++ (show value)
+          go
+        -- Stop the loop when we receive a Nothing.
+        Nothing -> pure ()

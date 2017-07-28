@@ -1,31 +1,33 @@
 module Core
 (
-  Core (coreClients), -- TODO: Expose only put for clients.
+  Core (..), -- TODO: Expose only put for clients.
   EnqueueResult (..),
   Op (..),
+  ServerState,
+  Updated (..),
   enqueueOp,
   getCurrentValue,
   handleOp,
   lookup,
   newCore,
   postQuit,
-  processOps,
-  processUpdates,
+  processOps
 )
 where
 
-import Control.Concurrent.MVar (MVar, newMVar, readMVar)
+import Control.Concurrent.MVar (MVar, newMVar)
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TBQueue (TBQueue, newTBQueueIO, readTBQueue, writeTBQueue, isFullTBQueue)
 import Control.Concurrent.STM.TVar (TVar, newTVarIO, writeTVar, readTVar)
 import Control.Monad (unless)
 import Data.Aeson (Value (..))
+import Data.UUID (UUID)
 
 import Store (Path)
-import WebsocketServer (ServerState)
+import Subscription (SubscriptionTree, empty)
 
+import qualified Network.WebSockets as WS
 import qualified Store
-import qualified WebsocketServer
 
 -- A modification operation.
 data Op
@@ -51,12 +53,18 @@ data Core = Core
   , coreClients :: MVar ServerState
   }
 
+type ServerState = SubscriptionTree UUID WS.Connection
+
+newServerState :: ServerState
+newServerState = empty
+
+
 newCore :: IO Core
 newCore = do
   tvalue <- newTVarIO Null
   tqueue <- newTBQueueIO 128
   tupdates <- newTBQueueIO 128
-  tclients <- newMVar WebsocketServer.newServerState
+  tclients <- newMVar newServerState
   pure (Core tvalue tqueue tupdates tclients)
 
 -- Tell the put handler loop and the update handler loop to quit.
@@ -80,7 +88,7 @@ handleOp op value = case op of
   Put path newValue -> Store.insert path newValue value
 
 -- Drain the queue of operations and apply them. Once applied, publish the
--- new value as the current one, and also broadcast updates.
+-- new value as the current one.
 processOps :: Core -> IO Value
 processOps core = go Null
   where
@@ -97,17 +105,3 @@ processOps core = go Null
           -- quit as well.
           atomically $ writeTBQueue (coreUpdates core) Nothing
           pure val
-
-processUpdates :: Core -> IO ()
-processUpdates core = go
-  where
-    go = do
-      maybeUpdate <- atomically $ readTBQueue (coreUpdates core)
-      case maybeUpdate of
-        Just (Updated path value) -> do
-          clients <- readMVar (coreClients core)
-          WebsocketServer.broadcast path value clients
-          putStrLn $ "Update at " ++ (show path) ++ ", new value: " ++ (show value)
-          go
-        -- Stop the loop when we receive a Nothing.
-        Nothing -> pure ()
