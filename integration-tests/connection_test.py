@@ -7,7 +7,8 @@ import websocket
 
 # 1. Put some data into icepeak over HTTP
 new_data = {'status': 'freezing'}
-requests.put('http://localhost:3000/so/cool/', json.dumps(new_data))
+requests.put('http://localhost:3000/so/cool?auth=mS7karSP9QbD2FFdgBk2QmuTna7fJyp7ll0Vg8gnffIBHKILSrusMslucBzMhwO',
+    json.dumps(new_data))
 
 # 2. Get the data back over a websocket
 conn = websocket.create_connection("ws://localhost:3000/so/cool")
