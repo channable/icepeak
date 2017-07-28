@@ -23,7 +23,7 @@ import qualified Data.Text.IO as Text
 import qualified Network.WebSockets as WS
 import qualified Network.HTTP.Types.URI as Uri
 
-import Core (Core (..), ServerState, Updated (..))
+import Core (Core (..), ServerState, Updated (..), getCurrentValue)
 import Store (Path)
 
 import qualified Subscription
@@ -63,9 +63,9 @@ handleClient conn path core = do
       modifyMVar_ state (pure . Subscription.unsubscribe path uuid)
       putStrLn $ "Client " ++ (show uuid) ++ " disconnected."
     sendInitialValue = do
-      -- currentState <- readMVar state
-      -- value <- getCurrentValue
-      putStrLn "Send initial value to client"
+      currentValue <- getCurrentValue core path
+      putStrLn $ "Sending initial value to client: " ++ show currentValue
+      WS.sendBinaryData conn (Aeson.encode currentValue)
     -- We don't send any messages here; sending is done by the update
     -- loop; it finds the client in the set of subscriptions. But we do
     -- need to keep the thread running, otherwise the connection will be
