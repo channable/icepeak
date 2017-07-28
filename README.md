@@ -34,12 +34,13 @@ pip install websocket-client
 ipython
 ```
 
-Then create a websocket and send some data:
+Then create a websocket and receive the the current value at `foo`, and updates
+when it is modified:
 
 ```python
 import websocket
-conn = websocket.create_connection("ws://localhost:9160")
-conn.send('hello')
-result =  conn.recv()
-print result
+conn = websocket.create_connection("ws://localhost:3000/foo")
+while True:
+    result = conn.recv()
+    print result
 ```
