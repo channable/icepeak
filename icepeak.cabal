@@ -60,7 +60,7 @@ test-suite spec
   ghc-options:      -Wall -Werror -Wno-orphans
 
   other-modules: ApiSpec
-               , PutSpec
+               , CoreSpec
                , SocketSpec
 
   build-depends: aeson                >= 1.1  && < 1.2
