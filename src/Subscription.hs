@@ -7,6 +7,7 @@ module Subscription
   empty,
   subscribe,
   unsubscribe,
+  showTree,
 )
 where
 
@@ -15,9 +16,11 @@ import Data.Aeson (Value)
 import Data.HashMap.Strict (HashMap)
 import Data.Hashable (Hashable)
 import Data.Maybe (fromMaybe)
+import Data.Monoid ((<>))
 import Data.Text (Text)
 
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Text as Text
 
 import qualified Store
 
@@ -75,3 +78,19 @@ broadcast f path value (SubscriptionTree here inner) =
       -- TODO: Extract the inner thing from the value as well; the client is not
       -- subscribed to the top-level thing after all.
       Just subs -> broadcast f pathTail (Store.lookupOrNull [key] value) subs
+
+-- Show subscriptions, for debugging purposes.
+showTree :: Show k => SubscriptionTree k v -> String
+showTree tree =
+  let
+    withPrefix prefix (SubscriptionTree here inner) =
+      let
+        strHere :: String
+        strHere = concatMap (\cid -> " * " <> (show cid) <> "\n") (HashMap.keys here)
+        showInner iPrefix t = iPrefix <> "\n" <> withPrefix iPrefix t
+        strInner :: String
+        strInner = concat $ HashMap.mapWithKey (\key -> showInner (prefix <> "/" <> Text.unpack key)) inner
+      in
+        strHere <> strInner
+  in
+    "/\n" <> (withPrefix "" tree)
