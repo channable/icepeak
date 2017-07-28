@@ -2,10 +2,10 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module WebsocketServer (
+  ServerState,
   acceptConnection,
   broadcast,
   newServerState,
-  ServerState
 ) where
 
 import Control.Concurrent (MVar, modifyMVar_, yield)

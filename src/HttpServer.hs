@@ -9,11 +9,7 @@ import           Web.Scotty             (delete, get, json, jsonData, put,
                                          regex, request, scottyApp, status)
 
 import qualified Network.Wai            as Wai
-
-import           Core                   (Core)
-
-
-import           Prelude                hiding (lookup)
+import Core (Core, EnqueueResult (..))
 
 import qualified Core
 
@@ -31,8 +27,10 @@ new core =
       path <- Wai.pathInfo <$> request
       value <- jsonData
       let putCommand = Core.Put path value
-      liftIO $ Core.enqueuePut putCommand core
-      status status201
+      result <- liftIO $ Core.enqueuePut putCommand core
+      case result of
+        Enqueued -> status accepted202
+        Dropped  -> status serviceUnavailable503
 
     delete (regex "^") $ do
       path <- Wai.pathInfo <$> request
