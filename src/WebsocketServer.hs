@@ -66,11 +66,15 @@ newServerState = emptySubsTree
 
 broadcast :: [Text] -> Value -> ServerState -> IO ()
 broadcast path value (SubscriptionTree here inner) = do
-  forM_ here $ \ conn -> do
-    putStrLn $ "Sending binary data ..."
-    WS.sendBinaryData conn (Aeson.encode value)
   case path of
-    [] -> pure ()
+    -- When the path is empty, all subscribers that are "here" or at a deeper
+    -- level should receive a notification.
+    [] -> do
+      forM_ here $ \ conn -> do
+        putStrLn $ "Sending binary data ..."
+        WS.sendBinaryData conn (Aeson.encode value)
+      -- TODO: Trim the value to the key.
+      forM_ inner $ broadcast [] value
     key : pathTail -> case HashMap.lookup key inner of
       Nothing -> pure ()
       -- TODO: Extract the inner thing from the value as well; the client is not
