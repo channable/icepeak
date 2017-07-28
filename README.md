@@ -14,6 +14,16 @@ Icepeak is a fast json document store with push notification support.
 This is alpha-quality software developed under Hackathon conditions.
 Do not use it.
 
+## Building and running Icepeak
+
+Build with `stack build`.
+Run the tests with `stack test`.
+And run `icepeak` itself with `stack exec icepeak`.
+Install with `stack install`
+
+Integration tests are in `/integration-tests`.
+They are stand-alone scripts that can be executed directly, e.g. `./connection_test.py`.
+
 ## Connecting a client
 
 The websocket connection can be interactively tested with ipython.
