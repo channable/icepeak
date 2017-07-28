@@ -70,10 +70,18 @@ spec = do
 
   describe "Store" $ do
 
-    prop "returns None after (lookup . delete . insert)" $ \ path value ->
+    prop "returns None after (lookup . delete . insert) in Null" $ \ path value ->
       let
         lkupDelIns = Store.lookup path . Store.delete path . Store.insert path value
       in
         if path == []
           then lkupDelIns Null `shouldBe` (Just Null)
           else lkupDelIns Null `shouldBe` Nothing
+
+    prop "returns None after (lookup . delete . insert) in anything" $ \ path value before ->
+      let
+        lkupDelIns = Store.lookup path . Store.delete path . Store.insert path value
+      in
+        if path == []
+          then lkupDelIns before `shouldBe` (Just Null)
+          else lkupDelIns before `shouldBe` Nothing
