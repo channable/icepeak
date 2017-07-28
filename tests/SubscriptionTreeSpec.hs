@@ -1,10 +1,15 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+
 module SubscriptionTreeSpec (spec) where
 
 import Test.Hspec (Spec, describe, it, shouldBe)
-import Subscription (SubscriptionTree (..), empty, subscribe, unsubscribe)
+import Test.Hspec.QuickCheck (prop)
+import Test.QuickCheck.Instances ()
 
 import qualified Data.HashMap.Strict as HM
+
+import Subscription (SubscriptionTree (..), empty, subscribe, unsubscribe)
 
 spec :: Spec
 spec = do
@@ -41,24 +46,22 @@ spec = do
                   (HM.fromList [("some", SubscriptionTree (HM.fromList [(conn_id2,conn2)]) HM.empty)])
       subscribe root conn_id conn (subscribe path conn_id2 conn2 empty) `shouldBe` after
 
-    it "adding clients is associative" $ do
+    prop "adding clients is commutative" $ \ lpath rpath (lid :: Int) ->
       let
-        root = []
-        path = ["some"]
-        conn_id = 1 :: Int
-        conn_id2 = 2 :: Int
-        conn = "dummy connection" :: [Char]
-        conn2 = "dummy connection2" :: [Char]
-        lhs = subscribe root conn_id conn (subscribe path conn_id2 conn2 empty)
-        rhs = subscribe path conn_id2 conn2 (subscribe root conn_id conn empty)
-      lhs `shouldBe` rhs
+        rid = lid + 1 -- The ids need to be distinct.
+        lconn = "dummy connection left" :: [Char]
+        rconn = "dummy connection right" :: [Char]
+        ladd = subscribe lpath lid lconn
+        radd = subscribe rpath rid rconn
+      in
+        (ladd . radd) empty `shouldBe` (radd . ladd) empty
 
-    it "adding and removing a client is identity" $ do
+    prop "adding and removing a client is identity" $ \ path (cid :: Int) ->
       let
-        path = []
-        conn_id = 1 :: Int
         conn = "dummy connection" :: String
-      unsubscribe path conn_id (subscribe path conn_id conn empty) `shouldBe` empty
+        subUnsub = unsubscribe path cid . subscribe path cid conn
+      in
+        subUnsub empty `shouldBe` empty
 
     it "removing a non-existing client does nothing" $ do
       let
