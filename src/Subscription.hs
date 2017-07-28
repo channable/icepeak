@@ -10,7 +10,7 @@ module Subscription
 )
 where
 
-import Control.Monad (forM_)
+import Control.Monad (forM_, void)
 import Data.Aeson (Value)
 import Data.HashMap.Strict (HashMap)
 import Data.Hashable (Hashable)
@@ -18,6 +18,8 @@ import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 
 import qualified Data.HashMap.Strict as HashMap
+
+import qualified Store
 
 -- Keeps subscriptions in a tree data structure, so we can efficiently determine
 -- which clients need to be notified for a given update.
@@ -54,14 +56,15 @@ unsubscribe path subid (SubscriptionTree here inner) =
 -- Invoke f for all subscribers to the path. The subscribers get passed the
 -- subvalue at the path that they are subscribed to.
 broadcast :: Monad m => (Value -> v -> m ()) -> [Text] -> Value -> SubscriptionTree k v -> m ()
-broadcast f path value (SubscriptionTree here inner) = do
+broadcast f path value (SubscriptionTree here inner) =
   case path of
-    -- When the path is empty, all subscribers that are "here" or at a deeper
-    -- level should receive a notification.
     [] -> do
+      -- When the path is empty, all subscribers that are "here" or at a deeper
+      -- level should receive a notification.
       forM_ here (f value)
-      -- TODO: Trim the value to the key of the subscriber.
-      forM_ inner (broadcast f [] value)
+      let broadcastInner key = broadcast f [] (Store.lookupOrNull [key] value)
+      void $ HashMap.traverseWithKey broadcastInner inner
+
     key : pathTail -> case HashMap.lookup key inner of
       Nothing -> pure ()
       -- TODO: Extract the inner thing from the value as well; the client is not

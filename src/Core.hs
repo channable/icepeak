@@ -3,13 +3,14 @@ module Core
   Core (coreClients), -- TODO: Expose only put for clients.
   EnqueueResult (..),
   Op (..),
-  handleOp,
-  processOps,
-  processUpdates,
-  newCore,
-  postQuit,
   enqueueOp,
   getCurrentValue,
+  handleOp,
+  lookup,
+  newCore,
+  postQuit,
+  processOps,
+  processUpdates,
 )
 where
 
@@ -20,16 +21,14 @@ import Control.Concurrent.STM.TVar (TVar, newTVarIO, writeTVar, readTVar)
 import Control.Monad (unless)
 import Data.Aeson (Value (..))
 import Data.Maybe (fromMaybe)
-import Data.Text (Text)
-import Prelude hiding (lookup)
 
 import qualified Data.HashMap.Strict as HashMap
 
+import Store (Path)
 import WebsocketServer (ServerState)
 
+import qualified Store
 import qualified WebsocketServer
-
-type Path = [Text]
 
 -- A modification operation.
 data Op
@@ -75,14 +74,7 @@ enqueueOp op core = atomically $ do
 
 getCurrentValue :: Core -> Path -> IO (Maybe Value)
 getCurrentValue core path =
-  fmap (lookup path) $ atomically $ readTVar $ coreCurrentValue core
-
-lookup :: Path -> Value -> Maybe Value
-lookup path value = case path of
-  [] -> Just value
-  key : pathTail -> case value of
-    Object dict -> HashMap.lookup key dict >>= lookup pathTail
-    _notObject -> Nothing
+  fmap (Store.lookup path) $ atomically $ readTVar $ coreCurrentValue core
 
 -- Execute a command.
 handleOp :: Op -> Value -> Value

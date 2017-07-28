@@ -12,6 +12,7 @@ library
   exposed-modules: Core
                  , HttpServer
                  , Server
+                 , Store
                  , Subscription
                  , WebsocketServer
 
