@@ -10,6 +10,7 @@ library
   hs-source-dirs:   src
   ghc-options:     -Wall -Werror -Wno-orphans -Wno-unused-top-binds -O2 -fno-ignore-asserts -funbox-strict-fields
   exposed-modules: Core
+                 , Guardian
                  , HttpServer
                  , Server
                  , Store
