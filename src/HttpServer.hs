@@ -2,13 +2,13 @@
 
 module HttpServer (new) where
 
-import           Control.Monad.IO.Class
-import           Network.HTTP.Types
-import           Network.Wai            (Application)
-import           Web.Scotty             (delete, get, json, jsonData, put,
-                                         regex, request, scottyApp, status)
+import Control.Monad.IO.Class
+import Network.HTTP.Types
+import Network.Wai (Application)
+import Web.Scotty (delete, get, json, jsonData, put, regex, request, scottyApp, status)
 
-import qualified Network.Wai            as Wai
+import qualified Network.Wai as Wai
+
 import Core (Core, EnqueueResult (..))
 
 import qualified Core
