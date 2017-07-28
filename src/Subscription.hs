@@ -30,6 +30,9 @@ data SubscriptionTree k v =
 empty :: SubscriptionTree k v
 empty = SubscriptionTree HashMap.empty HashMap.empty
 
+isEmpty :: SubscriptionTree k v -> Bool
+isEmpty (SubscriptionTree here inner) = HashMap.null here && HashMap.null inner
+
 subscribe :: (Eq k, Hashable k) => [Text] -> k -> v -> SubscriptionTree k v -> SubscriptionTree k v
 subscribe path subid subval (SubscriptionTree here inner) =
   case path of
@@ -47,9 +50,11 @@ unsubscribe path subid (SubscriptionTree here inner) =
     [] -> SubscriptionTree (HashMap.delete subid here) inner
     key : pathTail ->
       let
-        unsubscribeInner = unsubscribe pathTail subid
-        newInner = HashMap.adjust unsubscribeInner key inner
-        -- TODO: Prune empty branches in the tree.
+        -- Remove the tail from the inner tree (if it exists). If that left the
+        -- inner tree empty, remove the key altogether to keep the tree clean.
+        justNotEmpty tree = if isEmpty tree then Nothing else Just tree
+        unsubscribeInner = justNotEmpty . unsubscribe pathTail subid
+        newInner = HashMap.update unsubscribeInner key inner
       in
         SubscriptionTree here newInner
 
