@@ -1,0 +1,34 @@
+# Use a minimal base image.
+language: c
+
+# Do not spam us with build status emails please.
+notifications:
+  email: false
+
+addons:
+  apt:
+    sources:
+      - fpcomplete-trusty
+    packages:
+      - stack
+      # Haskell requires libgmp for big integers.
+      - libgmp-dev
+
+cache:
+  directories:
+    - $HOME/.stack
+    - $TRAVIS_BUILD_DIR/.stack-work
+
+install:
+  # Install the compiler. Pass --no-terminal to tell Stack it is not running in
+  # an interactive terminal, so it prints messages sequentially instead of
+  # updating them. The latter is less spammy but Travis does not support these
+  # interactive terminal capabilities.
+  - stack setup -j2 --no-terminal
+
+script:
+  # Build and test. Pass --split-objs to produce smaller binaries. (It is a kind
+  # of hack to do dead code elimination by putting every function in a separate
+  # object, so the linker will not link unused functions.)
+  - stack build -j2 --no-terminal --split-objs
+  - stack test  -j2 --no-terminal --split-objs
