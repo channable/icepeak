@@ -2,6 +2,11 @@
   <a href="https://github.com/channable/icepeak"><img src="docs/icepeak.png" alt="Icepeak" width="256"></a>
 </h1>
 
+<p align="center">
+  <a href="https://travis-ci.org/channable/icepeak"><img src="https://travis-ci.org/channable/icepeak.svg?branch=master" alt="Build Status"></a>
+  <img src="https://img.shields.io/badge/license-BSD3-blue.svg" alt="BSD3 Licensed">
+</p>
+
 Icepeak is a fast json document store with push notification support.
 
 ## Disclaimer
