@@ -64,7 +64,7 @@ postQuit core = atomically $ writeTBQueue (coreQueue core) Nothing
 enqueuePut :: Put -> Core -> IO EnqueueResult
 enqueuePut put core = atomically $ do
   isFull <- isFullTBQueue (coreQueue core)
-  unless (not isFull) $ writeTBQueue (coreQueue core) (Just put)
+  unless isFull $ writeTBQueue (coreQueue core) (Just put)
   pure $ if isFull then Dropped else Enqueued
 
 deleteValue :: Path -> Core -> IO ()
