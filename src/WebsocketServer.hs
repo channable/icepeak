@@ -36,8 +36,8 @@ broadcast =
   let
     send :: Value -> WS.Connection -> IO ()
     send value conn = do
-      putStrLn $ "Sending binary data ..."
-      WS.sendBinaryData conn (Aeson.encode value)
+      putStrLn $ "Sending text data ..."
+      WS.sendTextData conn (Aeson.encode value)
   in
     Subscription.broadcast send
 
@@ -66,7 +66,7 @@ handleClient conn path core = do
     sendInitialValue = do
       currentValue <- getCurrentValue core path
       putStrLn $ "Sending initial value to client: " ++ show currentValue
-      WS.sendBinaryData conn (Aeson.encode currentValue)
+      WS.sendTextData conn (Aeson.encode currentValue)
     -- We don't send any messages here; sending is done by the update
     -- loop; it finds the client in the set of subscriptions. But we do
     -- need to keep the thread running, otherwise the connection will be
