@@ -71,10 +71,15 @@ handleClient conn path core = do
     -- loop; it finds the client in the set of subscriptions. But we do
     -- need to keep the thread running, otherwise the connection will be
     -- closed. So we go into an infinite loop here.
-    keepAlive = forever yield
+    -- keepAlive = forever yield
   -- Put the client in the subscription tree and keep the connection open.
   -- Remove it when the connection is closed.
-  finally (onConnect >> sendInitialValue >> keepAlive) onDisconnect
+  finally (onConnect >> sendInitialValue >> keepTalking conn) onDisconnect
+
+keepTalking :: WS.Connection -> IO ()
+keepTalking conn = forever $ do
+    msg <- WS.receiveData conn
+    putStrLn $ "Client said: " ++ show msg
 
 -- Print the path and headers of the pending request
 printRequest :: WS.PendingConnection -> IO ()
