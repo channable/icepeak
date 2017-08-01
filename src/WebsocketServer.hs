@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module WebsocketServer (
   ServerState,
@@ -6,7 +7,7 @@ module WebsocketServer (
   processUpdates
 ) where
 
-import Control.Concurrent (modifyMVar_, yield, readMVar)
+import Control.Concurrent (modifyMVar_, readMVar)
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TBQueue (readTBQueue)
 import Control.Exception (finally)
@@ -78,7 +79,7 @@ handleClient conn path core = do
 
 keepTalking :: WS.Connection -> IO ()
 keepTalking conn = forever $ do
-    msg <- WS.receiveData conn
+    (msg :: Text) <- WS.receiveData conn
     putStrLn $ "Client said: " ++ show msg
 
 -- Print the path and headers of the pending request
