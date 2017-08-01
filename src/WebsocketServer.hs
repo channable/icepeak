@@ -48,8 +48,9 @@ acceptConnection core pending = do
   -- TODO: Validate the path and headers of the pending request
   let path = fst $ Uri.decodePath $ WS.requestPath $ WS.pendingRequest pending
   conn <- WS.acceptRequest pending
-  -- fork a pinging thread, because browsers...
-  -- WS.forkPingThread conn 30
+  -- Fork a pinging thread to keep idle connections open and to detect closed connections.
+  -- Note: The thread dies silently if the connection crashes or is closed.
+  WS.forkPingThread conn 30
   handleClient conn path core
 
 handleClient :: WS.Connection -> Path -> Core -> IO ()
