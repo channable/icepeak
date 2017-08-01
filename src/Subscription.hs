@@ -11,7 +11,7 @@ module Subscription
 )
 where
 
-import Control.Monad (forM_, void)
+import Control.Monad (void)
 import Data.Aeson (Value)
 import Data.HashMap.Strict (HashMap)
 import Data.Hashable (Hashable)
@@ -19,6 +19,7 @@ import Data.Maybe (fromMaybe)
 import Data.Monoid ((<>))
 import Data.Text (Text)
 
+import qualified Control.Concurrent.Async as Async
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as Text
 
@@ -63,13 +64,14 @@ unsubscribe path subid (SubscriptionTree here inner) =
 
 -- Invoke f for all subscribers to the path. The subscribers get passed the
 -- subvalue at the path that they are subscribed to.
-broadcast :: Monad m => (Value -> v -> m ()) -> [Text] -> Value -> SubscriptionTree k v -> m ()
+broadcast :: (Value -> v -> IO ()) -> [Text] -> Value -> SubscriptionTree k v -> IO ()
 broadcast f path value (SubscriptionTree here inner) =
   case path of
     [] -> do
       -- When the path is empty, all subscribers that are "here" or at a deeper
       -- level should receive a notification.
-      forM_ here (f value)
+      -- We broadcast concurrently since all updates are independent of each other
+      Async.forConcurrently_ here (f value)
       let broadcastInner key = broadcast f [] (Store.lookupOrNull [key] value)
       void $ HashMap.traverseWithKey broadcastInner inner
 
