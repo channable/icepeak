@@ -22,7 +22,6 @@ import Control.Concurrent.STM.TBQueue (TBQueue, newTBQueueIO, readTBQueue, write
 import Control.Concurrent.STM.TVar (TVar, newTVarIO, writeTVar, readTVar)
 import Control.Monad (unless)
 import Data.Aeson (Value (..))
-import Data.Text (Text)
 import Data.UUID (UUID)
 import Prelude hiding (log)
 import Store (Path)
@@ -48,7 +47,7 @@ data Updated = Updated Path Value deriving (Eq, Show)
 
 data EnqueueResult = Enqueued | Dropped
 
-type LogRecord = Text
+type LogRecord = String
 
 data Core = Core
   { coreCurrentValue :: TVar Value

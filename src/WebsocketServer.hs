@@ -15,6 +15,7 @@ import Data.Aeson (Value)
 import Data.Monoid ((<>))
 import Data.Text (Text)
 import Data.UUID
+import Prelude hiding (log)
 import System.Random (randomIO)
 
 import qualified Data.Aeson as Aeson
@@ -22,7 +23,7 @@ import qualified Data.Text.IO as T
 import qualified Network.WebSockets as WS
 import qualified Network.HTTP.Types.URI as Uri
 
-import Core (Core (..), ServerState, Updated (..), getCurrentValue)
+import Core (Core (..), ServerState, Updated (..), getCurrentValue, log)
 import Store (Path)
 
 import qualified Subscription
@@ -36,7 +37,7 @@ broadcast =
   let
     send :: Value -> WS.Connection -> IO ()
     send value conn = do
-      putStrLn $ "Sending text data ..."
+      -- putStrLn $ "Sending text data ..."
       WS.sendTextData conn (Aeson.encode value)
   in
     Subscription.broadcast send
@@ -44,7 +45,7 @@ broadcast =
 -- Called for each new client that connects.
 acceptConnection :: Core -> WS.PendingConnection -> IO ()
 acceptConnection core pending = do
-  printRequest pending
+  -- printRequest pending
   -- TODO: Validate the path and headers of the pending request
   let path = fst $ Uri.decodePath $ WS.requestPath $ WS.pendingRequest pending
   conn <- WS.acceptRequest pending
@@ -59,13 +60,13 @@ handleClient conn path core = do
     state = coreClients core
     onConnect = do
       modifyMVar_ state (pure . Subscription.subscribe path uuid conn)
-      putStrLn $ "Client " ++ (show uuid) ++ " connected, subscribed to " ++ (show path) ++ "."
+      log ("Client " ++ (show uuid) ++ " connected, subscribed to " ++ (show path) ++ ".") core
     onDisconnect = do
       modifyMVar_ state (pure . Subscription.unsubscribe path uuid)
-      putStrLn $ "Client " ++ (show uuid) ++ " disconnected."
+      log ("Client " ++ (show uuid) ++ " disconnected.") core
     sendInitialValue = do
       currentValue <- getCurrentValue core path
-      putStrLn $ "Sending initial value to client: " ++ show currentValue
+      log ("Sending initial value to client: " ++ show currentValue) core
       WS.sendTextData conn (Aeson.encode currentValue)
   -- Put the client in the subscription tree and keep the connection open.
   -- Remove it when the connection is closed.
@@ -77,9 +78,10 @@ handleClient conn path core = do
 -- closed. So we go into an infinite loop here.
 keepTalking :: WS.Connection -> IO ()
 keepTalking conn = forever $ do
-    -- Note: WS.reciveDataMessage will handle control messages automatically and e.g.
+    -- Note: WS.receiveDataMessage will handle control messages automatically and e.g.
     -- do the closing handshake of the websocket protocol correctly
-    WS.receiveDataMessage conn
+    _ <- WS.receiveDataMessage conn
+    putStrLn "bla"
 
 -- Print the path and headers of the pending request
 printRequest :: WS.PendingConnection -> IO ()

@@ -23,7 +23,7 @@ installHandlers core serverThread =
     handle = do
       Core.postQuit core
       Async.cancel serverThread
-      putStrLn "\nTermination sequence initiated ..."
+      Core.log "\nTermination sequence initiated ..." core
     handler = Signals.CatchOnce handle
     blockSignals = Nothing
     installHandler signal = Signals.installHandler signal handler blockSignals
@@ -46,7 +46,6 @@ main = do
   void $ Async.wait upds
   void $ Async.wait serv
   void $ Async.wait logger
-  putStrLn "okdoei"
 
 
 processLogRecords :: Core -> IO ()
