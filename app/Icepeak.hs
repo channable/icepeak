@@ -1,12 +1,15 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Main where
 
 import Control.Monad (void)
 import Control.Concurrent.Async
+import Control.Concurrent.STM (atomically)
+import Control.Concurrent.STM.TBQueue (readTBQueue)
 
 import qualified System.Posix.Signals as Signals
 import qualified Control.Concurrent.Async as Async
 
-import Core (Core)
+import Core (Core, coreLogRecords)
 
 import qualified Core
 import qualified HttpServer
@@ -36,9 +39,24 @@ main = do
   pops <- Async.async $ Core.processOps core
   upds <- Async.async $ WebsocketServer.processUpdates core
   serv <- Async.async $ Server.runServer wsServer httpServer
+  logger <- Async.async $ processLogRecords core
   installHandlers core serv
-  putStrLn "System online. ** robot sounds **"
+  Core.log "System online. ** robot sounds **" core
   void $ Async.wait pops
   void $ Async.wait upds
   void $ Async.wait serv
+  void $ Async.wait logger
   putStrLn "okdoei"
+
+
+processLogRecords :: Core -> IO ()
+processLogRecords core = go
+  where
+    go = do
+      maybeLogRecord <- atomically $ readTBQueue (coreLogRecords core)
+      case maybeLogRecord of
+        Just logRecord -> do
+          putStrLn $ show logRecord
+          go
+        -- stop the loop
+        Nothing -> pure ()

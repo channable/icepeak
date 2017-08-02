@@ -9,6 +9,7 @@ module Core
   getCurrentValue,
   handleOp,
   lookup,
+  log,
   newCore,
   postQuit,
   processOps
@@ -21,8 +22,9 @@ import Control.Concurrent.STM.TBQueue (TBQueue, newTBQueueIO, readTBQueue, write
 import Control.Concurrent.STM.TVar (TVar, newTVarIO, writeTVar, readTVar)
 import Control.Monad (unless)
 import Data.Aeson (Value (..))
+import Data.Text (Text)
 import Data.UUID (UUID)
-
+import Prelude hiding (log)
 import Store (Path)
 import Subscription (SubscriptionTree, empty)
 
@@ -46,18 +48,25 @@ data Updated = Updated Path Value deriving (Eq, Show)
 
 data EnqueueResult = Enqueued | Dropped
 
+type LogRecord = Text
+
 data Core = Core
   { coreCurrentValue :: TVar Value
   , coreQueue :: TBQueue (Maybe Op)
   , coreUpdates :: TBQueue (Maybe Updated)
   , coreClients :: MVar ServerState
+  , coreLogRecords :: TBQueue (Maybe LogRecord)
   }
 
 type ServerState = SubscriptionTree UUID WS.Connection
 
+log :: LogRecord -> Core -> IO ()
+log record core = atomically $ do
+  isFull <- isFullTBQueue (coreLogRecords core)
+  unless isFull $ writeTBQueue (coreLogRecords core) (Just record)
+
 newServerState :: ServerState
 newServerState = empty
-
 
 newCore :: IO Core
 newCore = do
@@ -65,7 +74,8 @@ newCore = do
   tqueue <- newTBQueueIO 256
   tupdates <- newTBQueueIO 256
   tclients <- newMVar newServerState
-  pure (Core tvalue tqueue tupdates tclients)
+  tlogrecords <- newTBQueueIO 256
+  pure (Core tvalue tqueue tupdates tclients tlogrecords)
 
 -- Tell the put handler loop and the update handler loop to quit.
 postQuit :: Core -> IO ()
