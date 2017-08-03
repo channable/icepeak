@@ -39,7 +39,6 @@ broadcast =
   let
     send :: Value -> WS.Connection -> IO ()
     send value conn = do
-      -- putStrLn $ "Sending text data ..."
       WS.sendTextData conn (Aeson.encode value)
   in
     Subscription.broadcast send
@@ -83,8 +82,7 @@ keepTalking :: WS.Connection -> IO ()
 keepTalking conn = forever $ do
     -- Note: WS.receiveDataMessage will handle control messages automatically and e.g.
     -- do the closing handshake of the websocket protocol correctly
-    _ <- WS.receiveDataMessage conn
-    putStrLn "bla"
+    WS.receiveDataMessage conn
 
 -- Print the path and headers of the pending request
 printRequest :: WS.PendingConnection -> IO ()
