@@ -1,12 +1,15 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Main where
 
 import Control.Monad (void)
 import Control.Concurrent.Async
+import Prelude hiding (log)
 
 import qualified System.Posix.Signals as Signals
 import qualified Control.Concurrent.Async as Async
 
-import Core (Core)
+import Core (Core (..))
+import Logger (log, processLogRecords)
 
 import qualified Core
 import qualified HttpServer
@@ -20,7 +23,7 @@ installHandlers core serverThread =
     handle = do
       Core.postQuit core
       Async.cancel serverThread
-      putStrLn "\nTermination sequence initiated ..."
+      log "\nTermination sequence initiated ..." (coreLogRecords core)
     handler = Signals.CatchOnce handle
     blockSignals = Nothing
     installHandler signal = Signals.installHandler signal handler blockSignals
@@ -36,9 +39,10 @@ main = do
   pops <- Async.async $ Core.processOps core
   upds <- Async.async $ WebsocketServer.processUpdates core
   serv <- Async.async $ Server.runServer wsServer httpServer
+  logger <- Async.async $ processLogRecords (coreLogRecords core)
   installHandlers core serv
-  putStrLn "System online. ** robot sounds **"
+  log "System online. ** robot sounds **" (coreLogRecords core)
   void $ Async.wait pops
   void $ Async.wait upds
   void $ Async.wait serv
-  putStrLn "okdoei"
+  void $ Async.wait logger
