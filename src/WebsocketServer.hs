@@ -23,7 +23,8 @@ import qualified Data.Text.IO as T
 import qualified Network.WebSockets as WS
 import qualified Network.HTTP.Types.URI as Uri
 
-import Core (Core (..), ServerState, Updated (..), getCurrentValue, log)
+import Core (Core (..), ServerState, Updated (..), getCurrentValue)
+import Logger (log)
 import Store (Path)
 
 import qualified Subscription
@@ -58,15 +59,16 @@ handleClient conn path core = do
   uuid <- newUUID
   let
     state = coreClients core
+    logRecords = coreLogRecords core
     onConnect = do
       modifyMVar_ state (pure . Subscription.subscribe path uuid conn)
-      log ("Client " ++ (show uuid) ++ " connected, subscribed to " ++ (show path) ++ ".") core
+      log ("Client " ++ (show uuid) ++ " connected, subscribed to " ++ (show path) ++ ".") logRecords
     onDisconnect = do
       modifyMVar_ state (pure . Subscription.unsubscribe path uuid)
-      log ("Client " ++ (show uuid) ++ " disconnected.") core
+      log ("Client " ++ (show uuid) ++ " disconnected.") logRecords
     sendInitialValue = do
       currentValue <- getCurrentValue core path
-      log ("Sending initial value to client: " ++ show currentValue) core
+      log ("Sending initial value to client: " ++ show currentValue) logRecords
       WS.sendTextData conn (Aeson.encode currentValue)
   -- Put the client in the subscription tree and keep the connection open.
   -- Remove it when the connection is closed.

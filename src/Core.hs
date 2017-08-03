@@ -9,7 +9,6 @@ module Core
   getCurrentValue,
   handleOp,
   lookup,
-  log,
   newCore,
   postQuit,
   processOps
@@ -28,6 +27,9 @@ import Store (Path)
 import Subscription (SubscriptionTree, empty)
 
 import qualified Network.WebSockets as WS
+
+import Logger (LogRecord)
+
 import qualified Store
 
 -- A modification operation.
@@ -47,8 +49,6 @@ data Updated = Updated Path Value deriving (Eq, Show)
 
 data EnqueueResult = Enqueued | Dropped
 
-type LogRecord = String
-
 data Core = Core
   { coreCurrentValue :: TVar Value
   , coreQueue :: TBQueue (Maybe Op)
@@ -58,11 +58,6 @@ data Core = Core
   }
 
 type ServerState = SubscriptionTree UUID WS.Connection
-
-log :: LogRecord -> Core -> IO ()
-log record core = atomically $ do
-  isFull <- isFullTBQueue (coreLogRecords core)
-  unless isFull $ writeTBQueue (coreLogRecords core) (Just record)
 
 newServerState :: ServerState
 newServerState = empty

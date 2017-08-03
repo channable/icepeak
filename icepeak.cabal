@@ -12,6 +12,7 @@ library
   exposed-modules: Core
                  , Guardian
                  , HttpServer
+                 , Logger
                  , Server
                  , Store
                  , Subscription
