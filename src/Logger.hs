@@ -9,9 +9,12 @@ where
 import Control.Monad (unless)
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TBQueue (TBQueue, readTBQueue, writeTBQueue, isFullTBQueue)
+import Data.Text (Text)
 import Prelude hiding (log)
 
-type LogRecord = String
+import qualified Data.Text.IO as T
+
+type LogRecord = Text
 
 log :: LogRecord -> TBQueue (Maybe LogRecord) -> IO ()
 log record logRecords = atomically $ do
@@ -25,7 +28,7 @@ processLogRecords logRecords = go
       maybeLogRecord <- atomically $ readTBQueue logRecords
       case maybeLogRecord of
         Just logRecord -> do
-          putStrLn $ show logRecord
+          T.putStrLn logRecord
           go
         -- Stop the loop when we receive a Nothing.
         Nothing -> pure ()
