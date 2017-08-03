@@ -71,9 +71,13 @@ newCore = do
   tlogrecords <- newTBQueueIO 256
   pure (Core tvalue tqueue tupdates tclients tlogrecords)
 
--- Tell the put handler loop and the update handler loop to quit.
+-- Tell the put handler loop, the update handler and the logger loop to quit.
 postQuit :: Core -> IO ()
-postQuit core = atomically $ writeTBQueue (coreQueue core) Nothing
+postQuit core = do
+  atomically $ do
+    writeTBQueue (coreQueue core) Nothing
+    writeTBQueue (coreUpdates core) Nothing
+    writeTBQueue (coreLogRecords core) Nothing
 
 enqueueOp :: Op -> Core -> IO EnqueueResult
 enqueueOp op core = atomically $ do
@@ -101,11 +105,10 @@ processOps core = go Null
       case maybeOp of
         Just op -> do
           let newValue = handleOp op val
-          atomically $ writeTVar (coreCurrentValue core) newValue
-          atomically $ writeTBQueue (coreUpdates core) (Just $ Updated (opPath op) newValue)
+          atomically $ do
+            writeTVar (coreCurrentValue core) newValue
+            writeTBQueue (coreUpdates core) (Just $ Updated (opPath op) newValue)
           go newValue
         Nothing -> do
-          -- Stop the loop when we receive a Nothing. Tell the update loop to
-          -- quit as well.
-          atomically $ writeTBQueue (coreUpdates core) Nothing
+          -- Stop the loop when we receive a Nothing.
           pure val

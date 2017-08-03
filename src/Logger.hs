@@ -27,5 +27,5 @@ processLogRecords logRecords = go
         Just logRecord -> do
           putStrLn $ show logRecord
           go
-        -- stop the loop
+        -- Stop the loop when we receive a Nothing.
         Nothing -> pure ()
