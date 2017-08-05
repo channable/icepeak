@@ -35,7 +35,8 @@ main = do
 
 installSystemSignalsHandlers :: Core -> Async () -> IO ()
 installSystemSignalsHandlers core serverThread =
-  let
+  mapM_ installHandler [Signals.sigTERM, Signals.sigINT]
+  where
     handle = do
       Core.postQuit core
       Async.cancel serverThread
@@ -43,6 +44,3 @@ installSystemSignalsHandlers core serverThread =
     handler = Signals.CatchOnce handle
     blockSignals = Nothing
     installHandler signal = Signals.installHandler signal handler blockSignals
-  in do
-    void $ installHandler Signals.sigTERM
-    void $ installHandler Signals.sigINT
