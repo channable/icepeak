@@ -26,16 +26,15 @@ main = do
   upds <- Async.async $ WebsocketServer.processUpdates core
   serv <- Async.async $ Server.runServer wsServer httpServer
   logger <- Async.async $ processLogRecords (coreLogRecords core)
-  installHandlers core serv
+  installSystemSignalsHandlers core serv
   log "System online. ** robot sounds **" (coreLogRecords core)
   void $ Async.wait pops
   void $ Async.wait upds
   void $ Async.wait serv
   void $ Async.wait logger
 
--- Instal SIGTERM and SIGINT handlers to do a graceful exit.
-installHandlers :: Core -> Async () -> IO ()
-installHandlers core serverThread =
+installSystemSignalsHandlers :: Core -> Async () -> IO ()
+installSystemSignalsHandlers core serverThread =
   let
     handle = do
       Core.postQuit core
