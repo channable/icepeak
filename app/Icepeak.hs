@@ -16,20 +16,6 @@ import qualified HttpServer
 import qualified Server
 import qualified WebsocketServer
 
--- Instal SIGTERM and SIGINT handlers to do a graceful exit.
-installHandlers :: Core -> Async () -> IO ()
-installHandlers core serverThread =
-  let
-    handle = do
-      Core.postQuit core
-      Async.cancel serverThread
-      log "\nTermination sequence initiated ..." (coreLogRecords core)
-    handler = Signals.CatchOnce handle
-    blockSignals = Nothing
-    installHandler signal = Signals.installHandler signal handler blockSignals
-  in do
-    void $ installHandler Signals.sigTERM
-    void $ installHandler Signals.sigINT
 
 main :: IO ()
 main = do
@@ -46,3 +32,18 @@ main = do
   void $ Async.wait upds
   void $ Async.wait serv
   void $ Async.wait logger
+
+-- Instal SIGTERM and SIGINT handlers to do a graceful exit.
+installHandlers :: Core -> Async () -> IO ()
+installHandlers core serverThread =
+  let
+    handle = do
+      Core.postQuit core
+      Async.cancel serverThread
+      log "\nTermination sequence initiated ..." (coreLogRecords core)
+    handler = Signals.CatchOnce handle
+    blockSignals = Nothing
+    installHandler signal = Signals.installHandler signal handler blockSignals
+  in do
+    void $ installHandler Signals.sigTERM
+    void $ installHandler Signals.sigINT
