@@ -21,8 +21,10 @@ import Control.Concurrent.STM.TBQueue (TBQueue, newTBQueueIO, readTBQueue, write
 import Control.Concurrent.STM.TVar (TVar, newTVarIO, writeTVar, readTVar)
 import Control.Monad (unless)
 import Data.Aeson (Value (..))
+import Data.Aeson.Text (encodeToLazyText)
+import Data.Text.Lazy.IO (writeFile)
 import Data.UUID (UUID)
-import Prelude hiding (log)
+import Prelude hiding (log, writeFile)
 import Store (Path)
 import Subscription (SubscriptionTree, empty)
 
@@ -108,6 +110,9 @@ processOps core = go Null
           atomically $ do
             writeTVar (coreCurrentValue core) newValue
             writeTBQueue (coreUpdates core) (Just $ Updated (opPath op) newValue)
+          -- persist the updated Json object to disk
+          -- TODO: make it configurable how often we do this (like in Redis)
+          writeFile "/tmp/icepeak.json" (encodeToLazyText newValue)
           go newValue
         Nothing -> do
           -- Stop the loop when we receive a Nothing.
