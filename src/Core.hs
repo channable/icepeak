@@ -64,9 +64,9 @@ type ServerState = SubscriptionTree UUID WS.Connection
 newServerState :: ServerState
 newServerState = empty
 
-newCore :: IO Core
-newCore = do
-  tvalue <- newTVarIO Null
+newCore :: Value -> IO Core
+newCore value = do
+  tvalue <- newTVarIO value
   tqueue <- newTBQueueIO 256
   tupdates <- newTBQueueIO 256
   tclients <- newMVar newServerState
@@ -112,7 +112,9 @@ processOps core = go Null
             writeTBQueue (coreUpdates core) (Just $ Updated (opPath op) newValue)
           -- persist the updated Json object to disk
           -- TODO: make it configurable how often we do this (like in Redis)
-          writeFile "/tmp/icepeak.json" (encodeToLazyText newValue)
+          putStrLn $ "Applying operation: " ++ show op
+          putStrLn $ "newValue: " ++ show newValue
+          writeFile "icepeak.json" (encodeToLazyText newValue)
           go newValue
         Nothing -> do
           -- Stop the loop when we receive a Nothing.

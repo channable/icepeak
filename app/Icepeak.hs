@@ -3,10 +3,12 @@ module Main where
 
 import Control.Monad (void)
 import Control.Concurrent.Async
+import Data.Aeson (eitherDecode)
 import Prelude hiding (log)
 
-import qualified System.Posix.Signals as Signals
 import qualified Control.Concurrent.Async as Async
+import qualified Data.ByteString.Lazy as BS
+import qualified System.Posix.Signals as Signals
 
 import Core (Core (..))
 import Logger (log, processLogRecords)
@@ -33,7 +35,13 @@ installHandlers core serverThread =
 
 main :: IO ()
 main = do
-  core <- Core.newCore
+  -- load the persistent data from disk
+  maybeValue <- BS.readFile "icepeak.json"
+
+  let value = case eitherDecode maybeValue of
+                Left _msg  -> error "Invalid Json."
+                Right obj  -> obj
+  core <- Core.newCore value
   httpServer <- HttpServer.new core
   let wsServer = WebsocketServer.acceptConnection core
   pops <- Async.async $ Core.processOps core
@@ -42,7 +50,9 @@ main = do
   logger <- Async.async $ processLogRecords (coreLogRecords core)
   installHandlers core serv
   log "System online. ** robot sounds **" (coreLogRecords core)
-  void $ Async.wait pops
-  void $ Async.wait upds
-  void $ Async.wait serv
-  void $ Async.wait logger
+
+  -- TODO: Log exceptions properly (i.e. non-interleaved)
+  void $ Async.waitCatch pops
+  void $ Async.waitCatch upds
+  void $ Async.waitCatch serv
+  void $ Async.waitCatch logger
