@@ -3,8 +3,9 @@ module Main where
 
 import Control.Monad (void)
 import Control.Concurrent.Async
-import Data.Aeson (eitherDecode)
+import Data.Aeson (eitherDecode, Value (..))
 import Prelude hiding (log)
+import System.IO (withFile, IOMode (..))
 
 import qualified Control.Concurrent.Async as Async
 import qualified Data.ByteString.Lazy as BS
@@ -35,11 +36,12 @@ installHandlers core serverThread =
 
 main :: IO ()
 main = do
+  maybeValue <- withFile "icepeak.json" ReadMode BS.hGetContents
   -- load the persistent data from disk
-  maybeValue <- BS.readFile "icepeak.json"
+  -- maybeValue <- BS.readFile "icepeak.json"
 
   let value = case eitherDecode maybeValue of
-                Left _msg  -> error "Invalid Json."
+                Left _msg  -> Object mempty
                 Right obj  -> obj
   core <- Core.newCore value
   httpServer <- HttpServer.new core
@@ -52,7 +54,7 @@ main = do
   log "System online. ** robot sounds **" (coreLogRecords core)
 
   -- TODO: Log exceptions properly (i.e. non-interleaved)
-  void $ Async.waitCatch pops
-  void $ Async.waitCatch upds
-  void $ Async.waitCatch serv
-  void $ Async.waitCatch logger
+  void $ Async.wait pops
+  void $ Async.wait upds
+  void $ Async.wait serv
+  void $ Async.wait logger

@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Core
 (
   Core (..), -- TODO: Expose only put for clients.
@@ -112,8 +113,6 @@ processOps core = go Null
             writeTBQueue (coreUpdates core) (Just $ Updated (opPath op) newValue)
           -- persist the updated Json object to disk
           -- TODO: make it configurable how often we do this (like in Redis)
-          putStrLn $ "Applying operation: " ++ show op
-          putStrLn $ "newValue: " ++ show newValue
           writeFile "icepeak.json" (encodeToLazyText newValue)
           go newValue
         Nothing -> do
