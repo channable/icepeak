@@ -26,6 +26,7 @@ library
     , monad-logger >=0.3 && <0.4
     , mtl >=2.2 && <2.3
     , network >=2.6 && <2.7
+    , optparse-applicative >= 0.13 && <0.14
     , random >=1.1 && <1.2
     , scotty >=0.11 && <0.12
     , stm >=2.4 && <2.5
@@ -40,6 +41,7 @@ library
     , websockets >=0.12 && <0.13
     , securemem <0.2
   exposed-modules:
+      Config
       Core
       Guardian
       HttpServer
@@ -68,6 +70,7 @@ executable icepeak
     , monad-logger >=0.3 && <0.4
     , mtl >=2.2 && <2.3
     , network >=2.6 && <2.7
+    , optparse-applicative >= 0.13 && <0.14
     , random >=1.1 && <1.2
     , scotty >=0.11 && <0.12
     , stm >=2.4 && <2.5
@@ -101,6 +104,7 @@ test-suite spec
     , monad-logger >=0.3 && <0.4
     , mtl >=2.2 && <2.3
     , network >=2.6 && <2.7
+    , optparse-applicative >= 0.13 && <0.14
     , random >=1.1 && <1.2
     , scotty >=0.11 && <0.12
     , stm >=2.4 && <2.5
