@@ -1,88 +1,129 @@
-name:                icepeak
-version:             0.0.0
-synopsis:            Json store with notification support
-homepage:            https://github.com/channable/icepeak
-build-type:          Simple
-cabal-version:       >=1.10
+-- This file has been generated from package.yaml by hpack version 0.17.1.
+--
+-- see: https://github.com/sol/hpack
+
+name:           icepeak
+version:        0.0.1
+synopsis:       Fast JSON store with push notification support
+homepage:       https://github.com/channable/icepeak
+license:        BSD3
+license-file:   LICENSE
+build-type:     Simple
+cabal-version:  >= 1.10
 
 library
+  hs-source-dirs:
+      src
+  ghc-options: -Wall -Werror -Wno-orphans -Wno-unused-top-binds -O2 -fno-ignore-asserts -funbox-strict-fields
+  build-depends:
+      aeson >=1.1 && <1.2
+    , async >=2.1 && <2.2
+    , base >=4.8 && <5.0
+    , bytestring >=0.10 && <0.11
+    , containers >=0.5 && <0.6
+    , hashable >=1.2 && <1.3
+    , http-types >=0.9 && <0.10
+    , monad-logger >=0.3 && <0.4
+    , mtl >=2.2 && <2.3
+    , network >=2.6 && <2.7
+    , random >=1.1 && <1.2
+    , scotty >=0.11 && <0.12
+    , stm >=2.4 && <2.5
+    , text >=1.2 && <1.3
+    , unix >=2.7 && <2.8
+    , unordered-containers >=0.2 && <0.3
+    , uuid >=1.3 && <1.4
+    , wai >=3.2 && <3.3
+    , wai-extra >=3.0 && <3.1
+    , wai-websockets >=3.0 && <3.1
+    , warp >=3.2 && <3.3
+    , websockets >=0.12 && <0.13
+    , securemem <0.2
+  exposed-modules:
+      Core
+      Guardian
+      HttpServer
+      Logger
+      Server
+      Store
+      Subscription
+      WebsocketServer
+  other-modules:
+      Paths_icepeak
   default-language: Haskell2010
-  hs-source-dirs:   src
-  ghc-options:     -Wall -Werror -Wno-orphans -Wno-unused-top-binds -O2 -fno-ignore-asserts -funbox-strict-fields
-  exposed-modules: Core
-                 , Guardian
-                 , HttpServer
-                 , Logger
-                 , Server
-                 , Store
-                 , Subscription
-                 , WebsocketServer
-
-  build-depends: aeson                >= 1.1  && < 1.2
-               , async                >= 2.1  && < 2.2
-               , base                 >= 4.8  && < 5.0
-               , bytestring           >= 0.10 && < 0.11
-               , containers           >= 0.5  && < 0.6
-               , hashable             >= 1.2  && < 1.3
-               , http-types           >= 0.9  && < 0.10
-               , monad-logger         >= 0.3  && < 0.4
-               , mtl                  >= 2.2  && < 2.3
-               , network              >= 2.6  && < 2.7
-               , random               >= 1.1  && < 1.2
-               , scotty               >= 0.11 && < 0.12
-               , stm                  >= 2.4  && < 2.5
-               , text                 >= 1.2  && < 1.3
-               , unordered-containers >= 0.2  && < 0.3
-               , uuid                 >= 1.3  && < 1.4
-               , wai                  >= 3.2  && < 3.3
-               , wai-extra            >= 3.0  && < 3.1
-               , wai-websockets       >= 3.0  && < 3.1
-               , warp                 >= 3.2  && < 3.3
-               , websockets           >= 0.12 && < 0.13
-               , securemem            < 0.2
-
 
 executable icepeak
+  main-is: Icepeak.hs
+  hs-source-dirs:
+      app
+  ghc-options: -Wall -Werror -O2 -threaded "-with-rtsopts=-N -I0"
+  build-depends:
+      aeson >=1.1 && <1.2
+    , async >=2.1 && <2.2
+    , base >=4.8 && <5.0
+    , bytestring >=0.10 && <0.11
+    , containers >=0.5 && <0.6
+    , hashable >=1.2 && <1.3
+    , http-types >=0.9 && <0.10
+    , monad-logger >=0.3 && <0.4
+    , mtl >=2.2 && <2.3
+    , network >=2.6 && <2.7
+    , random >=1.1 && <1.2
+    , scotty >=0.11 && <0.12
+    , stm >=2.4 && <2.5
+    , text >=1.2 && <1.3
+    , unix >=2.7 && <2.8
+    , unordered-containers >=0.2 && <0.3
+    , uuid >=1.3 && <1.4
+    , wai >=3.2 && <3.3
+    , wai-extra >=3.0 && <3.1
+    , wai-websockets >=3.0 && <3.1
+    , warp >=3.2 && <3.3
+    , websockets >=0.12 && <0.13
+    , securemem <0.2
+    , icepeak
   default-language: Haskell2010
-  hs-source-dirs:   app
-  main-is:          Icepeak.hs
-  -- Use the multi-threaded runtime (-threaded), and use as many threads as
-  -- cores on the system (+RTS -N). The -I0 flag prevents high CPU usage when
-  -- the process is idle, see http://stackoverflow.com/q/12886604/135889.
-  ghc-options:      -Wall -Werror -O2 -threaded "-with-rtsopts=-N -I0"
-  ghc-options:      -Wall -Werror
-
-  build-depends: async   >= 2.1  && < 2.2
-               , base    >= 4.8  && < 5.0
-               , scotty  >= 0.11 && < 0.12
-               , stm     >= 2.4  && < 2.5
-               , unix    >= 2.7  && < 2.8
-               , icepeak
 
 test-suite spec
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  hs-source-dirs:
+      tests
+  ghc-options: -Wall -Werror -Wno-orphans
+  build-depends:
+      aeson >=1.1 && <1.2
+    , async >=2.1 && <2.2
+    , base >=4.8 && <5.0
+    , bytestring >=0.10 && <0.11
+    , containers >=0.5 && <0.6
+    , hashable >=1.2 && <1.3
+    , http-types >=0.9 && <0.10
+    , monad-logger >=0.3 && <0.4
+    , mtl >=2.2 && <2.3
+    , network >=2.6 && <2.7
+    , random >=1.1 && <1.2
+    , scotty >=0.11 && <0.12
+    , stm >=2.4 && <2.5
+    , text >=1.2 && <1.3
+    , unix >=2.7 && <2.8
+    , unordered-containers >=0.2 && <0.3
+    , uuid >=1.3 && <1.4
+    , wai >=3.2 && <3.3
+    , wai-extra >=3.0 && <3.1
+    , wai-websockets >=3.0 && <3.1
+    , warp >=3.2 && <3.3
+    , websockets >=0.12 && <0.13
+    , securemem <0.2
+    , hspec >=2.4 && <2.5
+    , hspec-core >=2.4 && <2.5
+    , hspec-expectations >=0.8 && <0.9
+    , QuickCheck >=2.9 && <2.10
+    , quickcheck-instances >=0.3 && <0.4
+    , icepeak
+  other-modules:
+      ApiSpec
+      CoreSpec
+      SocketSpec
+      StoreSpec
+      SubscriptionTreeSpec
   default-language: Haskell2010
-  type:             exitcode-stdio-1.0
-  hs-source-dirs:   tests
-  main-is:          Spec.hs
-  ghc-options:      -Wall -Werror -Wno-orphans
-
-  other-modules: ApiSpec
-               , CoreSpec
-               , SocketSpec
-               , StoreSpec
-               , SubscriptionTreeSpec
-
-  build-depends: aeson                >= 1.1  && < 1.2
-               , base                 >= 4.8  && < 5.0
-               , bytestring           >= 0.10 && < 0.11
-               , containers           >= 0.5  && < 0.6
-               , hspec                >= 2.4  && < 2.5
-               , hspec-core           >= 2.4  && < 2.5
-               , hspec-expectations   >= 0.8  && < 0.9
-               , unordered-containers >= 0.2  && < 0.3
-               , monad-logger         >= 0.3  && < 0.4
-               , mtl                  >= 2.2  && < 2.3
-               , QuickCheck           >= 2.9  && < 2.10
-               , quickcheck-instances >= 0.3  && < 0.4
-               , uuid                 >= 1.3  && < 1.4
-               , icepeak
