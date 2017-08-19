@@ -4,6 +4,7 @@ module Main where
 import Control.Monad (void)
 import Control.Concurrent.Async
 import Data.Aeson (eitherDecode, Value (..))
+import Options.Applicative (execParser)
 import Prelude hiding (log)
 import System.IO (withFile, IOMode (..))
 
@@ -11,6 +12,7 @@ import qualified Control.Concurrent.Async as Async
 import qualified Data.ByteString.Lazy as BS
 import qualified System.Posix.Signals as Signals
 
+import Config (configInfo, cDataFile)
 import Core (Core (..))
 import Logger (log, processLogRecords)
 
@@ -36,7 +38,8 @@ installHandlers core serverThread =
 
 main :: IO ()
 main = do
-  maybeValue <- withFile "icepeak.json" ReadMode BS.hGetContents
+  config <- execParser configInfo
+  maybeValue <- withFile (cDataFile config) ReadMode BS.hGetContents
   -- load the persistent data from disk
   -- maybeValue <- BS.readFile "icepeak.json"
 
