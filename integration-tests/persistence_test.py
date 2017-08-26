@@ -14,16 +14,14 @@ json2 = {'so': {}}
 json3 = {'so': {'cool': {}}}
 json4 = {'so': {'cool': {}, 'hot': {}}}
 
-def read_after_write_check(url, data, expected_result=None):
-    """
-    First PUT the given `data` to the given `url`.
-    Then make sure we can read the data back from disk.
+icepeak_endpoint = 'http://localhost:3000'
 
-    `expected_result` can be passed if it is different from `data`.
+def read_after_write_check(url_path, data, expected_result):
     """
-    if expected_result is None:
-        expected_result = data
-
+    First PUT the given `data` to the given `url_path`.
+    Then make sure we can read the `expected_result` back from disk.
+    """
+    url = '{}{}?{}'.format(icepeak_endpoint, url_path, auth)
     requests.put(url, json.dumps(data))
 
     with open('../icepeak.json', 'r') as f:
@@ -33,8 +31,8 @@ def read_after_write_check(url, data, expected_result=None):
 
     print 'Successfully wrote and read: {}'.format(data)
 
-read_after_write_check('http://localhost:3000?{}'.format(auth), json1)
-read_after_write_check('http://localhost:3000?{}'.format(auth), json2)
-read_after_write_check('http://localhost:3000?{}'.format(auth), json3)
-read_after_write_check('http://localhost:3000/so?{}'.format(auth), {'cool' : {}}, json3)
-read_after_write_check('http://localhost:3000/so/hot?{}'.format(auth), json1, json4)
+read_after_write_check('', json1, json1)
+read_after_write_check('', json2, json2)
+read_after_write_check('', json3, json3)
+read_after_write_check('/so', {'cool' : {}}, json3)
+read_after_write_check('/so/hot', json1, json4)
