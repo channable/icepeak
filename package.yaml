@@ -1,6 +1,6 @@
 name: icepeak
 version: '0.0.1'
-synopsis: Fast JSON store with push notification support
+synopsis: Icepeak is a fast Json document store with push notification support
 license: BSD3
 homepage: https://github.com/channable/icepeak
 ghc-options:
