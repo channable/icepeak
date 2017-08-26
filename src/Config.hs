@@ -27,4 +27,4 @@ configInfo = info parser description
   where
     parser = configParser <**> helper
     description = fullDesc <>
-      header "Icepeak - Fast JSON document store with push notification support."
+      header "Icepeak - Fast Json document store with push notification support."
