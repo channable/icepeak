@@ -5,11 +5,11 @@ module Config (
 
 import Data.Semigroup ((<>))
 import Options.Applicative (Parser, ParserInfo, fullDesc, header, help,
-  helper, info, long, metavar, strOption, value, (<**>))
+  helper, info, long, metavar, strOption, value)
 
 -- command-line arguments
 data Config = Config {
-    cDataFile :: FilePath
+    configDataFile :: FilePath
 }
 
 -- Parsing of command-line arguments
@@ -25,6 +25,6 @@ configParser =
 configInfo :: ParserInfo Config
 configInfo = info parser description
   where
-    parser = configParser <**> helper
+    parser = helper <*> configParser
     description = fullDesc <>
       header "Icepeak - Fast Json document store with push notification support."

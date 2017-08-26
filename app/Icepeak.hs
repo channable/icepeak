@@ -5,9 +5,8 @@ module Main where
 import Control.Concurrent.Async
 import Control.Exception (try, SomeException)
 import Control.Monad (void)
-import Data.Aeson (eitherDecodeStrict, Value)
+import Data.Aeson (eitherDecodeStrict)
 import Data.ByteString (hGetContents, ByteString)
-import Data.ByteString.Char8 (pack)
 import Options.Applicative (execParser)
 import Prelude hiding (log)
 import System.IO (withFile, IOMode (..))
@@ -15,7 +14,7 @@ import System.IO (withFile, IOMode (..))
 import qualified Control.Concurrent.Async as Async
 import qualified System.Posix.Signals as Signals
 
-import Config (configInfo, cDataFile)
+import Config (configInfo, configDataFile)
 import Core (Core (..))
 import Logger (log, processLogRecords)
 
@@ -43,7 +42,7 @@ main :: IO ()
 main = do
   config <- execParser configInfo
   -- load the persistent data from disk
-  let filePath = cDataFile config
+  let filePath = configDataFile config
   eitherEncodedValue <- try $ withFile filePath ReadMode hGetContents
 
   case (eitherEncodedValue :: Either SomeException ByteString) of
@@ -51,7 +50,7 @@ main = do
       Right encodedValue -> case eitherDecodeStrict encodedValue of
           Left msg  -> error $ "Failed to decode the initial data: " ++ show msg
           Right value -> do
-              core <- Core.newCore value
+              core <- Core.newCore value config
               httpServer <- HttpServer.new core
               let wsServer = WebsocketServer.acceptConnection core
               pops <- Async.async $ Core.processOps core

@@ -26,14 +26,16 @@ import Data.Aeson.Text (encodeToLazyText)
 import Data.Text.Lazy.IO (writeFile)
 import Data.UUID (UUID)
 import Prelude hiding (log, writeFile)
-import Store (Path)
-import Subscription (SubscriptionTree, empty)
 
 import qualified Network.WebSockets as WS
 
+import Config (Config, configDataFile)
 import Logger (LogRecord)
+import Store (Path)
+import Subscription (SubscriptionTree, empty)
 
 import qualified Store
+
 
 -- A modification operation.
 data Op
@@ -58,6 +60,7 @@ data Core = Core
   , coreUpdates :: TBQueue (Maybe Updated)
   , coreClients :: MVar ServerState
   , coreLogRecords :: TBQueue (Maybe LogRecord)
+  , coreConfig :: Config
   }
 
 type ServerState = SubscriptionTree UUID WS.Connection
@@ -65,14 +68,14 @@ type ServerState = SubscriptionTree UUID WS.Connection
 newServerState :: ServerState
 newServerState = empty
 
-newCore :: Value -> IO Core
-newCore value = do
-  tvalue <- newTVarIO value
+newCore :: Value -> Config -> IO Core
+newCore initialValue config = do
+  tvalue <- newTVarIO initialValue
   tqueue <- newTBQueueIO 256
   tupdates <- newTBQueueIO 256
   tclients <- newMVar newServerState
   tlogrecords <- newTBQueueIO 256
-  pure (Core tvalue tqueue tupdates tclients tlogrecords)
+  pure (Core tvalue tqueue tupdates tclients tlogrecords config)
 
 -- Tell the put handler loop, the update handler and the logger loop to quit.
 postQuit :: Core -> IO ()
@@ -113,7 +116,7 @@ processOps core = go Null
             writeTBQueue (coreUpdates core) (Just $ Updated (opPath op) newValue)
           -- persist the updated Json object to disk
           -- TODO: make it configurable how often we do this (like in Redis)
-          writeFile "icepeak.json" (encodeToLazyText newValue)
+          writeFile (configDataFile $ coreConfig core) (encodeToLazyText newValue)
           go newValue
         Nothing -> do
           -- Stop the loop when we receive a Nothing.
