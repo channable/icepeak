@@ -22,3 +22,4 @@ cabal.project.local
 # Vim swap files
 *.swp
 *.swo
+icepeak.json

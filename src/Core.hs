@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Core
 (
   Core (..), -- TODO: Expose only put for clients.
@@ -21,16 +22,21 @@ import Control.Concurrent.STM.TBQueue (TBQueue, newTBQueueIO, readTBQueue, write
 import Control.Concurrent.STM.TVar (TVar, newTVarIO, writeTVar, readTVar)
 import Control.Monad (unless)
 import Data.Aeson (Value (..))
+import Data.Aeson.Text (encodeToLazyText)
+import Data.Text.Lazy.IO (writeFile)
 import Data.UUID (UUID)
-import Prelude hiding (log)
-import Store (Path)
-import Subscription (SubscriptionTree, empty)
+import Prelude hiding (log, writeFile)
+import System.Directory (renameFile)
 
 import qualified Network.WebSockets as WS
 
+import Config (Config, configDataFile)
 import Logger (LogRecord)
+import Store (Path)
+import Subscription (SubscriptionTree, empty)
 
 import qualified Store
+
 
 -- A modification operation.
 data Op
@@ -55,6 +61,7 @@ data Core = Core
   , coreUpdates :: TBQueue (Maybe Updated)
   , coreClients :: MVar ServerState
   , coreLogRecords :: TBQueue (Maybe LogRecord)
+  , coreConfig :: Config
   }
 
 type ServerState = SubscriptionTree UUID WS.Connection
@@ -62,14 +69,14 @@ type ServerState = SubscriptionTree UUID WS.Connection
 newServerState :: ServerState
 newServerState = empty
 
-newCore :: IO Core
-newCore = do
-  tvalue <- newTVarIO Null
+newCore :: Value -> Config -> IO Core
+newCore initialValue config = do
+  tvalue <- newTVarIO initialValue
   tqueue <- newTBQueueIO 256
   tupdates <- newTBQueueIO 256
   tclients <- newMVar newServerState
   tlogrecords <- newTBQueueIO 256
-  pure (Core tvalue tqueue tupdates tclients tlogrecords)
+  pure (Core tvalue tqueue tupdates tclients tlogrecords config)
 
 -- Tell the put handler loop, the update handler and the logger loop to quit.
 postQuit :: Core -> IO ()
@@ -108,6 +115,15 @@ processOps core = go Null
           atomically $ do
             writeTVar (coreCurrentValue core) newValue
             writeTBQueue (coreUpdates core) (Just $ Updated (opPath op) newValue)
+          -- persist the updated Json object to disk
+          -- TODO: make it configurable how often we do this (like in Redis)
+          let fileName = (configDataFile $ coreConfig core)
+              tempFileName = fileName ++ ".new"
+          -- we first write to a temporary file here and then do a rename on it
+          -- because rename is atomic on Posix and a crash during writing the
+          -- temporary file will thus not corrupt the datastore
+          writeFile tempFileName (encodeToLazyText newValue)
+          renameFile tempFileName fileName
           go newValue
         Nothing -> do
           -- Stop the loop when we receive a Nothing.

@@ -7,7 +7,7 @@
   <img src="https://img.shields.io/badge/license-BSD3-blue.svg" alt="BSD3 Licensed">
 </p>
 
-Icepeak is a fast json document store with push notification support.
+Icepeak is a fast JSON document store with push notification support.
 
 ## Disclaimer
 
@@ -23,6 +23,17 @@ Install with `stack install`
 
 Integration tests are in `/integration-tests`.
 They are stand-alone scripts that can be executed directly, e.g. `./connection_test.py`.
+
+## Usage:
+
+```
+Usage: icepeak [--data-file DATA_FILE]
+
+Available options:
+  --data-file DATA_FILE    File where data is persisted to. Default:
+                           icepeak.json
+  -h,--help                Show this help text
+```
 
 ## Connecting a client
 
