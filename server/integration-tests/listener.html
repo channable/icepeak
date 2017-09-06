@@ -17,7 +17,6 @@
     console.log('Received data: ' + event.data);
     var status = document.getElementById("status");
     console.log('status: ' + status);
-    status.innerHTML = JSON.stringify(msg);
+    status.textContent = JSON.stringify(msg);
   }
 </script>
-
