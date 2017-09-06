@@ -39,6 +39,10 @@ data Client = Client
 
 -- | Set a value at the leaf of a path.
 --
+-- Returns the status code of the HTTP response. Icepeak returns 202 if the
+-- update was accepted, and 503 if the high water mark was reached. Any other
+-- status code indicates a different error, or a misconfigured proxy.
+--
 -- Will rethrow any exceptions thrown by the I/O actions from
 -- "Network.HTTP.Client". Will not throw any other exceptions.
 setAtLeaf :: (MonadIO m, ToJSON a) => HTTP.Manager -> Client -> [Text] -> a -> m HTTP.Status
