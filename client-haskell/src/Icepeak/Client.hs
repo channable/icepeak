@@ -1,6 +1,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 -- | Functions are exported in descending order of abstraction level.
+--
+-- >>> :set -XOverloadedStrings
+-- >>> import Icepeak.Client (Client (..), setAtLeaf)
+-- >>> import qualified Network.HTTP.Client as HTTP
+-- >>> manager <- HTTP.newManager HTTP.defaultManagerSettings
+-- >>> let client = Client manager "localhost" 3000 "mS7karSP9QbD2FFdgBk2QmuTna7fJyp7ll0Vg8gnffIBHKILSrusMslucBzMhwO"
+-- >>> setAtLeaf client ["foo", "bar", "baz"] ([Just 1, Just 2, Nothing, Just 4] :: [Maybe Int])
 module Icepeak.Client
   ( Client (..)
   , setAtLeaf
