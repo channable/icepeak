@@ -5,9 +5,9 @@
 -- >>> :set -XOverloadedStrings
 -- >>> import Icepeak.Client (Client (..), setAtLeaf)
 -- >>> import qualified Network.HTTP.Client as HTTP
--- >>> manager <- HTTP.newManager HTTP.defaultManagerSettings
--- >>> let client = Client manager "localhost" 3000 "mS7karSP9QbD2FFdgBk2QmuTna7fJyp7ll0Vg8gnffIBHKILSrusMslucBzMhwO"
--- >>> setAtLeaf client ["foo", "bar", "baz"] ([Just 1, Just 2, Nothing, Just 4] :: [Maybe Int])
+-- >>> httpManager <- HTTP.newManager HTTP.defaultManagerSettings
+-- >>> let client = Client "localhost" 3000 "mS7karSP9QbD2FFdgBk2QmuTna7fJyp7ll0Vg8gnffIBHKILSrusMslucBzMhwO"
+-- >>> setAtLeaf httpManager client ["foo", "bar", "baz"] ([Just 1, Just 2, Nothing, Just 4] :: [Maybe Int])
 -- Status {statusCode = 202, statusMessage = "Accepted"}
 module Icepeak.Client
   ( Client (..)
@@ -32,31 +32,31 @@ import qualified Network.HTTP.Types.URI as URI
 
 -- | How to connect to Icepeak?
 data Client = Client
-  { clientHTTPManager :: HTTP.Manager
-  , clientIcepeakHost :: ByteString
-  , clientIcepeakPort :: Word16
-  , clientIcepeakAuth :: ByteString
+  { clientHost :: ByteString
+  , clientPort :: Word16
+  , clientAuth :: ByteString
   }
 
 -- | Set a value at the leaf of a path.
 --
 -- Will rethrow any exceptions thrown by the I/O actions from
 -- "Network.HTTP.Client". Will not throw any other exceptions.
-setAtLeaf :: (MonadIO m, ToJSON a) => Client -> [Text] -> a -> m HTTP.Status
-setAtLeaf (Client http host port auth) path leaf =
-  let request = setAtLeafRequest path leaf
-                & (\r -> r { HTTP.host = host, HTTP.port = fromIntegral port })
-                & HTTP.setQueryString [("auth", Just auth)]
-  in liftIO . fmap HTTP.responseStatus $ HTTP.httpNoBody request http
+setAtLeaf :: (MonadIO m, ToJSON a) => HTTP.Manager -> Client -> [Text] -> a -> m HTTP.Status
+setAtLeaf httpManager client path leaf =
+  let request = setAtLeafRequest client path leaf
+  in liftIO . fmap HTTP.responseStatus $ HTTP.httpNoBody request httpManager
 
 -- | Return a HTTP request for setting a value at the leaf of a path.
-setAtLeafRequest :: ToJSON a => [Text] -> a -> HTTP.Request
-setAtLeafRequest path leaf =
+setAtLeafRequest :: ToJSON a => Client -> [Text] -> a -> HTTP.Request
+setAtLeafRequest (Client host port auth) path leaf =
   HTTP.defaultRequest
-    { HTTP.method = "PUT"
+    { HTTP.host = host
+    , HTTP.port = fromIntegral port
+    , HTTP.method = "PUT"
     , HTTP.path = requestPathForIcepeakPath path
     , HTTP.requestBody = HTTP.RequestBodyLBS (Aeson.encode leaf)
     }
+  & HTTP.setQueryString [("auth", Just auth)]
 
 -- | Return the request path for an Icepeak path.
 requestPathForIcepeakPath :: [Text] -> ByteString
