@@ -18,7 +18,7 @@ cache:
   directories:
     - $HOME/.stack
     - $TRAVIS_BUILD_DIR/server/.stack-work
-    - $TRAVIS_BUILD_DIR/client/.stack-work
+    - $TRAVIS_BUILD_DIR/client-haskell/.stack-work
 
 install:
   # Install the compiler. Pass --no-terminal to tell Stack it is not running in
@@ -26,11 +26,11 @@ install:
   # updating them. The latter is less spammy but Travis does not support these
   # interactive terminal capabilities.
   - cd server && stack setup -j2 --no-terminal
-  - cd client && stack setup -j2 --no-terminal
+  - cd client-haskell && stack setup -j2 --no-terminal
 
 script:
   # Build and test.
   - cd server && stack build -j2 --no-terminal
   - cd server && stack test  -j2 --no-terminal
-  - cd client && stack build -j2 --no-terminal
-  - cd client && stack test  -j2 --no-terminal
+  - cd client-haskell && stack build -j2 --no-terminal
+  - cd client-haskell && stack test  -j2 --no-terminal
