@@ -16,12 +16,13 @@ Do not use it.
 
 ## Building and running Icepeak
 
+Cd into `/server`.
 Build with `stack build`.
 Run the tests with `stack test`.
 And run `icepeak` itself with `stack exec icepeak`.
-Install with `stack install`
+Install with `stack install`.
 
-Integration tests are in `/integration-tests`.
+Integration tests are in `/server/integration-tests`.
 They are stand-alone scripts that can be executed directly, e.g. `./connection_test.py`.
 
 ## Usage:

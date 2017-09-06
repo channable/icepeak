@@ -17,16 +17,20 @@ addons:
 cache:
   directories:
     - $HOME/.stack
-    - $TRAVIS_BUILD_DIR/.stack-work
+    - $TRAVIS_BUILD_DIR/server/.stack-work
+    - $TRAVIS_BUILD_DIR/client/.stack-work
 
 install:
   # Install the compiler. Pass --no-terminal to tell Stack it is not running in
   # an interactive terminal, so it prints messages sequentially instead of
   # updating them. The latter is less spammy but Travis does not support these
   # interactive terminal capabilities.
-  - stack setup -j2 --no-terminal
+  - cd server && stack setup -j2 --no-terminal
+  - cd client && stack setup -j2 --no-terminal
 
 script:
   # Build and test.
-  - stack build -j2 --no-terminal
-  - stack test  -j2 --no-terminal
+  - cd server && stack build -j2 --no-terminal
+  - cd server && stack test  -j2 --no-terminal
+  - cd client && stack build -j2 --no-terminal
+  - cd client && stack test  -j2 --no-terminal
