@@ -25,12 +25,12 @@ install:
   # an interactive terminal, so it prints messages sequentially instead of
   # updating them. The latter is less spammy but Travis does not support these
   # interactive terminal capabilities.
-  - cd server && stack setup -j2 --no-terminal
-  - cd client-haskell && stack setup -j2 --no-terminal
+  - (cd server && stack setup -j2 --no-terminal)
+  - (cd client-haskell && stack setup -j2 --no-terminal)
 
 script:
   # Build and test.
-  - cd server && stack build -j2 --no-terminal
-  - cd server && stack test  -j2 --no-terminal
-  - cd client-haskell && stack build -j2 --no-terminal
-  - cd client-haskell && stack test  -j2 --no-terminal
+  - (cd server && stack build -j2 --no-terminal)
+  - (cd server && stack test  -j2 --no-terminal)
+  - (cd client-haskell && stack build -j2 --no-terminal)
+  - (cd client-haskell && stack test  -j2 --no-terminal)
