@@ -25,6 +25,7 @@ data Client = Client
   { clientHTTPManager :: HTTP.Manager
   , clientIcepeakHost :: ByteString
   , clientIcepeakPort :: Word16
+  , clientIcepeakAuth :: ByteString
   }
 
 -- | Set a value at the leaf of a path.
@@ -32,10 +33,11 @@ data Client = Client
 -- Will rethrow any exceptions thrown by the I/O actions from
 -- "Network.HTTP.Client".
 setAtLeaf :: ToJSON a => Client -> [Text] -> a -> IO ()
-setAtLeaf (Client http host port) path leaf =
+setAtLeaf (Client http host port auth) path leaf =
   let request = setAtLeafRequest path leaf
       request' = request { HTTP.host = host, HTTP.port = fromIntegral port }
-  in void $ HTTP.httpNoBody request' http
+      request'' = HTTP.setQueryString [("auth", Just auth)] request'
+  in void $ HTTP.httpNoBody request'' http
 
 -- | Return a HTTP request for setting a value at the leaf of a path.
 setAtLeafRequest :: ToJSON a => [Text] -> a -> HTTP.Request
