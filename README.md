@@ -16,13 +16,22 @@ Do not use it.
 
 ## Building and running Icepeak
 
+Cd into `/server`.
 Build with `stack build`.
 Run the tests with `stack test`.
 And run `icepeak` itself with `stack exec icepeak`.
-Install with `stack install`
+Install with `stack install`.
 
-Integration tests are in `/integration-tests`.
+Integration tests are in `/server/integration-tests`.
 They are stand-alone scripts that can be executed directly, e.g. `./connection_test.py`.
+
+## Building the Haskell client library
+
+Cd into `/client-haskell`.
+Build with `stack build`.
+Run the tests with `stack test`.
+
+Run `stack haddock --no-haddock-deps` to generate the Haskell API documentation.
 
 ## Usage:
 

@@ -1,0 +1,22 @@
+name: icepeak-client
+version: '0.0.1'
+synopsis: Client library for Icepeak, a fast JSON document store with push notification support
+license: BSD3
+homepage: https://github.com/channable/icepeak
+
+ghc-options: >-
+  -Wall
+  -Wincomplete-uni-patterns
+  -Wincomplete-record-updates
+
+dependencies:
+  - aeson >= 1.1.2.0 && < 1.2
+  - base >= 4.9.1.0 && < 4.10
+  - binary >= 0.8.3.0 && < 0.9
+  - bytestring >= 0.10 && < 0.11
+  - http-client >= 0.5.7.0 && < 0.6
+  - http-types >= 0.9.1 && < 0.10
+  - text >= 1.2.2.2 && < 1.3
+
+library:
+  source-dirs: src
