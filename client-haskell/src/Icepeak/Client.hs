@@ -3,16 +3,27 @@
 -- | Functions are exported in descending order of abstraction level.
 --
 -- >>> :set -XOverloadedStrings
--- >>> import Icepeak.Client (Client (..), setAtLeaf)
+-- >>> import Icepeak.Client (Client (..), deleteAtLeaf, setAtLeaf)
 -- >>> import qualified Network.HTTP.Client as HTTP
 -- >>> httpManager <- HTTP.newManager HTTP.defaultManagerSettings
 -- >>> let client = Client "localhost" 3000 "mS7karSP9QbD2FFdgBk2QmuTna7fJyp7ll0Vg8gnffIBHKILSrusMslucBzMhwO"
 -- >>> setAtLeaf httpManager client ["foo", "bar", "baz"] ([Just 1, Just 2, Nothing, Just 4] :: [Maybe Int])
 -- Status {statusCode = 202, statusMessage = "Accepted"}
+-- >>> deleteAtLeaf httpManager client ["foo", "bar"]
+-- Status {statusCode = 202, statusMessage = "Accepted"}
 module Icepeak.Client
-  ( Client (..)
+  ( -- * Connection data
+    Client (..)
+
+    -- * Performing requests
+    -- $updatebehavior
   , setAtLeaf
+  , deleteAtLeaf
+
+    -- * Constructing requests
   , setAtLeafRequest
+  , deleteAtLeafRequest
+  , baseRequest
   , requestPathForIcepeakPath
   ) where
 
@@ -37,28 +48,49 @@ data Client = Client
   , clientAuth :: ByteString
   }
 
--- | Set a value at the leaf of a path.
---
+-- $updatebehavior
 -- Returns the status code of the HTTP response. Icepeak returns 202 if the
 -- update was accepted, and 503 if the high water mark was reached. Any other
 -- status code indicates a different error, or a misconfigured proxy.
 --
 -- Will rethrow any exceptions thrown by the I/O actions from
 -- "Network.HTTP.Client". Will not throw any other exceptions.
+
+-- | Set a value at the leaf of a path.
 setAtLeaf :: (MonadIO m, ToJSON a) => HTTP.Manager -> Client -> [Text] -> a -> m HTTP.Status
 setAtLeaf httpManager client path leaf =
   let request = setAtLeafRequest client path leaf
   in liftIO . fmap HTTP.responseStatus $ HTTP.httpNoBody request httpManager
 
+-- | Delete the value at the leaf of a path.
+deleteAtLeaf :: MonadIO m => HTTP.Manager -> Client -> [Text] -> m HTTP.Status
+deleteAtLeaf httpManager client path =
+  let request = deleteAtLeafRequest client path
+  in liftIO . fmap HTTP.responseStatus $ HTTP.httpNoBody request httpManager
+
 -- | Return a HTTP request for setting a value at the leaf of a path.
 setAtLeafRequest :: ToJSON a => Client -> [Text] -> a -> HTTP.Request
-setAtLeafRequest (Client host port auth) path leaf =
+setAtLeafRequest client path leaf =
+  (baseRequest client)
+    { HTTP.method = "PUT"
+    , HTTP.path = requestPathForIcepeakPath path
+    , HTTP.requestBody = HTTP.RequestBodyLBS (Aeson.encode leaf)
+    }
+
+-- | Return a HTTP request for deleting a value at the leaf of a path.
+deleteAtLeafRequest :: Client -> [Text] -> HTTP.Request
+deleteAtLeafRequest client path =
+  (baseRequest client)
+    { HTTP.method = "DELETE"
+    , HTTP.path = requestPathForIcepeakPath path
+    }
+
+-- | Return a template for requests off a client.
+baseRequest :: Client -> HTTP.Request
+baseRequest (Client host port auth) =
   HTTP.defaultRequest
     { HTTP.host = host
     , HTTP.port = fromIntegral port
-    , HTTP.method = "PUT"
-    , HTTP.path = requestPathForIcepeakPath path
-    , HTTP.requestBody = HTTP.RequestBodyLBS (Aeson.encode leaf)
     }
   & HTTP.setQueryString [("auth", Just auth)]
 
