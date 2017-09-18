@@ -13,8 +13,10 @@ where
 
 import Control.Monad (void)
 import Data.Aeson (Value)
+import Data.Foldable (traverse_)
 import Data.HashMap.Strict (HashMap)
 import Data.Hashable (Hashable)
+import Data.List (inits)
 import Data.Maybe (fromMaybe)
 import Data.Monoid ((<>))
 import Data.Text (Text)
@@ -65,7 +67,25 @@ unsubscribe path subid (SubscriptionTree here inner) =
 -- Invoke f for all subscribers to the path. The subscribers get passed the
 -- subvalue at the path that they are subscribed to.
 broadcast :: (Value -> v -> IO ()) -> [Text] -> Value -> SubscriptionTree k v -> IO ()
-broadcast f path value (SubscriptionTree here inner) =
+broadcast f path value tree = do
+  broadcastParents f path value tree
+  broadcastChildren f path value tree
+
+broadcastParents :: (Value -> v -> IO ()) -> [Text] -> Value -> SubscriptionTree k v -> IO ()
+broadcastParents f path value root = traverse_ onInit (inits path)
+  where
+    onInit :: [Text] -> IO ()
+    onInit subpath =
+      let subvalue = (Store.lookupOrNull subpath value)
+      in Async.forConcurrently_ (findHere subpath root) (f subvalue)
+
+    findHere :: [Text] -> SubscriptionTree k v -> HashMap k v
+    findHere [] (SubscriptionTree here _) = here
+    findHere (p : ps) (SubscriptionTree _ inner) =
+      fromMaybe HashMap.empty . fmap (findHere ps) . HashMap.lookup p $ inner
+
+broadcastChildren :: (Value -> v -> IO ()) -> [Text] -> Value -> SubscriptionTree k v -> IO ()
+broadcastChildren f path value (SubscriptionTree here inner) = do
   case path of
     [] -> do
       -- When the path is empty, all subscribers that are "here" or at a deeper
