@@ -5,18 +5,41 @@
 <style>
   body { font-family: 'Helvetica', 'Arial', sans-serif; }
 </style>
-<p>
+<fieldset>
+  <legend>Configuration</legend>
+  URL: <input id="url" type="url" value="ws://localhost:3000"/>
+  <button id="reload" type="button">Reload</button>
+</fieldset>
+<fieldset>
+  <legend>Status</legend>
   <!-- we set the status dynamically from the websocket data -->
-  Status: <span id="status"></span>
-</p>
+  <pre id="status"></pre>
+</fieldset>
 
 <script>
-  var webSocket = new WebSocket("ws://localhost:3000");
-  webSocket.onmessage = function (event) {
-    var msg = JSON.parse(event.data);
-    console.log('Received data: ' + event.data);
-    var status = document.getElementById("status");
-    console.log('status: ' + status);
-    status.textContent = JSON.stringify(msg);
-  }
+  (function() {
+    var urlField = document.getElementById("url");
+    var reloadButton = document.getElementById("reload");
+    var statusField = document.getElementById("status");
+
+    var webSocket = null;
+    var reload = function() {
+      if (webSocket !== null) {
+        webSocket.close();
+      }
+      webSocket = new WebSocket(urlField.value);
+      webSocket.addEventListener("message", function (event) {
+        var msg = JSON.parse(event.data);
+        console.log('Received data: ' + event.data);
+        console.log('status: ' + status);
+        statusField.textContent = JSON.stringify(msg, null, 4);
+      });
+    };
+
+    reloadButton.addEventListener("click", function() {
+      reload();
+    });
+
+    reload();
+  })();
 </script>
