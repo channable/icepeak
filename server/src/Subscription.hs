@@ -19,13 +19,13 @@ import Data.Aeson (Value)
 import Data.Foldable (traverse_)
 import Data.HashMap.Strict (HashMap)
 import Data.Hashable (Hashable)
-import Data.List (inits)
 import Data.Maybe (fromMaybe)
 import Data.Monoid ((<>))
 import Data.Text (Text)
 
 import qualified Control.Concurrent.Async as Async
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.List.NonEmpty as NE
 import qualified Data.Text as Text
 
 import qualified Store
@@ -71,21 +71,26 @@ unsubscribe path subid (SubscriptionTree here inner) =
 -- subvalue at the path that they are subscribed to.
 broadcast :: (v -> Value -> IO ()) -> [Text] -> Value -> SubscriptionTree k v -> IO ()
 broadcast f path value tree =
-  Async.mapConcurrently_ (uncurry f) (execWriter (broadcast' path value tree))
+  let notifications = broadcast' path value tree
+  in Async.mapConcurrently_ (uncurry f) notifications
 
--- Like broadcast, but pure.
-broadcast' :: [Text] -> Value -> SubscriptionTree k v -> Writer [(v, Value)] ()
-broadcast' path value tree = do
+-- Like broadcast, but return a list of notifications rather than invoking an
+-- effect on each of them.
+broadcast' :: [Text] -> Value -> SubscriptionTree k v -> [(v, Value)]
+broadcast' path value tree = execWriter $ do
   broadcastParents path value tree
-  broadcastChildren path value tree
+  broadcastSelfAndChildren path value tree
 
+-- Subscribers of parents of the node being updated need to be notified. This
+-- also includes parents that were not present prior to the update.
 broadcastParents
   :: forall k v
    . [Text]
   -> Value
   -> SubscriptionTree k v
   -> Writer [(v, Value)] ()
-broadcastParents path value root = traverse_ onInit (inits path)
+broadcastParents path value root =
+  traverse_ onInit (NE.init (NE.inits path))
   where
     onInit :: [Text] -> Writer [(v, Value)] ()
     onInit subpath =
@@ -97,26 +102,29 @@ broadcastParents path value root = traverse_ onInit (inits path)
     findHere (p : ps) (SubscriptionTree _ inner) =
       fromMaybe HashMap.empty . fmap (findHere ps) . HashMap.lookup p $ inner
 
-broadcastChildren
+-- Subscribers of children of the node being updated need to be notified. This
+-- also includes children that were not present prior to the update. Also notify
+-- subscribers of the node itself.
+broadcastSelfAndChildren
   :: [Text]
   -> Value
   -> SubscriptionTree k v
   -> Writer [(v, Value)] ()
-broadcastChildren path value (SubscriptionTree here inner) = do
+broadcastSelfAndChildren path value (SubscriptionTree here inner) = do
   case path of
     [] -> do
       -- When the path is empty, all subscribers that are "here" or at a deeper
       -- level should receive a notification.
       -- We broadcast concurrently since all updates are independent of each other
       traverse_ (\v -> tell [(v, value)]) here
-      let broadcastInner key = broadcastChildren [] (Store.lookupOrNull [key] value)
+      let broadcastInner key = broadcastSelfAndChildren [] (Store.lookupOrNull [key] value)
       void $ HashMap.traverseWithKey broadcastInner inner
 
     key : pathTail -> case HashMap.lookup key inner of
       Nothing -> pure ()
       -- TODO: Extract the inner thing from the value as well; the client is not
       -- subscribed to the top-level thing after all.
-      Just subs -> broadcastChildren pathTail (Store.lookupOrNull [key] value) subs
+      Just subs -> broadcastSelfAndChildren pathTail (Store.lookupOrNull [key] value) subs
 
 -- Show subscriptions, for debugging purposes.
 showTree :: Show k => SubscriptionTree k v -> String
