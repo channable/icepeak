@@ -37,8 +37,8 @@ newUUID = randomIO
 broadcast :: [Text] -> Value -> ServerState -> IO ()
 broadcast =
   let
-    send :: Value -> WS.Connection -> IO ()
-    send value conn = do
+    send :: WS.Connection -> Value -> IO ()
+    send conn value = do
       WS.sendTextData conn (Aeson.encode value)
   in
     Subscription.broadcast send

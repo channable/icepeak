@@ -4,6 +4,7 @@ module Subscription
 (
   SubscriptionTree (..),
   broadcast,
+  broadcast',
   empty,
   subscribe,
   unsubscribe,
@@ -12,7 +13,9 @@ module Subscription
 where
 
 import Control.Monad (void)
+import Control.Monad.Writer (Writer, tell, execWriter)
 import Data.Aeson (Value)
+import Data.Foldable (for_, traverse_)
 import Data.HashMap.Strict (HashMap)
 import Data.Hashable (Hashable)
 import Data.Maybe (fromMaybe)
@@ -27,17 +30,23 @@ import qualified Store
 
 -- Keeps subscriptions in a tree data structure, so we can efficiently determine
 -- which clients need to be notified for a given update.
-data SubscriptionTree k v =
-  SubscriptionTree (HashMap k v) (HashMap Text (SubscriptionTree k v))
+data SubscriptionTree id conn =
+  SubscriptionTree (HashMap id conn) (HashMap Text (SubscriptionTree id conn))
   deriving (Eq, Functor, Show)
 
-empty :: SubscriptionTree k v
+empty :: SubscriptionTree id conn
 empty = SubscriptionTree HashMap.empty HashMap.empty
 
-isEmpty :: SubscriptionTree k v -> Bool
+isEmpty :: SubscriptionTree id conn -> Bool
 isEmpty (SubscriptionTree here inner) = HashMap.null here && HashMap.null inner
 
-subscribe :: (Eq k, Hashable k) => [Text] -> k -> v -> SubscriptionTree k v -> SubscriptionTree k v
+subscribe
+  :: (Eq id, Hashable id)
+  => [Text]
+  -> id
+  -> conn
+  -> SubscriptionTree id conn
+  -> SubscriptionTree id conn
 subscribe path subid subval (SubscriptionTree here inner) =
   case path of
     [] -> SubscriptionTree (HashMap.insert subid subval here) inner
@@ -48,7 +57,12 @@ subscribe path subid subval (SubscriptionTree here inner) =
       in
         SubscriptionTree here newInner
 
-unsubscribe :: (Eq k, Hashable k) => [Text] -> k -> SubscriptionTree k v -> SubscriptionTree k v
+unsubscribe
+  :: (Eq id, Hashable id)
+  => [Text]
+  -> id
+  -> SubscriptionTree id conn
+  -> SubscriptionTree id conn
 unsubscribe path subid (SubscriptionTree here inner) =
   case path of
     [] -> SubscriptionTree (HashMap.delete subid here) inner
@@ -64,25 +78,34 @@ unsubscribe path subid (SubscriptionTree here inner) =
 
 -- Invoke f for all subscribers to the path. The subscribers get passed the
 -- subvalue at the path that they are subscribed to.
-broadcast :: (Value -> v -> IO ()) -> [Text] -> Value -> SubscriptionTree k v -> IO ()
-broadcast f path value (SubscriptionTree here inner) =
-  case path of
-    [] -> do
-      -- When the path is empty, all subscribers that are "here" or at a deeper
-      -- level should receive a notification.
-      -- We broadcast concurrently since all updates are independent of each other
-      Async.forConcurrently_ here (f value)
-      let broadcastInner key = broadcast f [] (Store.lookupOrNull [key] value)
-      void $ HashMap.traverseWithKey broadcastInner inner
+broadcast :: (conn -> Value -> IO ()) -> [Text] -> Value -> SubscriptionTree id conn -> IO ()
+broadcast f path value tree =
+  -- We broadcast concurrently since all updates are independent of each other
+  Async.mapConcurrently_ (uncurry f) notifications
+  where notifications = broadcast' path value tree
 
-    key : pathTail -> case HashMap.lookup key inner of
-      Nothing -> pure ()
-      -- TODO: Extract the inner thing from the value as well; the client is not
-      -- subscribed to the top-level thing after all.
-      Just subs -> broadcast f pathTail (Store.lookupOrNull [key] value) subs
+-- Like broadcast, but return a list of notifications rather than invoking an
+-- effect on each of them.
+broadcast' :: [Text] -> Value -> SubscriptionTree id conn -> [(conn, Value)]
+broadcast' = \path value tree -> execWriter $ loop path value tree
+  where
+  loop :: [Text] -> Value -> SubscriptionTree id conn -> Writer [(conn, Value)] ()
+  loop path value (SubscriptionTree here inner) = do
+    case path of
+      [] -> do
+        -- When the path is empty, all subscribers that are "here" or at a deeper
+        -- level should receive a notification.
+        traverse_ (\v -> tell [(v, value)]) here
+        let broadcastInner key = loop [] (Store.lookupOrNull [key] value)
+        void $ HashMap.traverseWithKey broadcastInner inner
+
+      key : pathTail -> do
+        traverse_ (\v -> tell [(v, value)]) here
+        for_ (HashMap.lookup key inner) $ \subs ->
+          loop pathTail (Store.lookupOrNull [key] value) subs
 
 -- Show subscriptions, for debugging purposes.
-showTree :: Show k => SubscriptionTree k v -> String
+showTree :: Show id => SubscriptionTree id conn -> String
 showTree tree =
   let
     withPrefix prefix (SubscriptionTree here inner) =
