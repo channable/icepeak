@@ -82,24 +82,27 @@ broadcast :: (conn -> Value -> IO ()) -> [Text] -> Value -> SubscriptionTree id 
 broadcast f path value tree =
   -- We broadcast concurrently since all updates are independent of each other
   Async.mapConcurrently_ (uncurry f) notifications
-  where notifications = execWriter $ broadcast' path value tree
+  where notifications = broadcast' path value tree
 
 -- Like broadcast, but return a list of notifications rather than invoking an
 -- effect on each of them.
-broadcast' :: [Text] -> Value -> SubscriptionTree id conn -> Writer [(conn, Value)] ()
-broadcast' path value (SubscriptionTree here inner) = do
-  case path of
-    [] -> do
-      -- When the path is empty, all subscribers that are "here" or at a deeper
-      -- level should receive a notification.
-      traverse_ (\v -> tell [(v, value)]) here
-      let broadcastInner key = broadcast' [] (Store.lookupOrNull [key] value)
-      void $ HashMap.traverseWithKey broadcastInner inner
+broadcast' :: [Text] -> Value -> SubscriptionTree id conn -> [(conn, Value)]
+broadcast' = \path value tree -> execWriter $ loop path value tree
+  where
+  loop :: [Text] -> Value -> SubscriptionTree id conn -> Writer [(conn, Value)] ()
+  loop path value (SubscriptionTree here inner) = do
+    case path of
+      [] -> do
+        -- When the path is empty, all subscribers that are "here" or at a deeper
+        -- level should receive a notification.
+        traverse_ (\v -> tell [(v, value)]) here
+        let broadcastInner key = loop [] (Store.lookupOrNull [key] value)
+        void $ HashMap.traverseWithKey broadcastInner inner
 
-    key : pathTail -> do
-      traverse_ (\v -> tell [(v, value)]) here
-      for_ (HashMap.lookup key inner) $ \subs ->
-        broadcast' pathTail (Store.lookupOrNull [key] value) subs
+      key : pathTail -> do
+        traverse_ (\v -> tell [(v, value)]) here
+        for_ (HashMap.lookup key inner) $ \subs ->
+          loop pathTail (Store.lookupOrNull [key] value) subs
 
 -- Show subscriptions, for debugging purposes.
 showTree :: Show id => SubscriptionTree id conn -> String
