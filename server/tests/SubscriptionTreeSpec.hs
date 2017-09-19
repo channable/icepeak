@@ -3,6 +3,7 @@
 
 module SubscriptionTreeSpec (spec) where
 
+import Control.Monad.Writer (execWriter)
 import Data.List (sortOn)
 import Test.Hspec (Spec, describe, it, shouldBe)
 import Test.Hspec.QuickCheck (prop)
@@ -89,8 +90,10 @@ spec = do
         value_foo_bar = AE.Null
         value_baz = AE.object []
 
+        broadcast'' path = sortOn fst . execWriter $ broadcast' path value root
+
       it "notifies everyone on root updates" $ do
-        sortOn fst (broadcast' [] value root)
+        broadcast'' []
           `shouldBe` [ (conn1, value)
                      , (conn2, value_foo)
                      , (conn3, value_foo_bar)
@@ -98,14 +101,14 @@ spec = do
                      ]
 
       it "notifies parents and children about updates" $ do
-        sortOn fst (broadcast' ["foo"] value root)
+        broadcast'' ["foo"]
           `shouldBe` [ (conn1, value)
                      , (conn2, value_foo)
                      , (conn3, value_foo_bar)
                      ]
 
       it "notifies parents and children about updates" $ do
-        sortOn fst (broadcast' ["foo", "bar"] value root)
+        broadcast'' ["foo", "bar"]
           `shouldBe` [ (conn1, value)
                      , (conn2, value_foo)
                      , (conn3, value_foo_bar)
