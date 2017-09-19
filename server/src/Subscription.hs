@@ -83,12 +83,7 @@ broadcast' path value tree = execWriter $ do
 
 -- Subscribers of parents of the node being updated need to be notified. This
 -- also includes parents that were not present prior to the update.
-broadcastParents
-  :: forall k v
-   . [Text]
-  -> Value
-  -> SubscriptionTree k v
-  -> Writer [(v, Value)] ()
+broadcastParents :: forall k v. [Text] -> Value -> SubscriptionTree k v -> Writer [(v, Value)] ()
 broadcastParents path value root =
   traverse_ onInit (NE.init (NE.inits path))
   where
@@ -105,11 +100,7 @@ broadcastParents path value root =
 -- Subscribers of children of the node being updated need to be notified. This
 -- also includes children that were not present prior to the update. Also notify
 -- subscribers of the node itself.
-broadcastSelfAndChildren
-  :: [Text]
-  -> Value
-  -> SubscriptionTree k v
-  -> Writer [(v, Value)] ()
+broadcastSelfAndChildren :: [Text] -> Value -> SubscriptionTree k v -> Writer [(v, Value)] ()
 broadcastSelfAndChildren path value (SubscriptionTree here inner) = do
   case path of
     [] -> do

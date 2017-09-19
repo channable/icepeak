@@ -3,13 +3,15 @@
 
 module SubscriptionTreeSpec (spec) where
 
+import Data.List (sortOn)
 import Test.Hspec (Spec, describe, it, shouldBe)
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck.Instances ()
 
+import qualified Data.Aeson as AE
 import qualified Data.HashMap.Strict as HM
 
-import Subscription (SubscriptionTree (..), empty, subscribe, unsubscribe)
+import Subscription (SubscriptionTree (..), broadcast', empty, subscribe, unsubscribe)
 
 spec :: Spec
 spec = do
@@ -69,3 +71,42 @@ spec = do
         conn_id = 1 :: Int
       unsubscribe path conn_id (empty :: SubscriptionTree Int String)`shouldBe` empty
 
+    do
+      let
+        conn1    , conn2    , conn3    , conn4 :: Int
+        conn1 = 1; conn2 = 2; conn3 = 3; conn4 = 4
+
+        root = SubscriptionTree (HM.fromList [(conn1, conn1)])
+                                (HM.fromList [ ("foo", root_foo)
+                                             , ("baz", root_baz) ])
+        root_foo = SubscriptionTree (HM.fromList [(conn2, conn2)])
+                                    (HM.fromList [("bar", root_foo_bar)])
+        root_foo_bar = SubscriptionTree (HM.fromList [(conn3, conn3)]) HM.empty
+        root_baz = SubscriptionTree (HM.fromList [(conn4, conn4)]) HM.empty
+
+        value = AE.object ["foo" AE..= value_foo, "baz" AE..= value_baz]
+        value_foo = AE.object ["bar" AE..= value_foo_bar]
+        value_foo_bar = AE.Null
+        value_baz = AE.object []
+
+      it "notifies everyone on root updates" $ do
+        sortOn fst (broadcast' [] value root)
+          `shouldBe` [ (conn1, value)
+                     , (conn2, value_foo)
+                     , (conn3, value_foo_bar)
+                     , (conn4, value_baz)
+                     ]
+
+      it "notifies parents and children about updates" $ do
+        sortOn fst (broadcast' ["foo"] value root)
+          `shouldBe` [ (conn1, value)
+                     , (conn2, value_foo)
+                     , (conn3, value_foo_bar)
+                     ]
+
+      it "notifies parents and children about updates" $ do
+        sortOn fst (broadcast' ["foo", "bar"] value root)
+          `shouldBe` [ (conn1, value)
+                     , (conn2, value_foo)
+                     , (conn3, value_foo_bar)
+                     ]
