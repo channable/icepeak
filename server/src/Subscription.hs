@@ -1,9 +1,11 @@
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Subscription
 (
   SubscriptionTree (..),
   broadcast,
+  broadcast',
   empty,
   subscribe,
   unsubscribe,
@@ -12,6 +14,7 @@ module Subscription
 where
 
 import Control.Monad (void)
+import Control.Monad.Writer (Writer, tell, execWriter)
 import Data.Aeson (Value)
 import Data.Foldable (traverse_)
 import Data.HashMap.Strict (HashMap)
@@ -66,40 +69,54 @@ unsubscribe path subid (SubscriptionTree here inner) =
 
 -- Invoke f for all subscribers to the path. The subscribers get passed the
 -- subvalue at the path that they are subscribed to.
-broadcast :: (Value -> v -> IO ()) -> [Text] -> Value -> SubscriptionTree k v -> IO ()
-broadcast f path value tree = do
-  broadcastParents f path value tree
-  broadcastChildren f path value tree
+broadcast :: (v -> Value -> IO ()) -> [Text] -> Value -> SubscriptionTree k v -> IO ()
+broadcast f path value tree =
+  Async.mapConcurrently_ (uncurry f) (execWriter (broadcast' path value tree))
 
-broadcastParents :: (Value -> v -> IO ()) -> [Text] -> Value -> SubscriptionTree k v -> IO ()
-broadcastParents f path value root = traverse_ onInit (inits path)
+-- Like broadcast, but pure.
+broadcast' :: [Text] -> Value -> SubscriptionTree k v -> Writer [(v, Value)] ()
+broadcast' path value tree = do
+  broadcastParents path value tree
+  broadcastChildren path value tree
+
+broadcastParents
+  :: forall k v
+   . [Text]
+  -> Value
+  -> SubscriptionTree k v
+  -> Writer [(v, Value)] ()
+broadcastParents path value root = traverse_ onInit (inits path)
   where
-    onInit :: [Text] -> IO ()
+    onInit :: [Text] -> Writer [(v, Value)] ()
     onInit subpath =
-      let subvalue = (Store.lookupOrNull subpath value)
-      in Async.forConcurrently_ (findHere subpath root) (f subvalue)
+      let subvalue = Store.lookupOrNull subpath value
+      in traverse_ (\v -> tell [(v, subvalue)]) (findHere subpath root)
 
     findHere :: [Text] -> SubscriptionTree k v -> HashMap k v
     findHere [] (SubscriptionTree here _) = here
     findHere (p : ps) (SubscriptionTree _ inner) =
       fromMaybe HashMap.empty . fmap (findHere ps) . HashMap.lookup p $ inner
 
-broadcastChildren :: (Value -> v -> IO ()) -> [Text] -> Value -> SubscriptionTree k v -> IO ()
-broadcastChildren f path value (SubscriptionTree here inner) = do
+broadcastChildren
+  :: [Text]
+  -> Value
+  -> SubscriptionTree k v
+  -> Writer [(v, Value)] ()
+broadcastChildren path value (SubscriptionTree here inner) = do
   case path of
     [] -> do
       -- When the path is empty, all subscribers that are "here" or at a deeper
       -- level should receive a notification.
       -- We broadcast concurrently since all updates are independent of each other
-      Async.forConcurrently_ here (f value)
-      let broadcastInner key = broadcast f [] (Store.lookupOrNull [key] value)
+      traverse_ (\v -> tell [(v, value)]) here
+      let broadcastInner key = broadcastChildren [] (Store.lookupOrNull [key] value)
       void $ HashMap.traverseWithKey broadcastInner inner
 
     key : pathTail -> case HashMap.lookup key inner of
       Nothing -> pure ()
       -- TODO: Extract the inner thing from the value as well; the client is not
       -- subscribed to the top-level thing after all.
-      Just subs -> broadcast f pathTail (Store.lookupOrNull [key] value) subs
+      Just subs -> broadcastChildren pathTail (Store.lookupOrNull [key] value) subs
 
 -- Show subscriptions, for debugging purposes.
 showTree :: Show k => SubscriptionTree k v -> String
