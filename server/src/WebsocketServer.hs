@@ -6,11 +6,12 @@ module WebsocketServer (
   processUpdates
 ) where
 
+import Control.Applicative ((<|>))
 import Control.Concurrent (modifyMVar_, readMVar)
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TBQueue (readTBQueue)
 import Control.Exception (finally)
-import Control.Monad (forM_, forever)
+import Control.Monad (forM_, forever, join, (<=<))
 import Data.Aeson (Value)
 import Data.Monoid ((<>))
 import Data.Text (Text)
@@ -19,14 +20,21 @@ import Prelude hiding (log)
 import System.Random (randomIO)
 
 import qualified Data.Aeson as Aeson
+import qualified Data.ByteString as SBS
+import qualified Data.ByteString.Lazy as LBS
+import qualified Data.List as List
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
+import qualified Data.Time.Clock.POSIX as Clock
 import qualified Network.WebSockets as WS
+import qualified Network.HTTP.Types.Header as HttpHeader
 import qualified Network.HTTP.Types.URI as Uri
 
+import Config (Config (..))
 import Core (Core (..), ServerState, Updated (..), getCurrentValue)
 import Logger (log)
 import Store (Path)
+import JwtAuth (AuthResult (..), AccessMode(..), isAuthorizedByToken, errorResponseBody)
 
 import qualified Subscription
 
@@ -48,12 +56,56 @@ acceptConnection :: Core -> WS.PendingConnection -> IO ()
 acceptConnection core pending = do
   -- printRequest pending
   -- TODO: Validate the path and headers of the pending request
-  let path = fst $ Uri.decodePath $ WS.requestPath $ WS.pendingRequest pending
-  conn <- WS.acceptRequest pending
-  -- Fork a pinging thread to keep idle connections open and to detect closed connections.
-  -- Note: The thread dies silently if the connection crashes or is closed.
-  WS.forkPingThread conn 30
-  handleClient conn path core
+  authResult <- authorizePendingConnection core pending
+  case authResult of
+    AuthRejected err ->
+      WS.rejectRequestWith pending $ WS.RejectRequest
+        { WS.rejectCode = 401
+        , WS.rejectMessage = "Unauthorized"
+        , WS.rejectHeaders = [(HttpHeader.hContentType, "application/json")]
+        , WS.rejectBody = LBS.toStrict $ errorResponseBody err
+        }
+    AuthAccepted -> do
+      let path = fst $ Uri.decodePath $ WS.requestPath $ WS.pendingRequest pending
+      conn <- WS.acceptRequest pending
+      -- Fork a pinging thread to keep idle connections open and to detect closed connections.
+      -- Note: The thread dies silently if the connection crashes or is closed.
+      WS.forkPingThread conn 30
+      handleClient conn path core
+
+-- * Authorization
+
+authorizePendingConnection :: Core -> WS.PendingConnection -> IO AuthResult
+authorizePendingConnection core conn
+  | not $ configEnableJwtAuth (coreConfig core) = pure AuthAccepted
+  | otherwise = do
+      now <- Clock.getPOSIXTime
+      let req = WS.pendingRequest conn
+          (path, query) = Uri.decodePath $ WS.requestPath req
+          headers = WS.requestHeaders req
+      return $ isAuthorizedByToken
+        (findTokenBytes headers query)
+        now
+        (configJwtSecret (coreConfig core))
+        path
+        ModeRead
+
+-- | First checks the @Authorization@ header of the request for a token,
+-- otherwise falls back to the @access_token@ query parameter.
+findTokenBytes :: WS.Headers -> Uri.Query -> Maybe SBS.ByteString
+findTokenBytes headers query = headerToken headers <|> queryToken query
+
+-- | Looks up a token from the @Authorization@ header.
+-- Header should be in the format @Bearer <token>@.
+headerToken :: WS.Headers -> Maybe SBS.ByteString
+headerToken =
+  SBS.stripPrefix "Bearer " <=< List.lookup HttpHeader.hAuthorization
+
+-- | Looks up a token from the @access_token@ query parameter
+queryToken :: Uri.Query -> Maybe SBS.ByteString
+queryToken = join . lookup "access_token"
+
+-- * Client handling
 
 handleClient :: WS.Connection -> Path -> Core -> IO ()
 handleClient conn path core = do

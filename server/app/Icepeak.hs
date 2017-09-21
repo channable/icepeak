@@ -10,6 +10,7 @@ import Data.ByteString (hGetContents, ByteString)
 import Options.Applicative (execParser)
 import Prelude hiding (log)
 import System.IO (withFile, IOMode (..))
+import System.Environment (getEnvironment)
 
 import qualified Control.Concurrent.Async as Async
 import qualified System.Posix.Signals as Signals
@@ -51,7 +52,8 @@ readValue filePath = do
 
 main :: IO ()
 main = do
-  config <- execParser configInfo
+  env <- getEnvironment
+  config <- execParser (configInfo env)
   -- load the persistent data from disk
   let filePath = configDataFile config
   value <- readValue filePath
