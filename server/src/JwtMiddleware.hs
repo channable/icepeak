@@ -58,7 +58,7 @@ getRequestClaim headers query now maybeSecret =
        Just secret -> getTokenBytes >>= extractClaim now secret
 
 -- | Lookup a token, first in the @Authorization@ header of the request, then
--- falling back to the @access_token@ query parameter.
+-- falling back to the @auth@ query parameter.
 findTokenBytes :: Http.RequestHeaders -> Http.Query -> Maybe SBS.ByteString
 findTokenBytes headers query = headerToken headers <|> queryToken query
 
@@ -68,9 +68,9 @@ headerToken :: Http.RequestHeaders -> Maybe SBS.ByteString
 headerToken =
   SBS.stripPrefix "Bearer " <=< List.lookup Http.hAuthorization
 
--- | Look up a token from the @access_token@ query parameter
+-- | Look up a token from the @auth@ query parameter
 queryToken :: Http.Query -> Maybe SBS.ByteString
-queryToken = join . lookup "access_token"
+queryToken = join . lookup "auth"
 
 -- * Responses
 
