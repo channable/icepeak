@@ -81,7 +81,7 @@ instance Aeson.ToJSON AuthPath where
 instance Aeson.FromJSON AuthPath where
   parseJSON = Aeson.withObject "path and modes" $ \v -> AuthPath
     <$> v .: "prefix"
-    <*> v .: "mode"
+    <*> v .: "modes"
 
 instance Aeson.ToJSON IcepeakClaim where
   toJSON claim = Aeson.object
