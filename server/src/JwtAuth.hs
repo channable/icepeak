@@ -95,3 +95,9 @@ getIcepeakClaim token = do
     $ JWT.claims token
   Aeson.parseEither Aeson.parseJSON claimJson
 
+-- * Token generation
+
+-- | Add the icepeak claim to a set of JWT claims.
+addIcepeakClaim :: IcepeakClaim -> JWT.JWTClaimsSet -> JWT.JWTClaimsSet
+addIcepeakClaim claim claims = claims
+  { JWT.unregisteredClaims = Map.insert "icepeak" (Aeson.toJSON claim) (JWT.unregisteredClaims claims) }
