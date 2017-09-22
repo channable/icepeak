@@ -6,7 +6,7 @@
 -- >>> import Icepeak.Client (Client (..), deleteAtLeaf, setAtLeaf)
 -- >>> import qualified Network.HTTP.Client as HTTP
 -- >>> httpManager <- HTTP.newManager HTTP.defaultManagerSettings
--- >>> let client = Client "localhost" 3000 "mS7karSP9QbD2FFdgBk2QmuTna7fJyp7ll0Vg8gnffIBHKILSrusMslucBzMhwO"
+-- >>> let client = Client "localhost" 3000 (Just "<token>")
 -- >>> setAtLeaf httpManager client ["foo", "bar", "baz"] ([Just 1, Just 2, Nothing, Just 4] :: [Maybe Int])
 -- Status {statusCode = 202, statusMessage = "Accepted"}
 -- >>> deleteAtLeaf httpManager client ["foo", "bar"]

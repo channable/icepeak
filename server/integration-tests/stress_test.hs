@@ -30,7 +30,7 @@ main = do
 main' :: Int -> IO ()
 main' count = do
   httpManager <- HTTP.newManager HTTP.defaultManagerSettings
-  let client = Client "localhost" 3000 "mS7karSP9QbD2FFdgBk2QmuTna7fJyp7ll0Vg8gnffIBHKILSrusMslucBzMhwO"
+  let client = Client "localhost" 3000 Nothing
   let putRandomPayload i = do
         putStr $ "Test #" ++ show i ++ " ... "
         path :: [Text] <- Gen.generate arbitrary
