@@ -48,7 +48,6 @@ library:
   - AccessControl
   - Config
   - Core
-  - Guardian
   - HttpServer
   - JwtAuth
   - JwtMiddleware
