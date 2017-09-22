@@ -30,7 +30,8 @@ module Icepeak.Client
 import Control.Monad.IO.Class (MonadIO (..))
 import Data.Aeson (ToJSON)
 import Data.ByteString (ByteString)
-import Data.Function ((&))
+import Data.Foldable (toList)
+import Data.Semigroup ((<>))
 import Data.Text (Text)
 import Data.Word (Word16)
 
@@ -39,19 +40,21 @@ import qualified Data.Binary.Builder as Binary.Builder
 import qualified Data.ByteString.Lazy as ByteString.Lazy
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Types.Status as HTTP
+import qualified Network.HTTP.Types.Header as Header
 import qualified Network.HTTP.Types.URI as URI
 
 -- | How to connect to Icepeak?
 data Client = Client
-  { clientHost :: ByteString
-  , clientPort :: Word16
-  , clientAuth :: ByteString
+  { clientHost  :: ByteString
+  , clientPort  :: Word16
+  , clientToken :: Maybe ByteString
   }
 
--- $updatebehavior
--- Returns the status code of the HTTP response. Icepeak returns 202 if the
--- update was accepted, and 503 if the high water mark was reached. Any other
--- status code indicates a different error, or a misconfigured proxy.
+-- $updatebehavior Returns the status code of the HTTP response. Icepeak returns
+-- 202 if the update was accepted, 503 if the high water mark was reached, and
+-- 401 if the client has insufficient permissions (as determined by the supplied
+-- JSON Web Token). Any other status code indicates a different error, or a
+-- misconfigured proxy.
 --
 -- Will rethrow any exceptions thrown by the I/O actions from
 -- "Network.HTTP.Client". Will not throw any other exceptions.
@@ -87,12 +90,13 @@ deleteAtLeafRequest client path =
 
 -- | Return a template for requests off a client.
 baseRequest :: Client -> HTTP.Request
-baseRequest (Client host port auth) =
-  HTTP.defaultRequest
+baseRequest (Client host port maybeToken) =
+  let mkAuthHeader token = (Header.hAuthorization, "Bearer " <> token)
+  in HTTP.defaultRequest
     { HTTP.host = host
     , HTTP.port = fromIntegral port
+    , HTTP.requestHeaders = toList $ fmap mkAuthHeader maybeToken
     }
-  & HTTP.setQueryString [("auth", Just auth)]
 
 -- | Return the request path for an Icepeak path.
 requestPathForIcepeakPath :: [Text] -> ByteString
