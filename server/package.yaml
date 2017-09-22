@@ -45,10 +45,13 @@ library:
   - -fno-ignore-asserts
   - -funbox-strict-fields
   exposed-modules:
+  - AccessControl
   - Config
   - Core
   - Guardian
   - HttpServer
+  - JwtAuth
+  - JwtMiddleware
   - Logger
   - Server
   - Store
