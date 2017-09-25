@@ -1,6 +1,7 @@
 module Logger
 (
   LogRecord,
+  LogQueue,
   log,
   processLogRecords
 )
@@ -15,13 +16,14 @@ import Prelude hiding (log)
 import qualified Data.Text.IO as T
 
 type LogRecord = Text
+type LogQueue = TBQueue (Maybe LogRecord)
 
-log :: LogRecord -> TBQueue (Maybe LogRecord) -> IO ()
+log :: LogRecord -> LogQueue -> IO ()
 log record logRecords = atomically $ do
   isFull <- isFullTBQueue logRecords
   unless isFull $ writeTBQueue logRecords (Just record)
 
-processLogRecords :: TBQueue (Maybe LogRecord) -> IO ()
+processLogRecords :: LogQueue -> IO ()
 processLogRecords logRecords = go
   where
     go = do
