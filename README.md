@@ -56,7 +56,7 @@ Optionally, requests can be required to contain a [JSON Web Token][jwt] with an
 `icepeak` claim describing the set of permissions of that client. JWT
 authorization can be enabled with the `--enable-jwt-auth` command line option. A
 token can be specified in an `Authorization: Bearer <token>` header or an
-`auth=<token>` query string parameter, the former taking precedence over the
+`access_token=<token>` query string parameter, the former taking precedence over the
 latter.
 
 If additionally, a secret is passed to the application via `--jwt-secret` or the

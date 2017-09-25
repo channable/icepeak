@@ -41,7 +41,8 @@ spec = do
     let now = 12512 :: NominalDiffTime
 
     it "should accept a valid token" $ do
-      True
+      let tok = Text.encodeUtf8 $ JWT.encodeSigned JWT.HS256 testSecret testClaims
+      extractClaim now testSecret tok `shouldBe` Right testAccess
 
     it "should reject an expired token" $ do
       let Just expDate = JWT.numericDate $ now - 10
