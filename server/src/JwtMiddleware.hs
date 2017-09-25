@@ -53,8 +53,9 @@ getRequestClaim :: Http.RequestHeaders -> Http.Query -> POSIXTime -> Maybe JWT.S
 getRequestClaim headers query now maybeSecret =
   let getTokenBytes = maybe (Left $ VerificationError TokenNotFound) Right (findTokenBytes headers query)
   in case maybeSecret of
-       -- authorization is enabled, but no secret provided, accept all tokens
-       Nothing     -> getTokenBytes >>= extractClaimUnverified
+       Nothing     ->
+         -- authorization is enabled, but no secret provided, accept all tokens
+         getTokenBytes >>= extractClaimUnverified
        Just secret -> getTokenBytes >>= extractClaim now secret
 
 -- | Lookup a token, first in the @Authorization@ header of the request, then
