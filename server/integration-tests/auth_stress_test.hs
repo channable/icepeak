@@ -31,9 +31,6 @@ main = do
     _ -> fail "usage: stress_test.hs <count>"
   where fail msg = do { hPutStrLn stderr msg; exitFailure }
 
-testToken :: SBS.ByteString
-testToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpY2VwZWFrIjp7IndoaXRlbGlzdCI6W3sicHJlZml4IjpbImZvbyJdLCJtb2RlcyI6WyJyZWFkIl19LHsicHJlZml4IjpbImJhciIsImJheiJdLCJtb2RlcyI6WyJyZWFkIiwid3JpdGUiXX1dLCJ2ZXJzaW9uIjoxfX0.KeOHokJZuN-sPmIIGSDgRQFBtT4x-hoGgTtxhm2R5P8"
-
 main' :: Int -> IO ()
 main' count = do
   httpManager <- HTTP.newManager HTTP.defaultManagerSettings
@@ -46,3 +43,6 @@ main' count = do
         print status
   traverse_ (putRandomPayload ["bar", "baz"]) [1..count]
   traverse_ (putRandomPayload ["foo"]) [count+1..2*count]
+
+testToken :: SBS.ByteString
+testToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpY2VwZWFrIjp7IndoaXRlbGlzdCI6W3sicHJlZml4IjpbImZvbyJdLCJtb2RlcyI6WyJyZWFkIl19LHsicHJlZml4IjpbImJhciIsImJheiJdLCJtb2RlcyI6WyJyZWFkIiwid3JpdGUiXX1dLCJ2ZXJzaW9uIjoxfX0.KeOHokJZuN-sPmIIGSDgRQFBtT4x-hoGgTtxhm2R5P8"

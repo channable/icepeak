@@ -59,10 +59,14 @@ token can be specified in an `Authorization: Bearer <token>` header or an
 `access_token=<token>` query string parameter, the former taking precedence over the
 latter.
 
-If additionally, a secret is passed to the application via `--jwt-secret` or the
-`JWT_SECRET` environment variable, the former taking precedence over the latter,
-a supplied token is only considered valid if it has a valid signature, has not
-expired and has been issued before it is used.
+Additionally, a secret is may be passed to the application via `--jwt-secret` or
+the `JWT_SECRET` environment variable, the former taking precedence over the
+latter. This secret is used to verify the HS256 signature of incoming tokens. A
+supplied token is only considered valid if it
+
+- has a valid signature,
+- has not expired and
+- has been issued before it is used.
 
 If no secret is supplied, icepeak assumes that the tokens it receives have been
 checked by a proxy that did all the verification. In that case, only the

@@ -14,6 +14,9 @@ import qualified Data.Map.Strict as Map
 import qualified Web.JWT as JWT
 import qualified Data.Text.IO as Text
 
+main :: IO ()
+main = Text.putStrLn $ JWT.encodeSigned JWT.HS256 testSecret testClaims
+
 testAccess :: IcepeakClaim
 testAccess = IcepeakClaim
   [ AuthPath ["foo"] [ModeRead]
@@ -34,7 +37,3 @@ testClaims = addIcepeakClaim testAccess $ JWT.JWTClaimsSet
 
 testSecret :: JWT.Secret
 testSecret = JWT.binarySecret "foo"
-
-main :: IO ()
-main = Text.putStrLn $ JWT.encodeSigned JWT.HS256 testSecret testClaims
-

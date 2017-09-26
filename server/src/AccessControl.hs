@@ -56,7 +56,7 @@ isAuthorizedByClaim claim path mode = any allows (icepeakClaimWhitelist claim) w
 
 accessModeToText :: AccessMode -> Text
 accessModeToText mode = case mode of
-    ModeRead   -> "read"
+    ModeRead  -> "read"
     ModeWrite -> "write"
 
 textToAccessMode :: Text -> Maybe AccessMode

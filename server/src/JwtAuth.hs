@@ -26,6 +26,13 @@ data VerificationError
   | TokenSignatureInvalid
   deriving (Show, Eq)
 
+-- | Check that a token is valid at the given time for the given secret.
+verifyToken :: POSIXTime -> JWT.Secret -> SBS.ByteString -> Either VerificationError (JWT VerifiedJWT)
+verifyToken now secret = verifyNotBefore now
+                       <=< verifyExpiry now
+                       <=< verifySignature secret
+                       <=< decodeToken
+
 -- | Verify that the token is not used before it was issued.
 verifyNotBefore :: POSIXTime -> JWT VerifiedJWT -> Either VerificationError (JWT VerifiedJWT)
 verifyNotBefore now token =
@@ -58,13 +65,6 @@ decodeToken bytes =
  case JWT.decode (Text.decodeUtf8 bytes) of
    Nothing    -> Left TokenInvalid
    Just token -> Right token
-
--- | Check that a token is valid at the given time for the given secret.
-verifyToken :: POSIXTime -> JWT.Secret -> SBS.ByteString -> Either VerificationError (JWT VerifiedJWT)
-verifyToken now secret = verifyNotBefore now
-                       <=< verifyExpiry now
-                       <=< verifySignature secret
-                       <=< decodeToken
 
 -- * Claim parsing
 

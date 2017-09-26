@@ -25,7 +25,9 @@ data Config = Config {
 
 -- Parsing of command-line arguments
 
-configParser :: [(String, String)] -> Parser Config
+type EnvironmentConfig = [(String, String)]
+
+configParser :: EnvironmentConfig -> Parser Config
 configParser environment =
   Config
     <$> strOption (long "data-file" <>
@@ -43,7 +45,7 @@ configParser environment =
     environ var = foldMap value (lookup var environment)
     secretOption m = JWT.secret . Text.pack <$> strOption m
 
-configInfo :: [(String, String)] -> ParserInfo Config
+configInfo :: EnvironmentConfig -> ParserInfo Config
 configInfo environment = info parser description
   where
     parser = helper <*> configParser environment
