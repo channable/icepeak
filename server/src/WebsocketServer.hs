@@ -28,12 +28,13 @@ import qualified Network.HTTP.Types.Header as HttpHeader
 import qualified Network.HTTP.Types.URI as Uri
 
 import Config (Config (..))
-import Core (Core (..), ServerState, Updated (..), getCurrentValue)
+import Core (Core (..), ServerState, Updated (..), getCurrentValue, withCoreMetrics)
 import Logger (log)
 import Store (Path)
 import AccessControl (AccessMode(..))
 import JwtMiddleware (AuthResult (..), isRequestAuthorized, errorResponseBody)
 
+import qualified Metrics
 import qualified Subscription
 
 newUUID :: IO UUID
@@ -93,9 +94,11 @@ handleClient conn path core = do
     logRecords = coreLogRecords core
     onConnect = do
       modifyMVar_ state (pure . Subscription.subscribe path uuid conn)
+      withCoreMetrics core Metrics.incrementSubscribers
       log (T.pack $ "Client " ++ (show uuid) ++ " connected, subscribed to " ++ (show path) ++ ".") logRecords
     onDisconnect = do
       modifyMVar_ state (pure . Subscription.unsubscribe path uuid)
+      withCoreMetrics core Metrics.decrementSubscribers
       log (T.pack $ "Client " ++ (show uuid) ++ " disconnected.") logRecords
     sendInitialValue = do
       currentValue <- getCurrentValue core path

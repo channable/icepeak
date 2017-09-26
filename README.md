@@ -169,3 +169,13 @@ while True:
     result = conn.recv()
     print result
 ```
+
+## Metrics
+
+Icepeak can provide usage metrics to Prometheus with the `--metrics HOST:PORT` command line option.
+
+- `HOST` denotes the hostname the metrics endpoint is listening on. It can
+  either be a specific hostname or IP address, or one of the special values
+  supported by [https://hackage.haskell.org/package/warp-3.2.13/docs/Network-Wai-Handler-Warp.html#t:HostPreference](Network.Wai.Handler.Warp.HostPreference).
+
+- `PORT` denotes the port number the metrics endpoint is listening on.

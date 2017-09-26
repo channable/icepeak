@@ -8,6 +8,7 @@ module Core
   Updated (..),
   enqueueOp,
   getCurrentValue,
+  withCoreMetrics,
   handleOp,
   lookup,
   newCore,
@@ -21,12 +22,15 @@ import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TBQueue (TBQueue, newTBQueueIO, readTBQueue, writeTBQueue, isFullTBQueue)
 import Control.Concurrent.STM.TVar (TVar, newTVarIO, writeTVar, readTVar)
 import Control.Monad (unless)
+import Control.Monad.IO.Class
 import Data.Aeson (Value (..))
 import Data.Aeson.Text (encodeToLazyText)
+import Data.Foldable (forM_)
 import Data.Text.Lazy.IO (writeFile)
 import Data.UUID (UUID)
 import Prelude hiding (log, writeFile)
 import System.Directory (renameFile)
+import qualified System.Posix.Files as Posix
 
 import qualified Network.WebSockets as WS
 
@@ -36,6 +40,7 @@ import Store (Path)
 import Subscription (SubscriptionTree, empty)
 
 import qualified Store
+import qualified Metrics
 
 
 -- A modification operation.
@@ -62,6 +67,7 @@ data Core = Core
   , coreClients :: MVar ServerState
   , coreLogRecords :: TBQueue (Maybe LogRecord)
   , coreConfig :: Config
+  , coreMetrics :: Maybe Metrics.IcepeakMetrics
   }
 
 type ServerState = SubscriptionTree UUID WS.Connection
@@ -69,14 +75,14 @@ type ServerState = SubscriptionTree UUID WS.Connection
 newServerState :: ServerState
 newServerState = empty
 
-newCore :: Value -> Config -> IO Core
-newCore initialValue config = do
+newCore :: Value -> Config -> Maybe Metrics.IcepeakMetrics -> IO Core
+newCore initialValue config metrics = do
   tvalue <- newTVarIO initialValue
   tqueue <- newTBQueueIO 256
   tupdates <- newTBQueueIO 256
   tclients <- newMVar newServerState
   tlogrecords <- newTBQueueIO 256
-  pure (Core tvalue tqueue tupdates tclients tlogrecords config)
+  pure (Core tvalue tqueue tupdates tclients tlogrecords config metrics)
 
 -- Tell the put handler loop, the update handler and the logger loop to quit.
 postQuit :: Core -> IO ()
@@ -95,6 +101,9 @@ enqueueOp op core = atomically $ do
 getCurrentValue :: Core -> Path -> IO (Maybe Value)
 getCurrentValue core path =
   fmap (Store.lookup path) $ atomically $ readTVar $ coreCurrentValue core
+
+withCoreMetrics :: MonadIO m => Core -> (Metrics.IcepeakMetrics -> IO ()) -> m ()
+withCoreMetrics core act = liftIO $ forM_ (coreMetrics core) act
 
 -- Execute an operation.
 handleOp :: Op -> Value -> Value
@@ -124,6 +133,9 @@ processOps core = go Null
           -- temporary file will thus not corrupt the datastore
           writeFile tempFileName (encodeToLazyText newValue)
           renameFile tempFileName fileName
+          forM_ (coreMetrics core) $ \m -> do
+            stat <- Posix.getFileStatus fileName
+            Metrics.setDataSize (Posix.fileSize stat) m
           go newValue
         Nothing -> do
           -- Stop the loop when we receive a Nothing.
