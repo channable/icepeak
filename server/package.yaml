@@ -68,6 +68,12 @@ executables:
     dependencies:
     - icepeak
 
+  icepeak-token-gen:
+    main: IcepeakTokenGen.hs
+    source-dirs: app
+    dependencies:
+    - icepeak
+
 tests:
   spec:
     main: Spec.hs

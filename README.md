@@ -124,6 +124,31 @@ permission.
 
 [jwt]: https://tools.ietf.org/html/rfc7519
 
+## Generating Tokens
+
+JSON Web Tokens with the `icepeak` claim can be generated using the included
+`icepeak-token-gen` executable.
+
+```
+Usage: icepeak-token-gen [-s|--jwt-secret JWT_SECRET]
+                         [-e|--expires EXPIRES_SECONDS] [-p|--path PATH:MODES]
+
+Available options:
+  -h,--help                Show this help text
+  -s,--jwt-secret JWT_SECRET
+                           Secret used for signing the JWT, defaults to the
+                           value of the JWT_SECRET environment variable if
+                           present. If no secret is passed, JWT tokens are not
+                           signed.
+  -e,--expires EXPIRES_SECONDS
+                           Generate a token that expires in EXPIRES_SECONDS
+                           seconds from now.
+  -p,--path PATH:MODES     Adds the PATH to the whitelist, allowing the access
+                           modes MODES. MODES can be 'r' (read), 'w' (write) or
+                           'rw' (read/write). This option may be used more than
+                           once.
+```
+
 ## Connecting a client
 
 The websocket connection can be interactively tested with ipython.
