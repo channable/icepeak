@@ -8,7 +8,7 @@ import json
 import requests
 import websocket
 
-auth = 'auth=mS7karSP9QbD2FFdgBk2QmuTna7fJyp7ll0Vg8gnffIBHKILSrusMslucBzMhwO'
+auth = ''
 json1 = {}
 json2 = {'so': {}}
 json3 = {'so': {'cool': {}}}

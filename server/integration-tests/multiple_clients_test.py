@@ -5,7 +5,7 @@ import json
 import requests
 import websocket
 
-test_url ='http://localhost:3000/so/cool?auth=mS7karSP9QbD2FFdgBk2QmuTna7fJyp7ll0Vg8gnffIBHKILSrusMslucBzMhwO'
+test_url ='http://localhost:3000/so/cool'
 
 def validate_data(connections, expected_result):
     for connection in connections:

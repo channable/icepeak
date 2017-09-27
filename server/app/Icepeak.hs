@@ -10,13 +10,14 @@ import Data.ByteString (hGetContents, ByteString)
 import Options.Applicative (execParser)
 import Prelude hiding (log)
 import System.IO (withFile, IOMode (..))
+import System.Environment (getEnvironment)
 
 import qualified Control.Concurrent.Async as Async
 import qualified System.Posix.Signals as Signals
 
-import Config (configInfo, configDataFile)
+import Config (Config (..), configInfo)
 import Core (Core (..))
-import Logger (log, processLogRecords)
+import Logger (log, processLogRecords, LogQueue)
 
 import qualified Core
 import qualified HttpServer
@@ -51,7 +52,8 @@ readValue filePath = do
 
 main :: IO ()
 main = do
-  config <- execParser configInfo
+  env <- getEnvironment
+  config <- execParser (configInfo env)
   -- load the persistent data from disk
   let filePath = configDataFile config
   value <- readValue filePath
@@ -63,6 +65,7 @@ main = do
   serv <- Async.async $ Server.runServer wsServer httpServer
   logger <- Async.async $ processLogRecords (coreLogRecords core)
   installHandlers core serv
+  logAuthSettings config (coreLogRecords core)
   log "System online. ** robot sounds **" (coreLogRecords core)
 
   -- TODO: Log exceptions properly (i.e. non-interleaved)
@@ -70,3 +73,12 @@ main = do
   void $ Async.wait upds
   void $ Async.wait serv
   void $ Async.wait logger
+
+logAuthSettings :: Config -> LogQueue -> IO ()
+logAuthSettings cfg queue
+  | configEnableJwtAuth cfg = case configJwtSecret cfg of
+      Just _ -> log "JWT authorization enabled and secret provided, tokens will be verified" queue
+      Nothing -> log "JWT authorization enabled but no secret provided, tokens will NOT be verified" queue
+  | otherwise = case configJwtSecret cfg of
+      Just _ -> log "WARNING a JWT secret has been provided, but JWT authorization is disabled" queue
+      Nothing -> log "JWT authorization disabled" queue

@@ -19,14 +19,20 @@ import Prelude hiding (log)
 import System.Random (randomIO)
 
 import qualified Data.Aeson as Aeson
+import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
+import qualified Data.Time.Clock.POSIX as Clock
 import qualified Network.WebSockets as WS
+import qualified Network.HTTP.Types.Header as HttpHeader
 import qualified Network.HTTP.Types.URI as Uri
 
+import Config (Config (..))
 import Core (Core (..), ServerState, Updated (..), getCurrentValue)
 import Logger (log)
 import Store (Path)
+import AccessControl (AccessMode(..))
+import JwtMiddleware (AuthResult (..), isRequestAuthorized, errorResponseBody)
 
 import qualified Subscription
 
@@ -48,12 +54,36 @@ acceptConnection :: Core -> WS.PendingConnection -> IO ()
 acceptConnection core pending = do
   -- printRequest pending
   -- TODO: Validate the path and headers of the pending request
-  let path = fst $ Uri.decodePath $ WS.requestPath $ WS.pendingRequest pending
-  conn <- WS.acceptRequest pending
-  -- Fork a pinging thread to keep idle connections open and to detect closed connections.
-  -- Note: The thread dies silently if the connection crashes or is closed.
-  WS.forkPingThread conn 30
-  handleClient conn path core
+  authResult <- authorizePendingConnection core pending
+  case authResult of
+    AuthRejected err ->
+      WS.rejectRequestWith pending $ WS.RejectRequest
+        { WS.rejectCode = 401
+        , WS.rejectMessage = "Unauthorized"
+        , WS.rejectHeaders = [(HttpHeader.hContentType, "application/json")]
+        , WS.rejectBody = LBS.toStrict $ errorResponseBody err
+        }
+    AuthAccepted -> do
+      let path = fst $ Uri.decodePath $ WS.requestPath $ WS.pendingRequest pending
+      conn <- WS.acceptRequest pending
+      -- Fork a pinging thread to keep idle connections open and to detect closed connections.
+      -- Note: The thread dies silently if the connection crashes or is closed.
+      WS.forkPingThread conn 30
+      handleClient conn path core
+
+-- * Authorization
+
+authorizePendingConnection :: Core -> WS.PendingConnection -> IO AuthResult
+authorizePendingConnection core conn
+  | configEnableJwtAuth (coreConfig core) = do
+      now <- Clock.getPOSIXTime
+      let req = WS.pendingRequest conn
+          (path, query) = Uri.decodePath $ WS.requestPath req
+          headers = WS.requestHeaders req
+      return $ isRequestAuthorized headers query now (configJwtSecret (coreConfig core)) path ModeRead
+  | otherwise = pure AuthAccepted
+
+-- * Client handling
 
 handleClient :: WS.Connection -> Path -> Core -> IO ()
 handleClient conn path core = do

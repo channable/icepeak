@@ -36,12 +36,117 @@ Run `stack haddock --no-haddock-deps` to generate the Haskell API documentation.
 ## Usage:
 
 ```
-Usage: icepeak [--data-file DATA_FILE]
+Usage: icepeak [--data-file DATA_FILE] [--enable-jwt-auth]
+               [--jwt-secret JWT_SECRET]
 
 Available options:
+  -h,--help                Show this help text
   --data-file DATA_FILE    File where data is persisted to. Default:
                            icepeak.json
+  --enable-jwt-auth        Enable authorization using JSON Web Tokens.
+  --jwt-secret JWT_SECRET  Secret used for JWT verification, defaults to the
+                           value of the JWT_SECRET environment variable if
+                           present. If no secret is passed, JWT tokens are not
+                           checked for validity.
+```
+
+## JWT Authorization
+
+Optionally, requests can be required to contain a [JSON Web Token][jwt] with an
+`icepeak` claim describing the set of permissions of that client. JWT
+authorization can be enabled with the `--enable-jwt-auth` command line option. A
+token can be specified in an `Authorization: Bearer <token>` header or an
+`access_token=<token>` query string parameter, the former taking precedence over the
+latter.
+
+Additionally, a secret is may be passed to the application via `--jwt-secret` or
+the `JWT_SECRET` environment variable, the former taking precedence over the
+latter. This secret is used to verify the HS256 signature of incoming tokens. A
+supplied token is only considered valid if it
+
+- has a valid signature,
+- has not expired and
+- has been issued before it is used.
+
+If no secret is supplied, icepeak assumes that the tokens it receives have been
+checked by a proxy that did all the verification. In that case, only the
+`icepeak` claim is extracted and parsed, but no verification takes place.
+
+The `icepeak` claim has the following JSON schema:
+
+```json
+{
+  "type": "object",
+  "required": ["version"],
+  "properties": {
+    "version": {"enum": [1]},
+    "whitelist": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["prefix", "modes"],
+        "properties": {
+          "prefix": {"type": "array", "items": {"type": "string"}},
+          "modes": {"type": "array", "items": {"enum": ["read", "write"]}}
+        }
+      }
+    }
+  }
+}
+```
+
+Example JWT token claim set:
+
+```json
+{
+  "icepeak": {
+    "version": 1,
+    "whitelist": [
+      {"prefix": ["foo"], "modes": ["read"]},
+      {"prefix": ["bar", "1"], "modes": ["read", "write"]}
+    ]
+  }
+}
+```
+
+A request with this claim set may only:
+ - Read paths that have `/foo` as a prefix.
+ - Update paths that have `/bar/1` as a prefix.
+Any other request will result in a *401 Unauthorized* response.
+
+Generally, a claim contains a list of permissions which apply to the listed path
+itself and all sub-paths. A request is considered valid if there is at least one
+entry in the whitelist that allows it.
+
+`GET` requests on the REST API and websocket connections require the `read`
+permission for the given path, `PUT` and `DELETE` requests require the `write`
+permission.
+
+[jwt]: https://tools.ietf.org/html/rfc7519
+
+## Generating Tokens
+
+JSON Web Tokens with the `icepeak` claim can be generated using the included
+`icepeak-token-gen` executable.
+
+```
+Usage: icepeak-token-gen [-s|--jwt-secret JWT_SECRET]
+                         [-e|--expires EXPIRES_SECONDS] [-p|--path PATH:MODES]
+
+Available options:
   -h,--help                Show this help text
+  -s,--jwt-secret JWT_SECRET
+                           Secret used for signing the JWT, defaults to the
+                           value of the JWT_SECRET environment variable if
+                           present. If no secret is passed, JWT tokens are not
+                           signed.
+  -e,--expires EXPIRES_SECONDS
+                           Generate a token that expires in EXPIRES_SECONDS
+                           seconds from now.
+  -p,--path PATH:MODES     Adds the PATH to the whitelist, allowing the access
+                           modes MODES. MODES can be 'r' (read), 'w' (write) or
+                           'rw' (read/write). This option may be used more than
+                           once.
 ```
 
 ## Connecting a client

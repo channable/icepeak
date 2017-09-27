@@ -28,6 +28,9 @@
         webSocket.close();
       }
       webSocket = new WebSocket(urlField.value);
+      webSocket.addEventListener("close", function (event) {
+        statusField.textContent = "CLOSED: " + event.code;
+      });
       webSocket.addEventListener("message", function (event) {
         var msg = JSON.parse(event.data);
         console.log('Received data: ' + event.data);
