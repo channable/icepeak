@@ -136,6 +136,7 @@ processOps core = go Null
           forM_ (coreMetrics core) $ \m -> do
             stat <- Posix.getFileStatus fileName
             Metrics.setDataSize (Posix.fileSize stat) m
+            Metrics.incrementDataWritten (Posix.fileSize stat) m
           go newValue
         Nothing -> do
           -- Stop the loop when we receive a Nothing.

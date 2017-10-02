@@ -1,8 +1,9 @@
 module Metrics where
 
-import           Prometheus
-import qualified Network.HTTP.Types as Http
+import           Control.Monad         (void)
 import qualified Data.ByteString.Char8 as BS8
+import qualified Network.HTTP.Types    as Http
+import           Prometheus
 
 type HttpMethodLabel = String
 type HttpStatusLabel = String
@@ -15,6 +16,7 @@ countHttpRequest method status = withLabel (BS8.unpack method, show $ Http.statu
 data IcepeakMetrics = IcepeakMetrics
   { icepeakMetricsRequestCounter  :: Metric HttpRequestCounter
   , icepeakMetricsDataSize        :: Metric Gauge
+  , icepeakMetricsDataWritten     :: Metric Counter
   , icepeakMetricsSubscriberCount :: Metric Gauge
   }
 
@@ -22,6 +24,7 @@ createAndRegisterIcepeakMetrics :: IO IcepeakMetrics
 createAndRegisterIcepeakMetrics = IcepeakMetrics
   <$> registerIO (vector ("method", "status") requestCounter)
   <*> registerIO (gauge (Info "icepeak_data_size" "Size of data file in bytes."))
+  <*> registerIO (counter (Info "icepeak_data_written" "Total number of bytes written so far."))
   <*> registerIO (gauge (Info "icepeak_subscriber_count" "Number of websocket subscriber connections."))
   where
     requestCounter = counter (Info "icepeak_http_requests"
@@ -32,6 +35,9 @@ notifyRequest method status = countHttpRequest method status . icepeakMetricsReq
 
 setDataSize :: Real a => a -> IcepeakMetrics -> IO ()
 setDataSize val = setGauge (realToFrac val) . icepeakMetricsDataSize
+
+incrementDataWritten :: Real a => a -> IcepeakMetrics -> IO ()
+incrementDataWritten val = void . addCounter (realToFrac val) . icepeakMetricsDataWritten
 
 incrementSubscribers :: IcepeakMetrics -> IO ()
 incrementSubscribers = incGauge . icepeakMetricsSubscriberCount
