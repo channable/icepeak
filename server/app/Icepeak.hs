@@ -8,6 +8,7 @@ import Control.Monad (forM, void)
 import Data.Aeson (eitherDecodeStrict, Value)
 import Data.ByteString (hGetContents, ByteString)
 import Data.Foldable (forM_)
+import Data.Semigroup ((<>))
 import Options.Applicative (execParser)
 import Prelude hiding (log)
 import System.Environment (getEnvironment)
@@ -15,6 +16,7 @@ import System.IO (withFile, IOMode (..))
 
 import qualified Control.Concurrent.Async as Async
 import qualified Data.ByteString as SBS
+import qualified Data.Text as Text
 import qualified Prometheus
 import qualified Prometheus.Metric.GHC
 import qualified System.Posix.Signals as Signals
@@ -83,6 +85,7 @@ main = do
     $ forM_ (configMetricsEndpoint config) MetricsServer.runMetricsServer
   installHandlers core serv
   logAuthSettings config (coreLogRecords core)
+  logQueueSettings config (coreLogRecords core)
   log "System online. ** robot sounds **" (coreLogRecords core)
 
   -- TODO: Log exceptions properly (i.e. non-interleaved)
@@ -96,8 +99,12 @@ main = do
 logAuthSettings :: Config -> LogQueue -> IO ()
 logAuthSettings cfg queue
   | configEnableJwtAuth cfg = case configJwtSecret cfg of
-      Just _ -> log "JWT authorization enabled and secret provided, tokens will be verified" queue
-      Nothing -> log "JWT authorization enabled but no secret provided, tokens will NOT be verified" queue
+      Just _ -> log "JWT authorization enabled and secret provided, tokens will be verified." queue
+      Nothing -> log "JWT authorization enabled but no secret provided, tokens will NOT be verified." queue
   | otherwise = case configJwtSecret cfg of
-      Just _ -> log "WARNING a JWT secret has been provided, but JWT authorization is disabled" queue
-      Nothing -> log "JWT authorization disabled" queue
+      Just _ -> log "WARNING a JWT secret has been provided, but JWT authorization is disabled." queue
+      Nothing -> log "JWT authorization disabled." queue
+
+logQueueSettings :: Config -> LogQueue -> IO ()
+logQueueSettings cfg queue =
+  log ("Queue capacity is set to " <> Text.pack (show (configQueueCapacity cfg)) <> ".") queue
