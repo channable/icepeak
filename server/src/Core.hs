@@ -115,7 +115,7 @@ handleOp op value = case op of
 -- Drain the queue of operations and apply them. Once applied, publish the
 -- new value as the current one.
 processOps :: Core -> IO Value
-processOps core = go Null
+processOps core = atomically (readTVar (coreCurrentValue core)) >>= go
   where
     go val = do
       maybeOp <- atomically $ readTBQueue (coreQueue core)
