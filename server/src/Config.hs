@@ -64,7 +64,8 @@ configParser environment = Config
        (long "queue-capacity" <>
         metavar "INTEGER" <>
         value 256 <>
-        help "Higher values allow more requests to come in within a short amount of time.")
+        help ("Smaller values decrease the risk of data loss during a crash, while " <>
+              "higher values result in more requests being accepted in rapid succession."))
   where
     environ var = foldMap value (lookup var environment)
     secretOption m = JWT.secret . Text.pack <$> strOption m
