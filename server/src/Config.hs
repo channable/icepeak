@@ -5,7 +5,6 @@ module Config (
 ) where
 
 import Control.Applicative (optional)
-import Data.Maybe (fromMaybe)
 import Data.Semigroup ((<>))
 import Options.Applicative
 import qualified Network.Wai.Handler.Warp as Warp
@@ -61,11 +60,11 @@ configParser environment = Config
                   metavar "HOST:PORT" <>
                   help "If provided, Icepeak collects various metrics and provides them to Prometheus on the given endpoint."
                  ))
-  <*> fmap (fromMaybe 256)
-           (optional (option auto
-                       (long "queue-capacity" <>
-                        metavar "INTEGER" <>
-                        help "Higher values allow more requests to come in within a short amount of time.")))
+  <*> option auto
+       (long "queue-capacity" <>
+        metavar "INTEGER" <>
+        value 256 <>
+        help "Higher values allow more requests to come in within a short amount of time.")
   where
     environ var = foldMap value (lookup var environment)
     secretOption m = JWT.secret . Text.pack <$> strOption m
