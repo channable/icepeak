@@ -34,7 +34,7 @@ import qualified System.Posix.Files as Posix
 
 import qualified Network.WebSockets as WS
 
-import Config (Config, configDataFile)
+import Config (Config, configDataFile, configQueueCapacity)
 import Logger (LogRecord)
 import Store (Path)
 import Subscription (SubscriptionTree, empty)
@@ -77,11 +77,12 @@ newServerState = empty
 
 newCore :: Value -> Config -> Maybe Metrics.IcepeakMetrics -> IO Core
 newCore initialValue config metrics = do
+  let queueCapacity = fromIntegral . configQueueCapacity $ config
   tvalue <- newTVarIO initialValue
-  tqueue <- newTBQueueIO 256
-  tupdates <- newTBQueueIO 256
+  tqueue <- newTBQueueIO queueCapacity
+  tupdates <- newTBQueueIO queueCapacity
   tclients <- newMVar newServerState
-  tlogrecords <- newTBQueueIO 256
+  tlogrecords <- newTBQueueIO queueCapacity
   pure (Core tvalue tqueue tupdates tclients tlogrecords config metrics)
 
 -- Tell the put handler loop, the update handler and the logger loop to quit.
