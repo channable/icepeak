@@ -24,6 +24,7 @@ data Config = Config
     -- used, but not be verified.
   , configJwtSecret :: Maybe JWT.Secret
   , configMetricsEndpoint :: Maybe MetricsConfig
+  , configQueueCapacity :: Word
   }
 
 data MetricsConfig = MetricsConfig
@@ -59,6 +60,12 @@ configParser environment = Config
                   metavar "HOST:PORT" <>
                   help "If provided, Icepeak collects various metrics and provides them to Prometheus on the given endpoint."
                  ))
+  <*> option auto
+       (long "queue-capacity" <>
+        metavar "INTEGER" <>
+        value 256 <>
+        help ("Smaller values decrease the risk of data loss during a crash, while " <>
+              "higher values result in more requests being accepted in rapid succession."))
   where
     environ var = foldMap value (lookup var environment)
     secretOption m = JWT.secret . Text.pack <$> strOption m
