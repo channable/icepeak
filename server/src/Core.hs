@@ -23,10 +23,9 @@ import Control.Concurrent.STM.TBQueue (TBQueue, newTBQueueIO, readTBQueue, write
 import Control.Concurrent.STM.TVar (TVar, newTVarIO, writeTVar, readTVar)
 import Control.Monad (unless)
 import Control.Monad.IO.Class
-import Data.Aeson (Value (..))
-import Data.Aeson.Text (encodeToLazyText)
+import Data.Aeson (Value (..), encode)
+import Data.ByteString.Lazy (writeFile)
 import Data.Foldable (forM_)
-import Data.Text.Lazy.IO (writeFile)
 import Data.UUID (UUID)
 import Prelude hiding (log, writeFile)
 import System.Directory (renameFile)
@@ -132,7 +131,7 @@ processOps core = atomically (readTVar (coreCurrentValue core)) >>= go
           -- we first write to a temporary file here and then do a rename on it
           -- because rename is atomic on Posix and a crash during writing the
           -- temporary file will thus not corrupt the datastore
-          writeFile tempFileName (encodeToLazyText newValue)
+          writeFile tempFileName (encode newValue)
           renameFile tempFileName fileName
           forM_ (coreMetrics core) $ \m -> do
             stat <- Posix.getFileStatus fileName
