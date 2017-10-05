@@ -33,12 +33,12 @@ new core =
     put (regex "^") $ do
       path <- Wai.pathInfo <$> request
       value <- jsonData
-      result <- liftIO $ Core.enqueueOp (Core.Put path value) core
+      result <- liftIO $ Core.tryEnqueueCommand (Core.Modify $ Core.Put path value) core
       buildResponse result
 
     delete (regex "^") $ do
       path <- Wai.pathInfo <$> request
-      result <- liftIO $ Core.enqueueOp (Core.Delete path) core
+      result <- liftIO $ Core.tryEnqueueCommand (Core.Modify $ Core.Delete path) core
       buildResponse result
 
 buildResponse :: EnqueueResult -> ActionM ()
