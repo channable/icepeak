@@ -50,7 +50,6 @@ import Subscription (SubscriptionTree, empty)
 import qualified Store
 import qualified Metrics
 
-
 -- A modification operation.
 data Modification
   = Put Path Value
@@ -76,6 +75,8 @@ data EnqueueResult = Enqueued | Dropped
 
 data Core = Core
   { coreCurrentValue :: TVar Value
+  -- the "dirty" flag is set to True whenever the core value has been modified
+  -- and is reset to False when it is persisted.
   , coreValueIsDirty :: TVar Bool
   , coreQueue :: TBQueue Command
   , coreUpdates :: TBQueue (Maybe Updated)
@@ -116,14 +117,18 @@ postQuit core = do
     writeTBQueue (coreLogRecords core) Nothing
 
 -- | Try to enqueue a command. It succeeds if the queue is not full, otherwise,
--- nothing is changed.
+-- nothing is changed. This should be used for non-critical commands that can
+-- also be retried later.
 tryEnqueueCommand :: Command -> Core -> IO EnqueueResult
-tryEnqueueCommand op core = atomically $ do
+tryEnqueueCommand cmd core = atomically $ do
   isFull <- isFullTBQueue (coreQueue core)
-  unless isFull $ writeTBQueue (coreQueue core) op
+  unless isFull $ writeTBQueue (coreQueue core) cmd
   pure $ if isFull then Dropped else Enqueued
 
--- | Enqueue a command. Blocks if the queue is full.
+-- | Enqueue a command. Blocks if the queue is full. This is used by the sync
+-- timer to make sure the sync commands are actually enqueued. In general,
+-- whenever it is critical that a command is executed eventually (when reaching
+-- the front of the queue), this function should be used.
 enqueueCommand :: Command -> Core -> IO ()
 enqueueCommand cmd core = atomically $ writeTBQueue (coreQueue core) cmd
 
@@ -136,9 +141,8 @@ withCoreMetrics core act = liftIO $ forM_ (coreMetrics core) act
 
 -- Execute a modification.
 applyModification :: Modification -> Value -> Value
-applyModification op value = case op of
-  Delete path -> Store.delete path value
-  Put path newValue -> Store.insert path newValue value
+applyModification (Delete path) value = Store.delete path value
+applyModification (Put path newValue) value = Store.insert path newValue value
 
 -- | Drain the command queue and execute them. Changes are published to all
 -- subscribers. This function returns when executing the 'Stop' command from the
