@@ -66,8 +66,7 @@ configParser environment = Config
        (long "sync-interval" <>
         metavar "DURATION" <>
         help ("If supplied, data is only persisted to disc every DURATION time units." <>
-              "The units 'm' (minutes), 's' (seconds), 'ms' (milliseconds) " <>
-              "and 'mus' (microseconds) can be used. " <>
+              "The units 'm' (minutes), 's' (seconds) and 'ms' (milliseconds) can be used. " <>
               "When omitting this argument, data is persisted after every modification")))
   where
     environ var = foldMap value (lookup var environment)
@@ -101,6 +100,5 @@ timeDurationReader = eitherReader $ \input ->
     -- defines the available units and how they convert to microseconds
     units = [ ("s", 1000000)
             , ("ms", 1000)
-            , ("mus", 1)
             , ("m", 60000000)
             ]
