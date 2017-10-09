@@ -9,6 +9,7 @@ import Data.Semigroup ((<>))
 import Options.Applicative
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Text.Read as Read
+import qualified Data.Char as Char
 import Data.String (fromString)
 import qualified Data.List as List
 import qualified Data.Text as Text
@@ -25,18 +26,13 @@ data Config = Config
   , configJwtSecret :: Maybe JWT.Secret
   , configMetricsEndpoint :: Maybe MetricsConfig
   , configQueueCapacity :: Word
+  , configSyncIntervalMicroSeconds :: Maybe Int
   }
 
 data MetricsConfig = MetricsConfig
   { metricsConfigHost :: Warp.HostPreference
   , metricsConfigPort :: Warp.Port
   }
-
-metricsConfigReader :: ReadM MetricsConfig
-metricsConfigReader = eitherReader $ \input ->
-  case List.break (== ':') input of
-    (hostStr, ':':portStr) -> MetricsConfig (fromString hostStr) <$> Read.readEither portStr
-    (_, _) -> Left "no port specified"
 
 -- Parsing of command-line arguments
 
@@ -66,6 +62,12 @@ configParser environment = Config
         value 256 <>
         help ("Smaller values decrease the risk of data loss during a crash, while " <>
               "higher values result in more requests being accepted in rapid succession."))
+  <*> optional (option timeDurationReader
+       (long "sync-interval" <>
+        metavar "DURATION" <>
+        help ("If supplied, data is only persisted to disc every DURATION time units." <>
+              "The units 'm' (minutes), 's' (seconds) and 'ms' (milliseconds) can be used. " <>
+              "When omitting this argument, data is persisted after every modification")))
   where
     environ var = foldMap value (lookup var environment)
     secretOption m = JWT.secret . Text.pack <$> strOption m
@@ -76,3 +78,27 @@ configInfo environment = info parser description
     parser = helper <*> configParser environment
     description = fullDesc <>
       header "Icepeak - Fast Json document store with push notification support."
+
+
+-- * Reader functions
+
+metricsConfigReader :: ReadM MetricsConfig
+metricsConfigReader = eitherReader $ \input ->
+  case List.break (== ':') input of
+    (hostStr, ':':portStr) -> MetricsConfig (fromString hostStr) <$> Read.readEither portStr
+    (_, _) -> Left "no port specified"
+
+-- | Read an option as a time duration in microseconds.
+timeDurationReader :: ReadM Int
+timeDurationReader = eitherReader $ \input ->
+  case List.break Char.isLetter input of
+    ("", _) -> Left "no amount specified"
+    (amount, unit) -> case lookup unit units of
+      Nothing -> Left "invalid unit"
+      Just factor -> fmap (* factor) $ Read.readEither amount
+  where
+    -- defines the available units and how they convert to microseconds
+    units = [ ("s", 1000000)
+            , ("ms", 1000)
+            , ("m", 60000000)
+            ]
