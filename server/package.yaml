@@ -64,8 +64,8 @@ library:
 
 executables:
   icepeak:
-    main: Icepeak.hs
-    source-dirs: app
+    main: Main.hs
+    source-dirs: app/Icepeak
     ghc-options:
     - -O2
     - -threaded
@@ -75,8 +75,8 @@ executables:
     - icepeak
 
   icepeak-token-gen:
-    main: IcepeakTokenGen.hs
-    source-dirs: app
+    main: Main.hs
+    source-dirs: app/IcepeakTokenGen
     dependencies:
     - icepeak
 
