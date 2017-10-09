@@ -56,12 +56,17 @@ data Modification
   | Delete Path
   deriving (Eq, Show)
 
+-- | Defines the kinds of commands that are handled by the event loop of the Core.
 data Command
   = Sync
+    -- ^ The @Sync@ command causes the core to write the JSON value to disk.
   | Modify Modification
+    -- ^ The @Modify@ command applies a modification (writing or deleting) to the JSON value.
   | Stop
+    -- ^ The @Stop@ command causes the event loop of the Core to exit.
   deriving (Eq, Show)
 
+-- | Return the path that is touched by a modification.
 modificationPath :: Modification -> Path
 modificationPath op = case op of
   Put path _ -> path
