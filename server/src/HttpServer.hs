@@ -12,6 +12,7 @@ import qualified Network.Wai as Wai
 import JwtMiddleware (jwtMiddleware)
 import Core (Core (..), EnqueueResult (..))
 import Config (Config (..))
+import qualified Store
 import qualified Core
 import qualified Metrics
 
@@ -33,12 +34,12 @@ new core =
     put (regex "^") $ do
       path <- Wai.pathInfo <$> request
       value <- jsonData
-      result <- liftIO $ Core.tryEnqueueCommand (Core.Modify $ Core.Put path value) core
+      result <- liftIO $ Core.tryEnqueueCommand (Core.Modify $ Store.Put path value) core
       buildResponse result
 
     delete (regex "^") $ do
       path <- Wai.pathInfo <$> request
-      result <- liftIO $ Core.tryEnqueueCommand (Core.Modify $ Core.Delete path) core
+      result <- liftIO $ Core.tryEnqueueCommand (Core.Modify $ Store.Delete path) core
       buildResponse result
 
 buildResponse :: EnqueueResult -> ActionM ()

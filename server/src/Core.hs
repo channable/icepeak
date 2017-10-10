@@ -4,14 +4,12 @@ module Core
   Core (..), -- TODO: Expose only put for clients.
   EnqueueResult (..),
   Command (..),
-  Modification (..),
   ServerState,
   Updated (..),
   enqueueCommand,
   tryEnqueueCommand,
   getCurrentValue,
   withCoreMetrics,
-  applyModification,
   lookup,
   newCore,
   postQuit,
@@ -24,37 +22,27 @@ import Control.Concurrent (threadDelay)
 import Control.Concurrent.MVar (MVar, newMVar)
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TBQueue (TBQueue, newTBQueueIO, readTBQueue, writeTBQueue, isFullTBQueue)
-import Control.Concurrent.STM.TVar (TVar, newTVarIO, writeTVar, readTVar)
-import Control.Exception (try, SomeException)
+import Control.Concurrent.STM.TVar (TVar, newTVarIO)
 import Control.Monad (forever, unless, when)
 import Control.Monad.IO.Class
-import Data.Aeson (Value (..), encode, eitherDecodeStrict)
-import qualified Data.ByteString as SBS
-import Data.ByteString.Lazy (writeFile)
+import Data.Aeson (Value (..))
 import Data.Foldable (forM_)
 import Data.Maybe (isNothing)
 import Data.Traversable (for)
 import Data.UUID (UUID)
 import Prelude hiding (log, writeFile)
-import System.Directory (renameFile)
-import System.IO (withFile, IOMode (..))
-import qualified System.Posix.Files as Posix
 
 import qualified Network.WebSockets as WS
 
 import Config (Config, configDataFile, configQueueCapacity, configSyncIntervalMicroSeconds)
 import Logger (LogRecord)
-import Store (Path)
+import Store (Path, Modification (..))
 import Subscription (SubscriptionTree, empty)
+import Persistence (PersistentValue, PersistenceConfig (..))
 
 import qualified Store
+import qualified Persistence
 import qualified Metrics
-
--- A modification operation.
-data Modification
-  = Put Path Value
-  | Delete Path
-  deriving (Eq, Show)
 
 -- | Defines the kinds of commands that are handled by the event loop of the Core.
 data Command
@@ -66,12 +54,6 @@ data Command
     -- ^ The @Stop@ command causes the event loop of the Core to exit.
   deriving (Eq, Show)
 
--- | Return the path that is touched by a modification.
-modificationPath :: Modification -> Path
-modificationPath op = case op of
-  Put path _ -> path
-  Delete path -> path
-
 -- The main value has been updated at the given path. The payload contains the
 -- entire new value. (So not only the inner value at the updated path.)
 data Updated = Updated Path Value deriving (Eq, Show)
@@ -79,7 +61,7 @@ data Updated = Updated Path Value deriving (Eq, Show)
 data EnqueueResult = Enqueued | Dropped
 
 data Core = Core
-  { coreCurrentValue :: TVar Value
+  { coreCurrentValue :: PersistentValue
   -- the "dirty" flag is set to True whenever the core value has been modified
   -- and is reset to False when it is persisted.
   , coreValueIsDirty :: TVar Bool
@@ -102,16 +84,18 @@ newCore config metrics = do
   let queueCapacity = fromIntegral . configQueueCapacity $ config
   -- load the persistent data from disk
   let filePath = configDataFile config
-  eitherValue <- readData filePath metrics
-  for eitherValue $ \initialValue -> do
+  eitherValue <- Persistence.load PersistenceConfig
+    { pcDataFile = filePath
+    , pcEnableJournaling = False
+    }
+  for eitherValue $ \value -> do
     -- create synchronization channels
-    tvalue <- newTVarIO initialValue
     tdirty <- newTVarIO False
     tqueue <- newTBQueueIO queueCapacity
     tupdates <- newTBQueueIO queueCapacity
     tclients <- newMVar newServerState
     tlogrecords <- newTBQueueIO queueCapacity
-    pure (Core tvalue tdirty tqueue tupdates tclients tlogrecords config metrics)
+    pure (Core value tdirty tqueue tupdates tclients tlogrecords config metrics)
 
 -- Tell the put handler loop, the update handler and the logger loop to quit.
 postQuit :: Core -> IO ()
@@ -139,40 +123,36 @@ enqueueCommand cmd core = atomically $ writeTBQueue (coreQueue core) cmd
 
 getCurrentValue :: Core -> Path -> IO (Maybe Value)
 getCurrentValue core path =
-  fmap (Store.lookup path) $ atomically $ readTVar $ coreCurrentValue core
+  fmap (Store.lookup path) $ atomically $ Persistence.getValue $ coreCurrentValue core
 
 withCoreMetrics :: MonadIO m => Core -> (Metrics.IcepeakMetrics -> IO ()) -> m ()
 withCoreMetrics core act = liftIO $ forM_ (coreMetrics core) act
 
--- Execute a modification.
-applyModification :: Modification -> Value -> Value
-applyModification (Delete path) value = Store.delete path value
-applyModification (Put path newValue) value = Store.insert path newValue value
-
 -- | Drain the command queue and execute them. Changes are published to all
 -- subscribers. This function returns when executing the 'Stop' command from the
 -- queue.
-runCommandLoop :: Core -> IO Value
-runCommandLoop core = atomically (readTVar (coreCurrentValue core)) >>= go
+runCommandLoop :: Core -> IO ()
+runCommandLoop core = go
   where
-    go val = do
+    go = do
       command <- atomically $ readTBQueue (coreQueue core)
       case command of
         Modify op -> do
-          let newValue = applyModification op val
-          atomically $ do
-            writeTVar (coreCurrentValue core) newValue
-            writeTVar (coreValueIsDirty core) True
-            writeTBQueue (coreUpdates core) (Just $ Updated (modificationPath op) newValue)
+          Persistence.apply op (coreCurrentValue core)
+          postUpdate (Store.modificationPath op) core
           when (isNothing $ configSyncIntervalMicroSeconds $ coreConfig core) $
-            persistData core
-          go newValue
+            Persistence.sync (coreCurrentValue core)
+          go
         Sync -> do
-          persistData core
-          go val
-        Stop -> do
-          persistData core
-          pure val
+          Persistence.sync (coreCurrentValue core)
+          go
+        Stop -> Persistence.sync (coreCurrentValue core)
+
+-- | Post an update to the core's update queue (read by the websocket subscribers)
+postUpdate :: Path -> Core -> IO ()
+postUpdate path core = atomically $ do
+  value <- Persistence.getValue (coreCurrentValue core)
+  writeTBQueue (coreUpdates core) (Just $ Updated path value)
 
 -- | Periodically send a 'Sync' command to the 'Core' if enabled in the core
 -- configuration.
@@ -182,33 +162,3 @@ runSyncTimer core = mapM_ go (configSyncIntervalMicroSeconds $ coreConfig core)
     go interval = forever $ do
       enqueueCommand Sync core
       threadDelay interval
-
-persistData :: Core -> IO ()
-persistData core = do
-  (dirty, value) <- atomically $ (,) <$> readTVar (coreValueIsDirty core)
-                                     <*> readTVar (coreCurrentValue core)
-                                     <*  writeTVar (coreValueIsDirty core) False
-  when dirty $ do
-    -- persist the updated Json object to disk
-    let fileName = (configDataFile $ coreConfig core)
-        tempFileName = fileName ++ ".new"
-    -- we first write to a temporary file here and then do a rename on it
-    -- because rename is atomic on Posix and a crash during writing the
-    -- temporary file will thus not corrupt the datastore
-    writeFile tempFileName (encode value)
-    renameFile tempFileName fileName
-    forM_ (coreMetrics core) $ \m -> do
-      stat <- Posix.getFileStatus fileName
-      Metrics.setDataSize (Posix.fileSize stat) m
-      Metrics.incrementDataWritten (Posix.fileSize stat) m
-
-readData :: FilePath -> Maybe Metrics.IcepeakMetrics -> IO (Either String Value)
-readData filePath metrics = do
-  eitherEncodedValue <- try $ withFile filePath ReadMode SBS.hGetContents
-  case (eitherEncodedValue :: Either SomeException SBS.ByteString) of
-    Left exc -> pure $ Left $ "Failed to read the data from disk: " ++ show exc
-    Right encodedValue -> do
-      forM_ metrics $ Metrics.setDataSize (SBS.length encodedValue)
-      case eitherDecodeStrict encodedValue of
-        Left msg  -> pure $ Left $ "Failed to decode the initial data: " ++ show msg
-        Right value -> pure $ Right $ value
