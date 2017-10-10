@@ -8,6 +8,8 @@ module Persistence
   , apply
   , load
   , sync
+  , replayModifications
+  , parseJournalData
   ) where
 
 import           Control.Concurrent.STM
@@ -71,7 +73,7 @@ load config = runExceptT $ do
         , pvIsDirty = dirtyVar
         , pvJournal = journal
         }
-  replayJournal val
+  recoverJournal val
   return val
 
 -- | Write the data to disk if it has changed.
@@ -94,6 +96,11 @@ sync val = do
 
 -- * Private helper functions
 
+-- Note that some of these functions are still exported in order to be usable in the test suite
+
+-- | The journal is line-based and therefore consists of a list of strings.
+type RawJournalData = [SBS.ByteString]
+
 -- | Open or create the journal file
 openJournal :: FilePath -> ExceptT String IO Handle
 openJournal journalFile = ExceptT $ do
@@ -107,15 +114,14 @@ openJournal journalFile = ExceptT $ do
 
 -- | Read the modifications from the journal file, apply them and sync again.
 -- This should be done when loading the database from disk.
-replayJournal :: PersistentValue -> ExceptT String IO ()
-replayJournal pval = for_ (pvJournal pval) $ \journalHandle -> ExceptT $ fmap formatErr $ try $ do
+recoverJournal :: PersistentValue -> ExceptT String IO ()
+recoverJournal pval = for_ (pvJournal pval) $ \journalHandle -> ExceptT $ fmap formatErr $ try $ do
   -- read modifications from the beginning
   journalLines <- do
     hSeek journalHandle AbsoluteSeek 0
-    readLines journalHandle
+    readJournal journalHandle
   -- parse and apply modifications from journal
-  let (errs, ops) = partitionEithers $ map Aeson.eitherDecodeStrict journalLines
-      update initial = foldl' (flip Store.applyModification) initial ops
+  let (errs, ops) = parseJournalData journalLines
 
   when (not $ null ops) $ do
     pcLog (pvConfig pval) "Journal not empty, recovering"
@@ -125,7 +131,7 @@ replayJournal pval = for_ (pvJournal pval) $ \journalHandle -> ExceptT $ fmap fo
     pcLog (pvConfig pval) msg
 
   atomically $ do
-    modifyTVar' (pvValue pval) update
+    modifyTVar' (pvValue pval) (replayModifications ops)
     writeTVar (pvIsDirty pval) True
   -- syncing takes care of cleaning the journal
   sync pval
@@ -133,11 +139,18 @@ replayJournal pval = for_ (pvJournal pval) $ \journalHandle -> ExceptT $ fmap fo
   when (not $ null ops) $ do
     pcLog (pvConfig pval) "Journal replayed"
 
-
   where
     formatErr :: Either SomeException a -> Either String a
     formatErr (Left exc) = Left $ "Failed to read journal: " ++ show exc
     formatErr (Right x)  = Right x
+
+-- | Parse journal data in a list of modifications and a list of errors for entries that could not be parsed.
+parseJournalData :: RawJournalData -> ([String], [Store.Modification])
+parseJournalData = partitionEithers . map Aeson.eitherDecodeStrict
+
+-- | Replay a list of modifications from an initial value.
+replayModifications :: [Store.Modification] -> Store.Value -> Store.Value
+replayModifications ops initial = foldl' (flip Store.applyModification) initial ops
 
 -- | Read and decode the data file
 readData :: FilePath -> ExceptT String IO Store.Value
@@ -150,9 +163,9 @@ readData filePath = ExceptT $ do
         Left msg  -> pure $ Left $ "Failed to decode the initial data: " ++ show msg
         Right value -> pure $ Right $ value
 
--- | Read all lines of a file. Handle remains open when completed.
-readLines :: Handle -> IO [SBS.ByteString]
-readLines h = go where
+-- | Read the journal file.
+readJournal :: Handle -> IO RawJournalData
+readJournal h = go where
   go = do
     eof <- hIsEOF h
     if eof

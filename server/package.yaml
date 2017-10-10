@@ -57,6 +57,7 @@ library:
   - Logger
   - Metrics
   - MetricsServer
+  - Persistence
   - Server
   - Store
   - Subscription

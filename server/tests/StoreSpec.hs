@@ -6,22 +6,12 @@ import Data.Aeson (Value (..))
 import Test.Hspec (Spec, describe, it, shouldBe)
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck.Instances ()
-import Test.QuickCheck.Arbitrary (Arbitrary (..))
 
 import qualified Data.HashMap.Strict as HashMap
-import qualified Test.QuickCheck.Gen as Gen
 
+import OrphanInstances ()
 import Store (Modification (..))
 import qualified Store
-
-instance Arbitrary Value where
-  arbitrary = Gen.oneof
-    [ Object <$> arbitrary
-    , Array  <$> arbitrary
-    , String <$> arbitrary
-    , Bool   <$> arbitrary
-    , pure Null
-    ]
 
 spec :: Spec
 spec = do
