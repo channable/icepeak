@@ -27,14 +27,13 @@ import Control.Monad (forever, unless, when)
 import Control.Monad.IO.Class
 import Data.Aeson (Value (..))
 import Data.Foldable (forM_)
-import Data.Maybe (isNothing)
 import Data.Traversable (for)
 import Data.UUID (UUID)
 import Prelude hiding (log, writeFile)
 
 import qualified Network.WebSockets as WS
 
-import Config (Config, configDataFile, configQueueCapacity, configSyncIntervalMicroSeconds)
+import Config (Config (..), periodicSyncingEnabled)
 import Logger (LogRecord)
 import Store (Path, Modification (..))
 import Subscription (SubscriptionTree, empty)
@@ -42,6 +41,7 @@ import Persistence (PersistentValue, PersistenceConfig (..))
 
 import qualified Store
 import qualified Persistence
+import qualified Logger
 import qualified Metrics
 
 -- | Defines the kinds of commands that are handled by the event loop of the Core.
@@ -82,11 +82,18 @@ newServerState = empty
 newCore :: Config -> Maybe Metrics.IcepeakMetrics -> IO (Either String Core)
 newCore config metrics = do
   let queueCapacity = fromIntegral . configQueueCapacity $ config
+  -- create log queue first
+  tlogrecords <- newTBQueueIO queueCapacity
   -- load the persistent data from disk
   let filePath = configDataFile config
+      journalFile
+        | configEnableJournaling config
+          && periodicSyncingEnabled config = Just $ filePath ++ ".journal"
+        | otherwise = Nothing
   eitherValue <- Persistence.load PersistenceConfig
     { pcDataFile = filePath
-    , pcEnableJournaling = False
+    , pcJournalFile = journalFile
+    , pcLog = \msg -> Logger.log msg tlogrecords
     }
   for eitherValue $ \value -> do
     -- create synchronization channels
@@ -94,7 +101,6 @@ newCore config metrics = do
     tqueue <- newTBQueueIO queueCapacity
     tupdates <- newTBQueueIO queueCapacity
     tclients <- newMVar newServerState
-    tlogrecords <- newTBQueueIO queueCapacity
     pure (Core value tdirty tqueue tupdates tclients tlogrecords config metrics)
 
 -- Tell the put handler loop, the update handler and the logger loop to quit.
@@ -140,7 +146,7 @@ runCommandLoop core = go
         Modify op -> do
           Persistence.apply op (coreCurrentValue core)
           postUpdate (Store.modificationPath op) core
-          when (isNothing $ configSyncIntervalMicroSeconds $ coreConfig core) $
+          when (not $ periodicSyncingEnabled $ coreConfig core) $
             Persistence.sync (coreCurrentValue core)
           go
         Sync -> do

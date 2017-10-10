@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Store
 (
   Modification (..),
@@ -12,11 +13,13 @@ module Store
 )
 where
 
-import Data.Aeson (Value (..))
+import Data.Aeson (Value (..), (.=), (.:))
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Prelude hiding (lookup)
 
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Types as Aeson
 import qualified Data.HashMap.Strict as HashMap
 
 type Path = [Text]
@@ -26,6 +29,25 @@ data Modification
   = Put Path Value
   | Delete Path
   deriving (Eq, Show)
+
+instance Aeson.ToJSON Modification where
+  toJSON (Put path value) = Aeson.object
+    [ "op" .= ("put" :: Text)
+    , "path" .= path
+    , "val" .= value
+    ]
+  toJSON (Delete path) = Aeson.object
+    [ "op" .= ("del" :: Text)
+    , "path" .= path
+    ]
+
+instance Aeson.FromJSON Modification where
+  parseJSON = Aeson.withObject "Modification" $ \v -> do
+    op <- v .: "op"
+    case op of
+      "put" -> Put <$> v .: "path" <*> v .: "val"
+      "del" -> Delete <$> v .: "path"
+      other -> Aeson.typeMismatch "Op" other
 
 -- | Return the path that is touched by a modification.
 modificationPath :: Modification -> Path

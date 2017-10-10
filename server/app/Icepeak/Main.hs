@@ -3,7 +3,7 @@
 module Main where
 
 import Control.Concurrent.Async
-import Control.Monad (forM, void)
+import Control.Monad (forM, void, when)
 import Data.Foldable (forM_)
 import Data.Semigroup ((<>))
 import Options.Applicative (execParser)
@@ -100,5 +100,11 @@ logQueueSettings cfg queue =
 
 logSyncSettings :: Config -> LogQueue -> IO ()
 logSyncSettings cfg queue = case configSyncIntervalMicroSeconds cfg of
-  Nothing -> log "Sync: Persisting after every modification" queue
-  Just musecs -> log ("Sync: every " <> Text.pack (show musecs) <> " microseconds.") queue
+  Nothing -> do
+    log "Sync: Persisting after every modification" queue
+    when (configEnableJournaling cfg) $ do
+      log "Journaling has no effect when periodic syncing is disabled" queue
+  Just musecs -> do
+    log ("Sync: every " <> Text.pack (show musecs) <> " microseconds.") queue
+    when (configEnableJournaling cfg) $ do
+      log "Journaling enabled" queue
