@@ -126,3 +126,7 @@ spec = do
         after = Object $ HashMap.fromList [("x", Object $ HashMap.singleton "y" "Stefan"), ("z", Null)]
       in
         Store.applyModification put before `shouldBe` after
+
+    prop "is idempotent" $ \op value ->
+      let apply = Store.applyModification op
+      in apply value == apply (apply value)

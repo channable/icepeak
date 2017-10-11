@@ -43,3 +43,7 @@ spec = do
       let journalLines = map (LBS8.toStrict . Aeson.encode) (ops :: [Modification])
           (errs, restoredOps) = Persistence.parseJournalData journalLines
       in null errs && restoredOps == ops
+
+    prop "journal is idempotent" $ \ops initial ->
+      let replay = Persistence.replayModifications ops
+      in replay initial == replay (replay initial)

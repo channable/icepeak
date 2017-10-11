@@ -90,9 +90,11 @@ sync val = do
     -- because rename is atomic on Posix and a crash during writing the
     -- temporary file will thus not corrupt the datastore
     LBS.writeFile tempFileName (Aeson.encode value)
+    renameFile tempFileName fileName
+    -- the journal is idempotent, so there is no harm if icepeak crashes between
+    -- the previous and the next action
     for_ (pvJournal val) $ \journalHandle ->
       hSetFileSize journalHandle 0
-    renameFile tempFileName fileName
 
 -- * Private helper functions
 
