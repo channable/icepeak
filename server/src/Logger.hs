@@ -5,6 +5,7 @@ module Logger
   LogQueue,
   newLogger,
   postLog,
+  postLogBlocking,
   postStop,
   processLogRecords
 )
@@ -31,10 +32,18 @@ data LogCommand = LogRecord LogRecord | LogStop
 newLogger :: Int -> IO Logger
 newLogger queueSize = Logger <$> atomically (newTBQueue queueSize)
 
+-- | Post a non-essential log message to the queue. The message is discarded
+-- when the queue is full.
 postLog :: Logger -> LogRecord -> IO ()
 postLog logger record = atomically $ do
   isFull <- isFullTBQueue (loggerQueue logger)
   unless isFull $ writeTBQueue (loggerQueue logger) (LogRecord record)
+
+-- | Post an essential log message to the queue. This function blocks when the
+-- queue is full.
+postLogBlocking :: Logger -> LogRecord -> IO ()
+postLogBlocking logger record = atomically $
+  writeTBQueue (loggerQueue logger) (LogRecord record)
 
 postStop :: Logger -> IO ()
 postStop logger = atomically $ writeTBQueue (loggerQueue logger) LogStop

@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns      #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-| This module abstracts over the details of persisting the value. Journaling is
   also handled here, if enabled. -}
@@ -8,8 +9,6 @@ module Persistence
   , apply
   , load
   , sync
-  , replayModifications
-  , parseJournalData
   ) where
 
 import           Control.Concurrent.STM
@@ -20,14 +19,13 @@ import qualified Data.ByteString            as SBS
 import qualified Data.ByteString.Char8      as SBS8
 import qualified Data.ByteString.Lazy       as LBS
 import qualified Data.ByteString.Lazy.Char8 as LBS8
-import           Data.Either                (partitionEithers)
 import           Data.Foldable
+import           Data.Monoid
 import           Data.Text                  (Text)
 import qualified Data.Text                  as Text
 import           Data.Traversable
 import           System.Directory           (getFileSize, renameFile)
 import           System.IO
-import           System.IO.Unsafe           (unsafeInterleaveIO)
 
 import           Logger                     (Logger)
 import qualified Logger
@@ -131,41 +129,43 @@ openJournal journalFile = ExceptT $ do
 -- This should be done when loading the database from disk.
 recoverJournal :: PersistentValue -> ExceptT String IO ()
 recoverJournal pval = for_ (pvJournal pval) $ \journalHandle -> ExceptT $ fmap formatErr $ try $ do
-  -- read modifications from the beginning
-  journalLines <- do
-    hSeek journalHandle AbsoluteSeek 0
-    readJournal journalHandle
-  -- parse and apply modifications from journal
-  let (errs, ops) = parseJournalData journalLines
+  initialValue <- atomically $ readTVar (pvValue pval)
+  (finalValue, successful, total) <- runRecovery journalHandle initialValue
 
-  when (not $ null ops) $ do
-    logMessage pval "Journal not empty, recovering"
+  when (successful > 0) $ do
+    atomically $ do
+      writeTVar (pvValue pval) finalValue
+      writeTVar (pvIsDirty pval) True
+    -- syncing takes care of cleaning the journal
+    sync pval
 
-  when (not $ null errs) $ do
-    let msg = Text.intercalate "\n" $ "Failed to recover some journal entries:" : map Text.pack errs
-    logMessage pval msg
-
-  atomically $ do
-    modifyTVar' (pvValue pval) (replayModifications ops)
-    writeTVar (pvIsDirty pval) True
-  -- syncing takes care of cleaning the journal
-  sync pval
-
-  when (not $ null ops) $ do
+  when (total > 0) $ do
     logMessage pval "Journal replayed"
+    logMessage pval $ "  failed:     " <> Text.pack (show $ total - successful)
+    logMessage pval $ "  successful: " <> Text.pack (show $ successful)
 
   where
     formatErr :: Either SomeException a -> Either String a
     formatErr (Left exc) = Left $ "Failed to read journal: " ++ show exc
     formatErr (Right x)  = Right x
 
--- | Parse journal data in a list of modifications and a list of errors for entries that could not be parsed.
-parseJournalData :: RawJournalData -> ([String], [Store.Modification])
-parseJournalData = partitionEithers . map Aeson.eitherDecodeStrict
+    runRecovery journalHandle value = do
+      -- read modifications from the beginning
+      hSeek journalHandle AbsoluteSeek 0
+      foldJournalM journalHandle replayLine (value, 0 :: Integer, 0 :: Integer)
 
--- | Replay a list of modifications from an initial value.
-replayModifications :: [Store.Modification] -> Store.Value -> Store.Value
-replayModifications ops initial = foldl' (flip Store.applyModification) initial ops
+    replayLine line (!value, !successful, !total) = do
+      when (total == 0) $ do
+        logMessage pval "Journal not empty, recovering"
+      case Aeson.eitherDecodeStrict line of
+        Left err -> do
+          let lineNumber = total + 1
+          logMessage pval $ failedRecoveryMsg err lineNumber
+          pure (value, successful, total + 1)
+        Right op -> pure (Store.applyModification op value, successful + 1, total + 1)
+
+    failedRecoveryMsg err line = "Failed to recover journal entry "
+      <> Text.pack (show line) <> ": " <> Text.pack err
 
 -- | Read and decode the data file
 readData :: FilePath -> ExceptT String IO Store.Value
@@ -180,29 +180,17 @@ readData filePath = ExceptT $ do
 
 -- | Log a message in the context of a PersistentValue.
 logMessage :: PersistentValue -> Text -> IO ()
-logMessage pval msg = Logger.postLog (pcLogger $ pvConfig pval) msg
+logMessage pval msg = Logger.postLogBlocking (pcLogger $ pvConfig pval) msg
 
--- | Read the journal file.
-readJournal :: Handle -> IO RawJournalData
-readJournal h = loop where
-  -- we use unsafeInterleaveIO here to mimic the behavior of hGetContents
-  loop = unsafeInterleaveIO nextLine
-
-  nextLine = do
-    eof <- hIsEOF h
-    if eof
-      then pure []
-      -- because loop uses unsafeInterleaveIO, the IO is not evaluated until the
-      -- value is requested
-      else (:) <$> SBS8.hGetLine h <*> loop
-
--- foldJournal :: Handle -> (SBS8.ByteString -> a -> a) -> a -> IO a
--- foldJournal h f = go
---   where
---     go !x = do
---       eof <- hIsEOF h
---       if eof
---         then pure x
---         else do
---           line <- SBS8.hGetLine h
---           go (f line x)
+-- | Left fold over all journal entries.
+foldJournalM :: Handle -> (SBS8.ByteString -> a -> IO a) -> a -> IO a
+foldJournalM h f = go
+  where
+    go !x = do
+      eof <- hIsEOF h
+      if eof
+        then pure x
+        else do
+          line <- SBS8.hGetLine h
+          x' <- f line x
+          go x'
