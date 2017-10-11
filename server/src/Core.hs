@@ -34,14 +34,13 @@ import Prelude hiding (log, writeFile)
 import qualified Network.WebSockets as WS
 
 import Config (Config (..), periodicSyncingEnabled)
-import Logger (LogRecord)
+import Logger (Logger)
 import Store (Path, Modification (..))
 import Subscription (SubscriptionTree, empty)
 import Persistence (PersistentValue, PersistenceConfig (..))
 
 import qualified Store
 import qualified Persistence
-import qualified Logger
 import qualified Metrics
 
 -- | Defines the kinds of commands that are handled by the event loop of the Core.
@@ -68,8 +67,8 @@ data Core = Core
   , coreQueue :: TBQueue Command
   , coreUpdates :: TBQueue (Maybe Updated)
   , coreClients :: MVar ServerState
-  , coreLogRecords :: TBQueue (Maybe LogRecord)
-  , coreConfig :: Config
+  , coreLogger  :: Logger
+  , coreConfig  :: Config
   , coreMetrics :: Maybe Metrics.IcepeakMetrics
   }
 
@@ -79,11 +78,9 @@ newServerState :: ServerState
 newServerState = empty
 
 -- | Try to initialize the core. This loads the database and sets up the internal data structures.
-newCore :: Config -> Maybe Metrics.IcepeakMetrics -> IO (Either String Core)
-newCore config metrics = do
+newCore :: Config -> Logger -> Maybe Metrics.IcepeakMetrics -> IO (Either String Core)
+newCore config logger metrics = do
   let queueCapacity = fromIntegral . configQueueCapacity $ config
-  -- create log queue first
-  tlogrecords <- newTBQueueIO queueCapacity
   -- load the persistent data from disk
   let filePath = configDataFile config
       journalFile
@@ -93,7 +90,8 @@ newCore config metrics = do
   eitherValue <- Persistence.load PersistenceConfig
     { pcDataFile = filePath
     , pcJournalFile = journalFile
-    , pcLog = \msg -> Logger.log msg tlogrecords
+    , pcLogger = logger
+    , pcMetrics = metrics
     }
   for eitherValue $ \value -> do
     -- create synchronization channels
@@ -101,15 +99,14 @@ newCore config metrics = do
     tqueue <- newTBQueueIO queueCapacity
     tupdates <- newTBQueueIO queueCapacity
     tclients <- newMVar newServerState
-    pure (Core value tdirty tqueue tupdates tclients tlogrecords config metrics)
+    pure (Core value tdirty tqueue tupdates tclients logger config metrics)
 
--- Tell the put handler loop, the update handler and the logger loop to quit.
+-- Tell the put handler loop and the update handler to quit.
 postQuit :: Core -> IO ()
 postQuit core = do
   atomically $ do
     writeTBQueue (coreQueue core) Stop
     writeTBQueue (coreUpdates core) Nothing
-    writeTBQueue (coreLogRecords core) Nothing
 
 -- | Try to enqueue a command. It succeeds if the queue is not full, otherwise,
 -- nothing is changed. This should be used for non-critical commands that can

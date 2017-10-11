@@ -34,10 +34,10 @@ instance Aeson.ToJSON Modification where
   toJSON (Put path value) = Aeson.object
     [ "op" .= ("put" :: Text)
     , "path" .= path
-    , "val" .= value
+    , "value" .= value
     ]
   toJSON (Delete path) = Aeson.object
-    [ "op" .= ("del" :: Text)
+    [ "op" .= ("delete" :: Text)
     , "path" .= path
     ]
 
@@ -45,8 +45,8 @@ instance Aeson.FromJSON Modification where
   parseJSON = Aeson.withObject "Modification" $ \v -> do
     op <- v .: "op"
     case op of
-      "put" -> Put <$> v .: "path" <*> v .: "val"
-      "del" -> Delete <$> v .: "path"
+      "put" -> Put <$> v .: "path" <*> v .: "value"
+      "delete" -> Delete <$> v .: "path"
       other -> Aeson.typeMismatch "Op" other
 
 -- | Return the path that is touched by a modification.

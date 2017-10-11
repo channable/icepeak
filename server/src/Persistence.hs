@@ -25,9 +25,13 @@ import           Data.Foldable
 import           Data.Text                  (Text)
 import qualified Data.Text                  as Text
 import           Data.Traversable
-import           System.Directory           (renameFile)
+import           System.Directory           (getFileSize, renameFile)
 import           System.IO
+import           System.IO.Unsafe           (unsafeInterleaveIO)
 
+import           Logger                     (Logger)
+import qualified Logger
+import qualified Metrics
 import qualified Store
 
 data PersistentValue = PersistentValue
@@ -40,7 +44,8 @@ data PersistentValue = PersistentValue
 data PersistenceConfig = PersistenceConfig
   { pcDataFile    :: FilePath
   , pcJournalFile :: Maybe FilePath
-  , pcLog         :: Text -> IO ()
+  , pcLogger      :: Logger
+  , pcMetrics     :: Maybe Metrics.IcepeakMetrics
   }
 
 -- | Get the actual value
@@ -51,8 +56,11 @@ getValue = readTVar . pvValue
 apply :: Store.Modification -> PersistentValue -> IO ()
 apply op val = do
   -- append to journal if enabled
-  for_ (pvJournal val) $ \journalHandle ->
-    LBS8.hPutStrLn journalHandle (Aeson.encode op)
+  for_ (pvJournal val) $ \journalHandle -> do
+    let entry = Aeson.encode op
+    LBS8.hPutStrLn journalHandle entry
+    for_ (pcMetrics . pvConfig $ val) $
+      Metrics.incrementJournalWritten (LBS8.length entry)
   -- update value
   atomically $ do
     modifyTVar (pvValue val) (Store.applyModification op)
@@ -95,6 +103,11 @@ sync val = do
     -- the previous and the next action
     for_ (pvJournal val) $ \journalHandle ->
       hSetFileSize journalHandle 0
+    -- handle metrics last
+    forM_ (pcMetrics . pvConfig $ val) $ \m -> do
+      size <- getFileSize fileName
+      Metrics.setDataSize size m
+      Metrics.incrementDataWritten size m
 
 -- * Private helper functions
 
@@ -126,11 +139,11 @@ recoverJournal pval = for_ (pvJournal pval) $ \journalHandle -> ExceptT $ fmap f
   let (errs, ops) = parseJournalData journalLines
 
   when (not $ null ops) $ do
-    pcLog (pvConfig pval) "Journal not empty, recovering"
+    logMessage pval "Journal not empty, recovering"
 
   when (not $ null errs) $ do
     let msg = Text.intercalate "\n" $ "Failed to recover some journal entries:" : map Text.pack errs
-    pcLog (pvConfig pval) msg
+    logMessage pval msg
 
   atomically $ do
     modifyTVar' (pvValue pval) (replayModifications ops)
@@ -139,7 +152,7 @@ recoverJournal pval = for_ (pvJournal pval) $ \journalHandle -> ExceptT $ fmap f
   sync pval
 
   when (not $ null ops) $ do
-    pcLog (pvConfig pval) "Journal replayed"
+    logMessage pval "Journal replayed"
 
   where
     formatErr :: Either SomeException a -> Either String a
@@ -165,11 +178,31 @@ readData filePath = ExceptT $ do
         Left msg  -> pure $ Left $ "Failed to decode the initial data: " ++ show msg
         Right value -> pure $ Right $ value
 
+-- | Log a message in the context of a PersistentValue.
+logMessage :: PersistentValue -> Text -> IO ()
+logMessage pval msg = Logger.postLog (pcLogger $ pvConfig pval) msg
+
 -- | Read the journal file.
 readJournal :: Handle -> IO RawJournalData
-readJournal h = go where
-  go = do
+readJournal h = loop where
+  -- we use unsafeInterleaveIO here to mimic the behavior of hGetContents
+  loop = unsafeInterleaveIO nextLine
+
+  nextLine = do
     eof <- hIsEOF h
     if eof
       then pure []
-      else (:) <$> SBS8.hGetLine h <*> go
+      -- because loop uses unsafeInterleaveIO, the IO is not evaluated until the
+      -- value is requested
+      else (:) <$> SBS8.hGetLine h <*> loop
+
+-- foldJournal :: Handle -> (SBS8.ByteString -> a -> a) -> a -> IO a
+-- foldJournal h f = go
+--   where
+--     go !x = do
+--       eof <- hIsEOF h
+--       if eof
+--         then pure x
+--         else do
+--           line <- SBS8.hGetLine h
+--           go (f line x)

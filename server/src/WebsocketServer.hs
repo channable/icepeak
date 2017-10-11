@@ -15,7 +15,6 @@ import Data.Aeson (Value)
 import Data.Monoid ((<>))
 import Data.Text (Text)
 import Data.UUID
-import Prelude hiding (log)
 import System.Random (randomIO)
 
 import qualified Data.Aeson as Aeson
@@ -29,7 +28,7 @@ import qualified Network.HTTP.Types.URI as Uri
 
 import Config (Config (..))
 import Core (Core (..), ServerState, Updated (..), getCurrentValue, withCoreMetrics)
-import Logger (log)
+import Logger (postLog)
 import Store (Path)
 import AccessControl (AccessMode(..))
 import JwtMiddleware (AuthResult (..), isRequestAuthorized, errorResponseBody)
@@ -91,18 +90,18 @@ handleClient conn path core = do
   uuid <- newUUID
   let
     state = coreClients core
-    logRecords = coreLogRecords core
+    logger = coreLogger core
     onConnect = do
       modifyMVar_ state (pure . Subscription.subscribe path uuid conn)
       withCoreMetrics core Metrics.incrementSubscribers
-      log (T.pack $ "Client " ++ (show uuid) ++ " connected, subscribed to " ++ (show path) ++ ".") logRecords
+      postLog logger (T.pack $ "Client " ++ (show uuid) ++ " connected, subscribed to " ++ (show path) ++ ".")
     onDisconnect = do
       modifyMVar_ state (pure . Subscription.unsubscribe path uuid)
       withCoreMetrics core Metrics.decrementSubscribers
-      log (T.pack $ "Client " ++ (show uuid) ++ " disconnected.") logRecords
+      postLog logger (T.pack $ "Client " ++ (show uuid) ++ " disconnected.")
     sendInitialValue = do
       currentValue <- getCurrentValue core path
-      log (T.pack $ "Sending initial value to client: " ++ show currentValue) logRecords
+      postLog logger (T.pack $ "Sending initial value to client: " ++ show currentValue)
       WS.sendTextData conn (Aeson.encode currentValue)
 
     closeHandshake :: WS.ConnectionException -> IO ()
