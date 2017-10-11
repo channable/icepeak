@@ -57,8 +57,10 @@ apply op val = do
   for_ (pvJournal val) $ \journalHandle -> do
     let entry = Aeson.encode op
     LBS8.hPutStrLn journalHandle entry
-    for_ (pcMetrics . pvConfig $ val) $
-      Metrics.incrementJournalWritten (LBS8.length entry)
+    for_ (pcMetrics . pvConfig $ val) $ \metrics -> do
+      journalPos <- hTell journalHandle
+      Metrics.incrementJournalWritten (LBS8.length entry) metrics
+      Metrics.setJournalSize journalPos metrics
   -- update value
   atomically $ do
     modifyTVar (pvValue val) (Store.applyModification op)
