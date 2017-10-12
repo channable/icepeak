@@ -35,7 +35,9 @@ import qualified Store
 data PersistentValue = PersistentValue
   { pvConfig  :: PersistenceConfig
   , pvValue   :: TVar Store.Value
+    -- ^ contains the state of the whole database
   , pvIsDirty :: TVar Bool
+    -- ^ flag indicating whether the current value of 'pvValue' has not yet been persisted to disk
   , pvJournal :: Maybe Handle
   }
 

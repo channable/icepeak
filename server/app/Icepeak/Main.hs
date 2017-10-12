@@ -2,7 +2,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Main where
 
-import Control.Concurrent.Async
+import Control.Concurrent.Async (Async)
 import Control.Exception (fromException, AsyncException)
 import Control.Monad (forM, void, when)
 import Data.Foldable (forM_)
@@ -94,7 +94,7 @@ runCore core = do
 
 -- | Wait for an Async computation to exit and log unexpected exceptions.
 waitLog :: Text -> Logger -> Async () -> IO ()
-waitLog name logger action = waitCatch action >>= handleLog where
+waitLog name logger action = Async.waitCatch action >>= handleLog where
   handleLog (Left exc)
     | Just (_ :: AsyncException) <- fromException exc = pure ()
     | otherwise = Logger.postLog logger $ name <> " stopped with an exception: " <> Text.pack (show exc)

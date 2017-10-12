@@ -21,6 +21,10 @@ Icepeak supports two kinds of modification operations:
   - If the path refers to a field in an object, that field is removed from the
     object.
 
+Note that in the current implementation, HTTP requests to the REST API return
+before the modification has been applied to the data. This is because updates
+are delegated to a different thread than the HTTP request.
+
 # Atomic writes
 
 To make sure an interrupted write does not corrupt the database, the new value
@@ -64,7 +68,7 @@ The two kinds of operations are encoded as follows:
 - A `Delete` operation deleting the path `somepath` is encoded as
 
   ```
-  {"op":"del","path":somepath}
+  {"op":"delete","path":somepath}
   ```
 
 The paths are encoded as JSON arrays of the individual components. The path

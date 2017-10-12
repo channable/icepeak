@@ -25,3 +25,4 @@ cabal.project.local
 *.swo
 icepeak.json
 icepeak.json.journal
+icepeak.json.new

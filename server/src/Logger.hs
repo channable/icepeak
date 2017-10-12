@@ -22,9 +22,7 @@ import qualified Data.Text.IO as T
 type LogRecord = Text
 type LogQueue = TBQueue LogCommand
 
-data Logger = Logger
-  { loggerQueue :: LogQueue
-  }
+data Logger = Logger { loggerQueue :: LogQueue }
 
 data LogCommand = LogRecord LogRecord | LogStop
   deriving (Eq, Ord, Show, Read)
@@ -57,5 +55,5 @@ processLogRecords logger = go
         LogRecord logRecord -> do
           T.putStrLn logRecord
           go
-        -- Stop the loop when we receive a Nothing.
+        -- stop the loop when asked so
         LogStop -> pure ()

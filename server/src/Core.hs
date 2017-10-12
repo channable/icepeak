@@ -23,7 +23,7 @@ import Control.Concurrent.MVar (MVar, newMVar)
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TBQueue (TBQueue, newTBQueueIO, readTBQueue, writeTBQueue, isFullTBQueue)
 import Control.Concurrent.STM.TVar (TVar, newTVarIO)
-import Control.Monad (forever, unless, when)
+import Control.Monad (forever, unless)
 import Control.Monad.IO.Class
 import Data.Aeson (Value (..))
 import Data.Foldable (forM_)
@@ -143,7 +143,8 @@ runCommandLoop core = go
         Modify op -> do
           Persistence.apply op (coreCurrentValue core)
           postUpdate (Store.modificationPath op) core
-          when (not $ periodicSyncingEnabled $ coreConfig core) $
+          -- when periodic syncing is disabled, data is persisted after every modification
+          unless (periodicSyncingEnabled $ coreConfig core) $
             Persistence.sync (coreCurrentValue core)
           go
         Sync -> do
