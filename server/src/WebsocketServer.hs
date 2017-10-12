@@ -90,18 +90,14 @@ handleClient conn path core = do
   uuid <- newUUID
   let
     state = coreClients core
-    logger = coreLogger core
     onConnect = do
       modifyMVar_ state (pure . Subscription.subscribe path uuid conn)
       withCoreMetrics core Metrics.incrementSubscribers
-      postLog logger (T.pack $ "Client " ++ (show uuid) ++ " connected, subscribed to " ++ (show path) ++ ".")
     onDisconnect = do
       modifyMVar_ state (pure . Subscription.unsubscribe path uuid)
       withCoreMetrics core Metrics.decrementSubscribers
-      postLog logger (T.pack $ "Client " ++ (show uuid) ++ " disconnected.")
     sendInitialValue = do
       currentValue <- getCurrentValue core path
-      postLog logger (T.pack $ "Sending initial value to client: " ++ show currentValue)
       WS.sendTextData conn (Aeson.encode currentValue)
   -- Put the client in the subscription tree and keep the connection open.
   -- Remove it when the connection is closed.
@@ -116,14 +112,6 @@ keepTalking conn = forever $ do
     -- Note: WS.receiveDataMessage will handle control messages automatically and e.g.
     -- do the closing handshake of the websocket protocol correctly
     WS.receiveDataMessage conn
-
--- Print the path and headers of the pending request
-printRequest :: WS.PendingConnection -> IO ()
-printRequest pending = do
-  putStrLn $ show ("\nPath: " <> (WS.requestPath $ WS.pendingRequest pending))
-  let headers = WS.requestHeaders $ WS.pendingRequest pending
-  T.putStrLn "Headers:"
-  forM_ headers print
 
 -- loop that is called for every update and that broadcasts the values to all
 -- subscribers of the updated path
