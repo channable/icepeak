@@ -74,6 +74,9 @@ apply op val = do
 load :: PersistenceConfig -> IO (Either String PersistentValue)
 load config = runExceptT $ do
   value <- readData (pcDataFile config)
+  liftIO $ forM_ (pcMetrics config) $ \m -> do
+    size <- getFileSize (pcDataFile config)
+    Metrics.setDataSize size m
   valueVar <- lift $ newTVarIO value
   dirtyVar <- lift $ newTVarIO False
   journal <- for (pcJournalFile config) openJournal
@@ -110,7 +113,7 @@ sync val = do
     forM_ (pcMetrics . pvConfig $ val) $ \m -> do
       size <- getFileSize fileName
       Metrics.setDataSize size m
-      Metrics.setJournalSize size m
+      Metrics.setJournalSize (0 :: Int) m
       Metrics.incrementDataWritten size m
 
 -- * Private helper functions
