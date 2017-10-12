@@ -1,6 +1,7 @@
 module Config (
   Config (..),
   MetricsConfig (..),
+  periodicSyncingEnabled,
   configInfo,
 ) where
 
@@ -10,6 +11,7 @@ import Options.Applicative
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Text.Read as Read
 import qualified Data.Char as Char
+import Data.Maybe (isJust)
 import Data.String (fromString)
 import qualified Data.List as List
 import qualified Data.Text as Text
@@ -27,12 +29,17 @@ data Config = Config
   , configMetricsEndpoint :: Maybe MetricsConfig
   , configQueueCapacity :: Word
   , configSyncIntervalMicroSeconds :: Maybe Int
+  -- | Enable journaling, only in conjunction with periodic syncing
+  , configEnableJournaling :: Bool
   }
 
 data MetricsConfig = MetricsConfig
   { metricsConfigHost :: Warp.HostPreference
   , metricsConfigPort :: Warp.Port
   }
+
+periodicSyncingEnabled :: Config -> Bool
+periodicSyncingEnabled = isJust . configSyncIntervalMicroSeconds
 
 -- Parsing of command-line arguments
 
@@ -68,6 +75,8 @@ configParser environment = Config
         help ("If supplied, data is only persisted to disc every DURATION time units." <>
               "The units 'm' (minutes), 's' (seconds) and 'ms' (milliseconds) can be used. " <>
               "When omitting this argument, data is persisted after every modification")))
+  <*> switch (long "journaling" <>
+             help "Enable journaling. This only has an effect when periodic syncing is enabled.")
   where
     environ var = foldMap value (lookup var environment)
     secretOption m = JWT.secret . Text.pack <$> strOption m

@@ -1,6 +1,11 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Store
 (
+  Modification (..),
   Path,
+  Value,
+  modificationPath,
+  applyModification,
   delete,
   insert,
   lookup,
@@ -8,14 +13,47 @@ module Store
 )
 where
 
-import Data.Aeson (Value (..))
+import Data.Aeson (Value (..), (.=), (.:))
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Prelude hiding (lookup)
 
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Types as Aeson
 import qualified Data.HashMap.Strict as HashMap
 
 type Path = [Text]
+
+-- A modification operation.
+data Modification
+  = Put Path Value
+  | Delete Path
+  deriving (Eq, Show)
+
+instance Aeson.ToJSON Modification where
+  toJSON (Put path value) = Aeson.object
+    [ "op" .= ("put" :: Text)
+    , "path" .= path
+    , "value" .= value
+    ]
+  toJSON (Delete path) = Aeson.object
+    [ "op" .= ("delete" :: Text)
+    , "path" .= path
+    ]
+
+instance Aeson.FromJSON Modification where
+  parseJSON = Aeson.withObject "Modification" $ \v -> do
+    op <- v .: "op"
+    case op of
+      "put" -> Put <$> v .: "path" <*> v .: "value"
+      "delete" -> Delete <$> v .: "path"
+      other -> Aeson.typeMismatch "Op" other
+
+-- | Return the path that is touched by a modification.
+modificationPath :: Modification -> Path
+modificationPath op = case op of
+  Put path _ -> path
+  Delete path -> path
 
 lookup :: Path -> Value -> Maybe Value
 lookup path value =
@@ -28,6 +66,11 @@ lookup path value =
 -- Look up a value, returning null if the path does not exist.
 lookupOrNull :: Path -> Value -> Value
 lookupOrNull path = fromMaybe Null . lookup path
+
+-- | Execute a modification.
+applyModification :: Modification -> Value -> Value
+applyModification (Delete path) value = Store.delete path value
+applyModification (Put path newValue) value = Store.insert path newValue value
 
 -- Overwrite a value at the given path, and create the path leading up to it if
 -- it did not exist.
