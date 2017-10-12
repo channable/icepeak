@@ -2,12 +2,18 @@
 
 module HttpServer (new) where
 
+import Control.Concurrent.MVar (newEmptyMVar, takeMVar)
 import Control.Monad
 import Control.Monad.IO.Class
+import Data.Foldable (for_)
+import Data.Traversable (for)
 import Network.HTTP.Types
 import Network.Wai (Application)
 import Web.Scotty (delete, get, json, jsonData, put, regex, middleware, request, scottyApp, status, ActionM)
+
+import qualified Data.Text.Lazy as LText
 import qualified Network.Wai as Wai
+import qualified Web.Scotty.Trans as Scotty
 
 import JwtMiddleware (jwtMiddleware)
 import Core (Core (..), EnqueueResult (..))
@@ -34,13 +40,23 @@ new core =
     put (regex "^") $ do
       path <- Wai.pathInfo <$> request
       value <- jsonData
-      result <- liftIO $ Core.tryEnqueueCommand (Core.Modify $ Store.Put path value) core
+      result <- postModification core (Store.Put path value)
       buildResponse result
 
     delete (regex "^") $ do
       path <- Wai.pathInfo <$> request
-      result <- liftIO $ Core.tryEnqueueCommand (Core.Modify $ Store.Delete path) core
+      result <- postModification core (Store.Delete path)
       buildResponse result
+
+-- | Enqueue modification and wait for it to be processed, if desired by the client.
+postModification :: (Scotty.ScottyError e, MonadIO m) => Core -> Store.Modification -> Scotty.ActionT e m EnqueueResult
+postModification core op = do
+  -- the parameter is parsed as type (), therefore only presence or absence is important
+  durable <- maybeParam "durable"
+  waitVar <- liftIO $ for durable $ \() -> newEmptyMVar
+  result <- liftIO $ Core.tryEnqueueCommand (Core.Modify op waitVar) core
+  liftIO $ for_ waitVar $ takeMVar
+  pure result
 
 buildResponse :: EnqueueResult -> ActionM ()
 buildResponse Enqueued = status accepted202
@@ -52,3 +68,7 @@ metricsMiddleware metrics app req sendResponse = app req sendWithMetrics
     sendWithMetrics resp = do
       Metrics.notifyRequest (Wai.requestMethod req) (Wai.responseStatus resp) metrics
       sendResponse resp
+
+maybeParam :: (Scotty.Parsable a, Scotty.ScottyError e, Monad m) => LText.Text -> Scotty.ActionT e m (Maybe a)
+maybeParam name = fmap (parseMaybe <=< lookup name) Scotty.params where
+  parseMaybe = either (const Nothing) Just . Scotty.parseParam

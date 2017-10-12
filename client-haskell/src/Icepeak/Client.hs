@@ -14,15 +14,19 @@
 module Icepeak.Client
   ( -- * Connection data
     Client (..)
-
     -- * Performing requests
     -- $updatebehavior
   , setAtLeaf
   , deleteAtLeaf
 
     -- * Constructing requests
+  , Durability (..)
+  , RequestOptions (..)
+  , defaultRequestOptions
   , setAtLeafRequest
+  , setAtLeafRequestWithOptions
   , deleteAtLeafRequest
+  , deleteAtLeafRequestWithOptions
   , baseRequest
   , requestPathForIcepeakPath
   ) where
@@ -50,6 +54,25 @@ data Client = Client
   , clientToken :: Maybe ByteString
   }
 
+data Durability
+  = DurabilityEventual
+    -- ^ If the request is answered with a 202 response, it will eventually be
+    -- processed, but no guarantees are made about when that will happen. A GET
+    -- request issued after the modification could still return stale data.
+    -- However, writes are ordered in that sending sequential (i.e. waiting on
+    -- the previous request to be answered) PUT/DELETE requests are processed in
+    -- order.
+  | DurabilityWait
+    -- ^ If the request is answered with a 202 response, the modification has
+    -- been applied and subsequent reads will receive the updated data.
+
+-- | Options to further specify request behavior
+data RequestOptions = RequestOptions { requestDurability :: Durability }
+
+-- | Default options for requests.
+defaultRequestOptions :: RequestOptions
+defaultRequestOptions = RequestOptions DurabilityEventual
+
 -- $updatebehavior Returns the status code of the HTTP response. Icepeak returns
 -- 202 if the update was accepted, 503 if the high water mark was reached, and
 -- 401 if the client has insufficient permissions (as determined by the supplied
@@ -73,20 +96,35 @@ deleteAtLeaf httpManager client path =
 
 -- | Return a HTTP request for setting a value at the leaf of a path.
 setAtLeafRequest :: ToJSON a => Client -> [Text] -> a -> HTTP.Request
-setAtLeafRequest client path leaf =
+setAtLeafRequest = setAtLeafRequestWithOptions defaultRequestOptions
+
+-- | Return a HTTP request for deleting a value at the leaf of a path.
+deleteAtLeafRequest :: Client -> [Text] -> HTTP.Request
+deleteAtLeafRequest = deleteAtLeafRequestWithOptions defaultRequestOptions
+
+-- | Return a HTTP request for setting a value at the leaf of a path.
+setAtLeafRequestWithOptions :: ToJSON a => RequestOptions -> Client -> [Text] -> a -> HTTP.Request
+setAtLeafRequestWithOptions options client path leaf =
   (baseRequest client)
     { HTTP.method = "PUT"
-    , HTTP.path = requestPathForIcepeakPath path
+    , HTTP.path = requestPathForIcepeakPath path (optionsToQuery options)
     , HTTP.requestBody = HTTP.RequestBodyLBS (Aeson.encode leaf)
     }
 
 -- | Return a HTTP request for deleting a value at the leaf of a path.
-deleteAtLeafRequest :: Client -> [Text] -> HTTP.Request
-deleteAtLeafRequest client path =
+deleteAtLeafRequestWithOptions :: RequestOptions -> Client -> [Text] -> HTTP.Request
+deleteAtLeafRequestWithOptions options client path =
   (baseRequest client)
     { HTTP.method = "DELETE"
-    , HTTP.path = requestPathForIcepeakPath path
+    , HTTP.path = requestPathForIcepeakPath path (optionsToQuery options)
     }
+
+-- | Build a query string for request options that affect server behavior.
+optionsToQuery :: RequestOptions -> [URI.QueryItem]
+optionsToQuery opts = durabilityParam (requestDurability opts)
+  where
+    durabilityParam DurabilityEventual = []
+    durabilityParam DurabilityWait = [("durable", Nothing)]
 
 -- | Return a template for requests off a client.
 baseRequest :: Client -> HTTP.Request
@@ -99,8 +137,8 @@ baseRequest (Client host port maybeToken) =
     }
 
 -- | Return the request path for an Icepeak path.
-requestPathForIcepeakPath :: [Text] -> ByteString
-requestPathForIcepeakPath =
-  ByteString.Lazy.toStrict .
-    Binary.Builder.toLazyByteString .
-      URI.encodePathSegments
+requestPathForIcepeakPath :: [Text] -> [URI.QueryItem] -> ByteString
+requestPathForIcepeakPath pathSegments query = toStrictBS builder
+  where
+    toStrictBS = ByteString.Lazy.toStrict . Binary.Builder.toLazyByteString
+    builder = URI.encodePathSegments pathSegments <> URI.renderQueryBuilder True query

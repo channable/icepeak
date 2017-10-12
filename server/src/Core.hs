@@ -19,7 +19,7 @@ module Core
 where
 
 import Control.Concurrent (threadDelay)
-import Control.Concurrent.MVar (MVar, newMVar)
+import Control.Concurrent.MVar (MVar, newMVar, putMVar)
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TBQueue (TBQueue, newTBQueueIO, readTBQueue, writeTBQueue, isFullTBQueue)
 import Control.Concurrent.STM.TVar (TVar, newTVarIO)
@@ -47,11 +47,12 @@ import qualified Metrics
 data Command
   = Sync
     -- ^ The @Sync@ command causes the core to write the JSON value to disk.
-  | Modify Modification
+  | Modify Modification (Maybe (MVar ()))
     -- ^ The @Modify@ command applies a modification (writing or deleting) to the JSON value.
+    -- The optional MVar is used to signal that the command has been processed by the core.
   | Stop
     -- ^ The @Stop@ command causes the event loop of the Core to exit.
-  deriving (Eq, Show)
+  deriving (Eq)
 
 -- The main value has been updated at the given path. The payload contains the
 -- entire new value. (So not only the inner value at the updated path.)
@@ -140,12 +141,13 @@ runCommandLoop core = go
     go = do
       command <- atomically $ readTBQueue (coreQueue core)
       case command of
-        Modify op -> do
+        Modify op maybeNotifyVar -> do
           Persistence.apply op (coreCurrentValue core)
           postUpdate (Store.modificationPath op) core
           -- when periodic syncing is disabled, data is persisted after every modification
           unless (periodicSyncingEnabled $ coreConfig core) $
             Persistence.sync (coreCurrentValue core)
+          mapM_ (`putMVar` ()) maybeNotifyVar
           go
         Sync -> do
           Persistence.sync (coreCurrentValue core)
