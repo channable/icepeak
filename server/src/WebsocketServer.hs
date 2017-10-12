@@ -9,7 +9,7 @@ module WebsocketServer (
 import Control.Concurrent (modifyMVar_, readMVar)
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TBQueue (readTBQueue)
-import Control.Exception (finally)
+import Control.Exception (finally, catch)
 import Control.Monad (forM_, forever)
 import Data.Aeson (Value)
 import Data.Monoid ((<>))
@@ -103,9 +103,17 @@ handleClient conn path core = do
       currentValue <- getCurrentValue core path
       postLog logger (T.pack $ "Sending initial value to client: " ++ show currentValue)
       WS.sendTextData conn (Aeson.encode currentValue)
+
+    -- simply ignore connection errors, otherwise, warp handles the exception
+    -- and sends a 500 response in the middle of a websocket connection, and
+    -- that violates the websocket protocol.
+    -- Note that subscribers are still properly removed by the finally below
+    handleConnectionError :: WS.ConnectionException -> IO ()
+    handleConnectionError _ = pure ()
   -- Put the client in the subscription tree and keep the connection open.
   -- Remove it when the connection is closed.
   finally (onConnect >> sendInitialValue >> keepTalking conn) onDisconnect
+    `catch` handleConnectionError
 
 -- We don't send any messages here; sending is done by the update
 -- loop; it finds the client in the set of subscriptions. But we do
