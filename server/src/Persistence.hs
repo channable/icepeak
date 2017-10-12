@@ -103,20 +103,19 @@ sync val = do
     renameFile tempFileName fileName
     -- the journal is idempotent, so there is no harm if icepeak crashes between
     -- the previous and the next action
-    for_ (pvJournal val) $ \journalHandle ->
+    for_ (pvJournal val) $ \journalHandle -> do
+      hSeek journalHandle AbsoluteSeek 0
       hSetFileSize journalHandle 0
     -- handle metrics last
     forM_ (pcMetrics . pvConfig $ val) $ \m -> do
       size <- getFileSize fileName
       Metrics.setDataSize size m
+      Metrics.setJournalSize size m
       Metrics.incrementDataWritten size m
 
 -- * Private helper functions
 
 -- Note that some of these functions are still exported in order to be usable in the test suite
-
--- | The journal is line-based and therefore consists of a list of strings.
-type RawJournalData = [SBS.ByteString]
 
 -- | Open or create the journal file
 openJournal :: FilePath -> ExceptT String IO Handle
