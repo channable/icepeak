@@ -10,17 +10,14 @@ import Control.Concurrent (modifyMVar_, readMVar)
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TBQueue (readTBQueue)
 import Control.Exception (finally, catch)
-import Control.Monad (forM_, forever)
+import Control.Monad (forever)
 import Data.Aeson (Value)
-import Data.Monoid ((<>))
 import Data.Text (Text)
 import Data.UUID
 import System.Random (randomIO)
 
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LBS
-import qualified Data.Text as T
-import qualified Data.Text.IO as T
 import qualified Data.Time.Clock.POSIX as Clock
 import qualified Network.WebSockets as WS
 import qualified Network.HTTP.Types.Header as HttpHeader
@@ -28,7 +25,6 @@ import qualified Network.HTTP.Types.URI as Uri
 
 import Config (Config (..))
 import Core (Core (..), ServerState, Updated (..), getCurrentValue, withCoreMetrics)
-import Logger (postLog)
 import Store (Path)
 import AccessControl (AccessMode(..))
 import JwtMiddleware (AuthResult (..), isRequestAuthorized, errorResponseBody)
