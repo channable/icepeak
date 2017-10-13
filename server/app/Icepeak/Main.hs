@@ -10,6 +10,7 @@ import Data.Semigroup ((<>))
 import Data.Text (Text)
 import Options.Applicative (execParser)
 import System.Environment (getEnvironment)
+import System.IO (BufferMode (..), hSetBuffering, stdout)
 
 import qualified Control.Concurrent.Async as Async
 import qualified Data.Text as Text
@@ -47,6 +48,9 @@ installHandlers core serverThread =
 
 main :: IO ()
 main = do
+  -- make sure output is flushed regularly
+  hSetBuffering stdout LineBuffering
+
   env <- getEnvironment
   config <- execParser (configInfo env)
 
@@ -69,6 +73,7 @@ main = do
 runCore :: Core -> IO ()
 runCore core = do
   let config = coreConfig core
+  let logger = coreLogger core
   httpServer <- HttpServer.new core
   let wsServer = WebsocketServer.acceptConnection core
 
@@ -76,18 +81,18 @@ runCore core = do
   pops <- Async.async $ Core.runCommandLoop core
   sync <- Async.async $ Core.runSyncTimer core
   upds <- Async.async $ WebsocketServer.processUpdates core
-  serv <- Async.async $ Server.runServer wsServer httpServer
+  serv <- Async.async $ Server.runServer logger wsServer httpServer
   metrics <- Async.async
-    $ forM_ (configMetricsEndpoint config) MetricsServer.runMetricsServer
+    $ forM_ (configMetricsEndpoint config) (MetricsServer.runMetricsServer logger)
   installHandlers core serv
-  logAuthSettings config (coreLogger core)
-  logQueueSettings config (coreLogger core)
-  logSyncSettings config (coreLogger core)
-  postLog (coreLogger core) "System online. ** robot sounds **"
+  logAuthSettings config logger
+  logQueueSettings config logger
+  logSyncSettings config logger
+  postLog logger "System online. ** robot sounds **"
 
-  waitLog "core" (coreLogger core) pops
-  waitLog "web sockets server" (coreLogger core) upds
-  waitLog "http server" (coreLogger core) serv
+  waitLog "core" logger pops
+  waitLog "web sockets server" logger upds
+  waitLog "http server" logger serv
   -- kill auxiliary threads when the main threads ended
   Async.cancel metrics
   Async.cancel sync

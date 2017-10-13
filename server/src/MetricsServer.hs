@@ -1,18 +1,24 @@
+{-# LANGUAGE OverloadedStrings #-}
 module MetricsServer where
 
 import           Data.Function                     ((&))
+import           Data.Monoid                       ((<>))
+import qualified Data.Text                         as Text
 import qualified Network.Wai.Handler.Warp          as Warp
 import qualified Network.Wai.Middleware.Prometheus as PrometheusWai
-import           Text.Printf                       (printf)
 
 import           Config                            (MetricsConfig (..))
+import           Logger                            (Logger, postLog)
 
 metricsServerConfig :: MetricsConfig -> Warp.Settings
 metricsServerConfig config = Warp.defaultSettings
   & Warp.setHost (metricsConfigHost config)
   & Warp.setPort (metricsConfigPort config)
 
-runMetricsServer :: MetricsConfig -> IO ()
-runMetricsServer metricsConfig = do
-  printf "Metrics provided on %s:%d.\n" (show $ metricsConfigHost metricsConfig) (metricsConfigPort metricsConfig)
+runMetricsServer :: Logger -> MetricsConfig -> IO ()
+runMetricsServer logger metricsConfig = do
+  Logger.postLog logger $ "Metrics provided on "
+    <> (Text.pack $ show $ metricsConfigHost metricsConfig)
+    <> ":"
+    <> (Text.pack $ show $ metricsConfigPort metricsConfig)
   Warp.runSettings (metricsServerConfig metricsConfig) PrometheusWai.metricsApp
