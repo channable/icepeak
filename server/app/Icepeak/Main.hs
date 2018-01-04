@@ -81,7 +81,7 @@ runCore core = do
   pops <- Async.async $ Core.runCommandLoop core
   sync <- Async.async $ Core.runSyncTimer core
   upds <- Async.async $ WebsocketServer.processUpdates core
-  serv <- Async.async $ Server.runServer logger wsServer httpServer
+  serv <- Async.async $ Server.runServer logger wsServer httpServer (configPort config)
   metrics <- Async.async
     $ forM_ (configMetricsEndpoint config) (MetricsServer.runMetricsServer logger)
   installHandlers core serv

@@ -20,6 +20,7 @@ import qualified Web.JWT as JWT
 -- command-line arguments
 data Config = Config
   { configDataFile :: FilePath
+  , configPort :: Int
     -- | Enables the use of JWT for authorization in JWT.
   , configEnableJwtAuth :: Bool
     -- | The secret used for verifying the JWT signatures. If no secret is
@@ -51,6 +52,10 @@ configParser environment = Config
                  metavar "DATA_FILE" <>
                  value "icepeak.json" <>
                  help "File where data is persisted to. Default: icepeak.json")
+  <*> option auto (long "port" <>
+                   metavar "PORT" <>
+                   maybe (value 3000) value (readFromEnvironment "ICEPEAK_PORT") <>
+                   help "Port to listen on, defaults to the value of the ICEPEAK_PORT environment variable if present, or 3000 if not")
   <*> switch (long "enable-jwt-auth" <>
                 help "Enable authorization using JSON Web Tokens.")
   <*> optional (secretOption (
@@ -79,6 +84,10 @@ configParser environment = Config
              help "Enable journaling. This only has an effect when periodic syncing is enabled.")
   where
     environ var = foldMap value (lookup var environment)
+
+    readFromEnvironment :: Read a => String -> Maybe a
+    readFromEnvironment var = lookup var environment >>= Read.readMaybe
+
     secretOption m = JWT.secret . Text.pack <$> strOption m
 
 configInfo :: EnvironmentConfig -> ParserInfo Config

@@ -5,6 +5,9 @@ module Server
 )
 where
 
+import Data.Semigroup ((<>))
+import Data.Text (pack)
+
 import Network.Wai (Application)
 import Network.Wai.Handler.WebSockets (websocketsOr)
 import Network.WebSockets (ServerApp)
@@ -14,10 +17,10 @@ import qualified Network.WebSockets as WebSockets
 
 import Logger (Logger, postLog)
 
-runServer :: Logger -> ServerApp -> Application -> IO ()
-runServer logger wsApp httpApp =
+runServer :: Logger -> ServerApp -> Application -> Int -> IO ()
+runServer logger wsApp httpApp port =
   let
     wsConnectionOpts = WebSockets.defaultConnectionOptions
   in do
-    postLog logger "Listening on port 3000."
-    Warp.run 3000 $ websocketsOr wsConnectionOpts wsApp httpApp
+    postLog logger $ pack $ "Listening on port " <> show port <> "."
+    Warp.run port $ websocketsOr wsConnectionOpts wsApp httpApp
