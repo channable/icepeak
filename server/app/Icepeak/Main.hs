@@ -1,13 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-module Main where
+module Main (main) where
 
-import Control.Concurrent.Async (Async)
-import Control.Exception (fromException, AsyncException)
+import Control.Exception (fromException, catch, AsyncException, SomeException)
 import Control.Monad (forM, void, when)
 import Data.Foldable (forM_)
 import Data.Semigroup ((<>))
-import Data.Text (Text)
 import Options.Applicative (execParser)
 import System.Environment (getEnvironment)
 import System.IO (BufferMode (..), hSetBuffering, stdout)
@@ -31,13 +29,12 @@ import qualified Metrics
 import qualified MetricsServer
 
 -- Install SIGTERM and SIGINT handlers to do a graceful exit.
-installHandlers :: Core -> Async () -> IO ()
-installHandlers core serverThread =
+installHandlers :: Core -> IO ()
+installHandlers core =
   let
     handle = do
       postLog (coreLogger core) "\nTermination sequence initiated ..."
       Core.postQuit core
-      Async.cancel serverThread
     handler = Signals.CatchOnce handle
     blockSignals = Nothing
     installHandler signal = Signals.installHandler signal handler blockSignals
@@ -78,32 +75,55 @@ runCore core = do
   let wsServer = WebsocketServer.acceptConnection core
 
   -- start threads
-  pops <- Async.async $ Core.runCommandLoop core
-  sync <- Async.async $ Core.runSyncTimer core
-  upds <- Async.async $ WebsocketServer.processUpdates core
-  serv <- Async.async $ Server.runServer logger wsServer httpServer (configPort config)
-  metrics <- Async.async
+  commandLoopThread <- Async.async $ catchRunCoreResult CommandLoopException $ Core.runCommandLoop core
+  webSocketThread <- Async.async $ catchRunCoreResult WebSocketsException $ WebsocketServer.processUpdates core
+  httpThread <- Async.async $ catchRunCoreResult HttpException $ Server.runServer logger wsServer httpServer (configPort config)
+  syncThread <- Async.async $ Core.runSyncTimer core
+  metricsThread <- Async.async
     $ forM_ (configMetricsEndpoint config) (MetricsServer.runMetricsServer logger)
-  installHandlers core serv
+
+  installHandlers core
   logAuthSettings config logger
   logQueueSettings config logger
   logSyncSettings config logger
   postLog logger "System online. ** robot sounds **"
 
-  waitLog "core" logger pops
-  waitLog "web sockets server" logger upds
-  waitLog "http server" logger serv
-  -- kill auxiliary threads when the main threads ended
-  Async.cancel metrics
-  Async.cancel sync
+  -- Everything should stop when any of these stops
+  (_, runCoreResult) <- Async.waitAny [commandLoopThread, webSocketThread, httpThread]
+  logRunCoreResult logger runCoreResult
 
--- | Wait for an Async computation to exit and log unexpected exceptions.
-waitLog :: Text -> Logger -> Async () -> IO ()
-waitLog name logger action = Async.waitCatch action >>= handleLog where
-  handleLog (Left exc)
-    | Just (_ :: AsyncException) <- fromException exc = pure ()
-    | otherwise = Logger.postLog logger $ name <> " stopped with an exception: " <> Text.pack (show exc)
-  handleLog (Right _) = pure ()
+  -- kill all threads when one of the main threads ended
+  Core.postQuit core -- should stop commandLoopThread
+  Async.cancel webSocketThread
+  Async.cancel httpThread
+  Async.cancel metricsThread
+  Async.cancel syncThread
+  void $ Async.wait commandLoopThread
+
+-- | Data type to hold results for the async that finishes first
+data RunCoreResult
+  = CommandLoopException SomeException
+  | WebSocketsException SomeException
+  | HttpException SomeException
+  | ThreadOk
+
+-- | If a threads fails, catch the error and tag it so we know how to log it
+catchRunCoreResult :: (SomeException -> RunCoreResult) -> IO () -> IO RunCoreResult
+catchRunCoreResult tag action = catch (action >> pure ThreadOk) $ \exc -> case fromException exc of
+    Just (_ :: AsyncException) -> pure ThreadOk
+    _ -> pure (tag exc) -- we only worry about non-async exceptions
+
+logRunCoreResult :: Logger -> RunCoreResult -> IO ()
+logRunCoreResult logger rcr = do
+    case rcr of
+      CommandLoopException exc -> handleLog "core" exc
+      WebSocketsException exc -> handleLog "web sockets server" exc
+      HttpException exc -> handleLog "http server" exc
+      ThreadOk -> pure ()
+  where
+    handleLog name exc
+      | Just (_ :: AsyncException) <- fromException exc = pure ()
+      | otherwise = Logger.postLog logger $ name <> " stopped with an exception: " <> Text.pack (show exc)
 
 logAuthSettings :: Config -> Logger -> IO ()
 logAuthSettings cfg logger
