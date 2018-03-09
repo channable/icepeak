@@ -9,10 +9,45 @@
 
 Icepeak is a fast JSON document store with push notification support.
 
-## Disclaimer
+Icepeak has an HTTP API that can be used to both read and write data.
+It also has a websocket interface that clients can use to get push updates about
+data that changed.
 
-This is alpha-quality software developed under Hackathon conditions.
-Do not use it.
+Clients can subscribe to specific paths in the JSON document like e.g. `/users/123/status`
+via the websocket-based API and they will get a push update whenever any of the
+JSON data below this path changes.
+
+If a client subscribes to the document root `/` they will receive *all* updates.
+
+Icepeak supports JWT-based authorization. JWT claims can be used
+to restrict the prefixes in the JSON document that a client can read or write.
+See [JWT Authorization](#jwt-authorization).
+
+See [connection_test.py](server/integration-tests/connection_test.py) for a simple example that PUTs some
+data via the HTTP API and then retrieves it again over a websocket connection.
+
+See [listener.html](server/integration-tests/listener.html) for a Javascript-based example of a
+websocket listener.
+
+## Status
+
+Icepeak has been used in production by Channable since October 2017.
+It has been performing very well and there are no known issues at this point.
+Note, that our use case is for non-critical data in a small database.
+
+While Icepeak has been working flawlessly, we still consider it beta-quality
+at this point, since it has not been widely tested by other people and use cases.
+
+We would love to hear from other users!
+
+## History
+
+Icepeak was started during a Channable Hackathon on 23 July 2017.
+After 24h we had a first workable version with an in-memory JSON store, handling of
+websocket connections and an HTTP API.
+Over the next few months the prototype was built out into a production-ready application
+with a persistent backend, JWT-based authentication, prometheus-based metrics and
+a Haskell client library.
 
 ## Building and running Icepeak
 
@@ -179,3 +214,30 @@ Icepeak can provide usage metrics to Prometheus with the `--metrics HOST:PORT` c
   supported by [https://hackage.haskell.org/package/warp-3.2.13/docs/Network-Wai-Handler-Warp.html#t:HostPreference](Network.Wai.Handler.Warp.HostPreference).
 
 - `PORT` denotes the port number the metrics endpoint is listening on.
+
+
+## Tests
+
+There are both unit and integration tests.
+
+The unit tests for the server can be found in `server/tests`.
+They can be run with:
+
+```
+cd server
+stack test
+```
+
+The integration tests can be found in `server/integration-tests`.
+Currently, there are integration tests written in Bash, Python and Haskell.
+
+Each file is an executable script that can be run directly (even the Haskell ones).
+For example:
+
+```
+cd server/integration-tests
+./generate_test_token.hs
+```
+
+The tests in Python require the `json`, `requests`, and `websocket` packages to be
+installed. They can be installed in a virtual environment with `pip install <name>`.
