@@ -198,3 +198,30 @@ Icepeak can provide usage metrics to Prometheus with the `--metrics HOST:PORT` c
   supported by [https://hackage.haskell.org/package/warp-3.2.13/docs/Network-Wai-Handler-Warp.html#t:HostPreference](Network.Wai.Handler.Warp.HostPreference).
 
 - `PORT` denotes the port number the metrics endpoint is listening on.
+
+
+## Tests
+
+There are both unit and integration tests.
+
+The unit tests for the server can be found in `server/tests`.
+They can be run with:
+
+```
+cd server
+stack test
+```
+
+The integration tests can be found in `server/integration-tests`.
+Currently, there are integration tests written in Bash, Python and Haskell.
+
+Each file is an executable script that can be run directly (even the Haskell ones).
+For example:
+
+```
+cd server/integration-tests
+./generate_test_token.hs
+```
+
+The tests in Python require the `json`, `requests`, and `websocket` packages to be
+installed. They can be installed in a virtual environment with `pip install <name>`.
