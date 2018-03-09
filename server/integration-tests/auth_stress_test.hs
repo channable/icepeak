@@ -28,7 +28,7 @@ main = do
   args <- getArgs
   case args of
     [count] -> either fail main' (readEither count)
-    _ -> fail "usage: stress_test.hs <count>"
+    _ -> fail "Usage: ./auth_stress_test.hs <count>"
   where fail msg = do { hPutStrLn stderr msg; exitFailure }
 
 main' :: Int -> IO ()

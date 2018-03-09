@@ -6,8 +6,6 @@
 
 import Prelude hiding (fail)
 
-import qualified Data.ByteString as SBS
-
 import AccessControl
 import JwtAuth
 import qualified Data.Map.Strict as Map
