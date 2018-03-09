@@ -9,9 +9,25 @@
 
 Icepeak is a fast JSON document store with push notification support.
 
-Clients can subscribe to paths in the JSON document like e.g. `/users/123/status`
+Icepeak has an HTTP API that can be used to both read and write data.
+It also has a websocket interface that clients can use to get push updates about
+data that changed.
+
+Clients can subscribe to specific paths in the JSON document like e.g. `/users/123/status`
 via the websocket-based API and they will get a push update whenever any of the
-data below this path changes.
+JSON data below this path changes.
+
+If a client subscribes to the document root `/` they will receive *all* updates.
+
+Icepeak supports JWT-based authorization and authentication. Authentication can be used
+to restrict the prefixes in the JSON document that a client can read or write.
+See [JWT Authorization](#jwt-authorization).
+
+See [connection_test.py](server/integration-tests/connection_test.py) for a simple example that PUTs some
+data via the HTTP API and then retrieves it again over a websocket connection.
+
+See [listener.html](server/integration-tests/listener.html) for a Javascript-based example of a
+websocket listener.
 
 ## Status
 
