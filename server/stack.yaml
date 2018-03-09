@@ -1,4 +1,4 @@
-resolver: lts-9.0
+resolver: lts-10.8
 
 extra-deps:
   # We want the latest and greatest websockets
