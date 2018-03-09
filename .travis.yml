@@ -10,7 +10,6 @@ addons:
     sources:
       - fpcomplete-trusty
     packages:
-      - stack
       # Haskell requires libgmp for big integers.
       - libgmp-dev
 
@@ -19,6 +18,13 @@ cache:
     - $HOME/.stack
     - $TRAVIS_BUILD_DIR/server/.stack-work
     - $TRAVIS_BUILD_DIR/client-haskell/.stack-work
+
+before_install:
+# Download and unpack the stack executable
+# We need the latest version to work around some bugs in older versions of stack
+- mkdir -p ~/.local/bin
+- export PATH=$HOME/.local/bin:$PATH
+- travis_retry curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
 
 install:
   # Install the compiler. Pass --no-terminal to tell Stack it is not running in
