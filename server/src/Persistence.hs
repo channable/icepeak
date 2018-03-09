@@ -73,7 +73,7 @@ apply op val = do
 -- | Load the persisted data from disk and recover journal entries.
 load :: PersistenceConfig -> IO (Either String PersistentValue)
 load config = runExceptT $ do
-  value <- readData (pcDataFile config)
+  value <- readData (pcDataFile config) (pcLogger config)
   liftIO $ forM_ (pcMetrics config) $ \m -> do
     size <- getFileSize (pcDataFile config)
     Metrics.setDataSize size m
@@ -173,12 +173,19 @@ recoverJournal pval = for_ (pvJournal pval) $ \journalHandle -> ExceptT $ fmap f
     failedRecoveryMsg err line = "Failed to recover journal entry "
       <> Text.pack (show line) <> ": " <> Text.pack err
 
--- | Read and decode the data file
-readData :: FilePath -> ExceptT String IO Store.Value
-readData filePath = ExceptT $ do
+-- | Read and decode the data file from disk
+readData :: FilePath -> Logger -> ExceptT String IO Store.Value
+readData filePath logger = ExceptT $ do
   eitherEncodedValue <- try $ withFile filePath ReadMode SBS.hGetContents
   case (eitherEncodedValue :: Either SomeException SBS.ByteString) of
-    Left exc -> pure $ Left $ "Failed to read the data from disk: " ++ show exc
+    Left _exc -> do
+      -- If there is no icepeak.json file yet, we create an empty one instead.
+      let emptyObject = Aeson.object []
+          message = "WARNING: Failed to read the data from disk. " <>
+                    "Created an empty database instead."
+      Logger.postLogBlocking logger message
+      pure $ Right emptyObject
+
     Right encodedValue -> do
       case Aeson.eitherDecodeStrict encodedValue of
         Left msg  -> pure $ Left $ "Failed to decode the initial data: " ++ show msg
