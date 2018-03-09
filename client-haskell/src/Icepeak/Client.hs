@@ -55,23 +55,23 @@ data Client = Client
   }
 
 data Durability
-  = DurabilityEventual
+  = EventualDurability
     -- ^ If the request is answered with a 202 response, it will eventually be
     -- processed, but no guarantees are made about when that will happen. A GET
     -- request issued after the modification could still return stale data.
     -- However, writes are ordered in that sending sequential (i.e. waiting on
     -- the previous request to be answered) PUT/DELETE requests are processed in
     -- order.
-  | DurabilityWait
+  | StrongDurability
     -- ^ If the request is answered with a 202 response, the modification has
     -- been applied and subsequent reads will receive the updated data.
 
 -- | Options to further specify request behavior
-data RequestOptions = RequestOptions { requestDurability :: Durability }
+newtype RequestOptions = RequestOptions { requestDurability :: Durability }
 
 -- | Default options for requests.
 defaultRequestOptions :: RequestOptions
-defaultRequestOptions = RequestOptions DurabilityEventual
+defaultRequestOptions = RequestOptions EventualDurability
 
 -- $updatebehavior Returns the status code of the HTTP response. Icepeak returns
 -- 202 if the update was accepted, 503 if the high water mark was reached, and
@@ -123,8 +123,8 @@ deleteAtLeafRequestWithOptions options client path =
 optionsToQuery :: RequestOptions -> [URI.QueryItem]
 optionsToQuery opts = durabilityParam (requestDurability opts)
   where
-    durabilityParam DurabilityEventual = []
-    durabilityParam DurabilityWait = [("durable", Nothing)]
+    durabilityParam EventualDurability = []
+    durabilityParam StrongDurability = [("durable", Nothing)]
 
 -- | Return a template for requests off a client.
 baseRequest :: Client -> HTTP.Request
