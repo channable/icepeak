@@ -9,10 +9,29 @@
 
 Icepeak is a fast JSON document store with push notification support.
 
-## Disclaimer
+Clients can subscribe to paths in the JSON document like e.g. `/users/123/status`
+via the websocket-based API and they will get a push update whenever any of the
+data below this path changes.
 
-This is alpha-quality software developed under Hackathon conditions.
-Do not use it.
+## Status
+
+Icepeak has been used in production by Channable since October 2017.
+It has been performing very well and there are no known issues at this point.
+Note, that our use case is for non-critical data in a small database.
+
+While Icepeak has been working flawlessly, we still consider it beta-quality
+at this point, since it has not been widely tested by other people and use cases.
+
+We would love to hear from other users!
+
+## History
+
+Icepeak was started during a Channable Hackathon on 23 July 2017.
+After 24h we had a first workable version with an in-memory JSON store, handling of
+websocket connections and an HTTP API.
+Over the next few months the prototype was built out into a production-ready application
+with a persistent backend, JWT-based authentication, prometheus-based metrics and
+a Haskell client library.
 
 ## Building and running Icepeak
 
