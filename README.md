@@ -19,7 +19,7 @@ JSON data below this path changes.
 
 If a client subscribes to the document root `/` they will receive *all* updates.
 
-Icepeak supports JWT-based authorization and authentication. Authentication can be used
+Icepeak supports JWT-based authorization. JWT claims can be used
 to restrict the prefixes in the JSON document that a client can read or write.
 See [JWT Authorization](#jwt-authorization).
 
