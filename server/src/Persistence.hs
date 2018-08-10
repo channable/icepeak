@@ -176,7 +176,7 @@ recoverJournal pval = for_ (pvJournal pval) $ \journalHandle -> ExceptT $ fmap f
 -- | Read and decode the data file from disk
 readData :: FilePath -> Logger -> ExceptT String IO Store.Value
 readData filePath logger = ExceptT $ do
-  eitherEncodedValue <- tryIOError $ withFile filePath ReadMode SBS.hGetContents
+  eitherEncodedValue <- tryIOError $ SBS.readFile filePath
   case eitherEncodedValue of
     Left e | isDoesNotExistError e -> do
         -- If there is no icepeak.json file yet, we create an empty one instead.
