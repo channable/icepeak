@@ -1,1 +1,9 @@
-resolver: lts-11.20
+resolver: lts-12.5
+
+extra-deps:
+  - github: fimad/prometheus-haskell
+    commit: e44ab37a5d4e4a570e24cb1ca29d2753a27090c5
+    subdirs:
+     - prometheus-client
+     - prometheus-metrics-ghc
+     - wai-middleware-prometheus
