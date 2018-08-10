@@ -26,7 +26,7 @@ import qualified Data.Text                  as Text
 import           Data.Traversable
 import           System.Directory           (getFileSize, renameFile)
 import           System.IO
-
+import           System.IO.Error (tryIOError, isDoesNotExistError, isPermissionError)
 import           Logger                     (Logger)
 import qualified Logger
 import qualified Metrics
@@ -176,15 +176,25 @@ recoverJournal pval = for_ (pvJournal pval) $ \journalHandle -> ExceptT $ fmap f
 -- | Read and decode the data file from disk
 readData :: FilePath -> Logger -> ExceptT String IO Store.Value
 readData filePath logger = ExceptT $ do
-  eitherEncodedValue <- try $ withFile filePath ReadMode SBS.hGetContents
-  case (eitherEncodedValue :: Either SomeException SBS.ByteString) of
-    Left _exc -> do
-      -- If there is no icepeak.json file yet, we create an empty one instead.
-      let emptyObject = Aeson.object []
-          message = "WARNING: Failed to read the data from disk. " <>
-                    "Created an empty database instead."
-      Logger.postLogBlocking logger message
-      pure $ Right emptyObject
+  eitherEncodedValue <- tryIOError $ withFile filePath ReadMode SBS.hGetContents
+  case eitherEncodedValue of
+    Left e | isDoesNotExistError e -> do
+        -- If there is no icepeak.json file yet, we create an empty one instead.
+        let emptyObject = Aeson.object []
+            message = "WARNING: Could not read data from " <> Text.pack filePath <>
+                      " because the file does not exist yet. Created an empty database instead."
+
+        -- if this fails, we want the whole program to crash since something is wrong
+        SBS.writeFile filePath "{}"
+
+        Logger.postLogBlocking logger message
+        pure $ Right emptyObject
+
+    Left e | isPermissionError e -> do
+        pure $ Left $ "File " ++ filePath ++ " cannot be read due to a permission error." ++
+                      "Please check the file permissions."
+    -- other permission errors should also lead to program termination
+    Left e -> pure $ Left (show e)
 
     Right encodedValue -> do
       case Aeson.eitherDecodeStrict encodedValue of
