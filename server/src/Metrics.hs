@@ -1,37 +1,48 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Metrics where
 
-import           Control.Monad         (void)
-import qualified Data.ByteString.Char8 as BS8
-import qualified Network.HTTP.Types    as Http
-import           Prometheus
+import Control.Monad (void)
+import Data.Text (Text, pack)
+import Data.Text.Encoding (decodeUtf8With)
+import Data.Text.Encoding.Error (lenientDecode)
 
-type HttpMethodLabel = String
-type HttpStatusLabel = String
+import qualified Network.HTTP.Types as Http
 
-type HttpRequestCounter = Vector (HttpMethodLabel, HttpStatusLabel) Counter
+import Prometheus
 
-countHttpRequest :: Http.Method -> Http.Status -> Metric HttpRequestCounter -> IO ()
-countHttpRequest method status = withLabel (BS8.unpack method, show $ Http.statusCode status) incCounter
+type HttpMethodLabel = Text
+type HttpStatusCode = Text
+
+-- We want to store for each (HTTP method, HTTP status code) pair how many times it has been called
+type HttpRequestCounter = Vector (HttpMethodLabel, HttpStatusCode) Counter
+
+countHttpRequest :: MonadMonitor m => Http.Method -> Http.Status -> HttpRequestCounter -> m ()
+countHttpRequest method status httpRequestCounter = withLabel httpRequestCounter label incCounter
+  where
+    label = (textMethod, textStatusCode)
+    textMethod = decodeUtf8With lenientDecode method
+    textStatusCode = pack $ show $ Http.statusCode status
+
 
 data IcepeakMetrics = IcepeakMetrics
-  { icepeakMetricsRequestCounter  :: Metric HttpRequestCounter
-  , icepeakMetricsDataSize        :: Metric Gauge
-  , icepeakMetricsJournalSize     :: Metric Gauge
-  , icepeakMetricsDataWritten     :: Metric Counter
-  , icepeakMetricsJournalWritten  :: Metric Counter
-  , icepeakMetricsSubscriberCount :: Metric Gauge
+  { icepeakMetricsRequestCounter  :: HttpRequestCounter
+  , icepeakMetricsDataSize        :: Gauge
+  , icepeakMetricsJournalSize     :: Gauge
+  , icepeakMetricsDataWritten     :: Counter
+  , icepeakMetricsJournalWritten  :: Counter
+  , icepeakMetricsSubscriberCount :: Gauge
   }
 
 createAndRegisterIcepeakMetrics :: IO IcepeakMetrics
 createAndRegisterIcepeakMetrics = IcepeakMetrics
-  <$> registerIO (vector ("method", "status") requestCounter)
-  <*> registerIO (gauge (Info "icepeak_data_size" "Size of data file in bytes."))
-  <*> registerIO (gauge (Info "icepeak_journal_size_bytes"
-                              "Size of journal file in bytes."))
-  <*> registerIO (counter (Info "icepeak_data_written" "Total number of bytes written so far."))
-  <*> registerIO (counter (Info "icepeak_journal_written_bytes_total"
-                                "Total number of bytes written to the journal so far."))
-  <*> registerIO (gauge (Info "icepeak_subscriber_count" "Number of websocket subscriber connections."))
+  <$> register (vector ("method", "status") requestCounter)
+  <*> register (gauge (Info "icepeak_data_size" "Size of data file in bytes."))
+  <*> register (gauge (Info "icepeak_journal_size_bytes"
+                            "Size of journal file in bytes."))
+  <*> register (counter (Info "icepeak_data_written" "Total number of bytes written so far."))
+  <*> register (counter (Info "icepeak_journal_written_bytes_total"
+                              "Total number of bytes written to the journal so far."))
+  <*> register (gauge (Info "icepeak_subscriber_count" "Number of websocket subscriber connections."))
   where
     requestCounter = counter (Info "icepeak_http_requests"
                                    "Total number of HTTP requests since starting Icepeak.")
@@ -39,17 +50,17 @@ createAndRegisterIcepeakMetrics = IcepeakMetrics
 notifyRequest :: Http.Method -> Http.Status -> IcepeakMetrics -> IO ()
 notifyRequest method status = countHttpRequest method status . icepeakMetricsRequestCounter
 
-setDataSize :: Real a => a -> IcepeakMetrics -> IO ()
-setDataSize val = setGauge (realToFrac val) . icepeakMetricsDataSize
-
-setJournalSize :: Real a => a -> IcepeakMetrics -> IO ()
-setJournalSize val = setGauge (realToFrac val) . icepeakMetricsJournalSize
-
-incrementDataWritten :: Real a => a -> IcepeakMetrics -> IO ()
-incrementDataWritten val = void . addCounter (realToFrac val) . icepeakMetricsDataWritten
-
-incrementJournalWritten :: Real a => a -> IcepeakMetrics -> IO ()
-incrementJournalWritten val = void . addCounter (realToFrac val) . icepeakMetricsJournalWritten
+-- setDataSize :: Real a => a -> IcepeakMetrics -> IO ()
+-- setDataSize val = setGauge (realToFrac val) . icepeakMetricsDataSize
+--
+-- setJournalSize :: Real a => a -> IcepeakMetrics -> IO ()
+-- setJournalSize val = setGauge (realToFrac val) . icepeakMetricsJournalSize
+--
+-- incrementDataWritten :: Real a => a -> IcepeakMetrics -> IO ()
+-- incrementDataWritten val = void . addCounter (realToFrac val) . icepeakMetricsDataWritten
+--
+-- incrementJournalWritten :: Real a => a -> IcepeakMetrics -> IO ()
+-- incrementJournalWritten val = void . addCounter (realToFrac val) . icepeakMetricsJournalWritten
 
 incrementSubscribers :: IcepeakMetrics -> IO ()
 incrementSubscribers = incGauge . icepeakMetricsSubscriberCount
