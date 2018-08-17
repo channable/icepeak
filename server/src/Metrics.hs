@@ -1,7 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Metrics where
 
-import Control.Monad (void)
 import Data.Text (Text, pack)
 import Data.Text.Encoding (decodeUtf8With)
 import Data.Text.Encoding.Error (lenientDecode)
@@ -50,20 +49,20 @@ createAndRegisterIcepeakMetrics = IcepeakMetrics
 notifyRequest :: Http.Method -> Http.Status -> IcepeakMetrics -> IO ()
 notifyRequest method status = countHttpRequest method status . icepeakMetricsRequestCounter
 
--- setDataSize :: Real a => a -> IcepeakMetrics -> IO ()
--- setDataSize val = setGauge (realToFrac val) . icepeakMetricsDataSize
---
--- setJournalSize :: Real a => a -> IcepeakMetrics -> IO ()
--- setJournalSize val = setGauge (realToFrac val) . icepeakMetricsJournalSize
---
--- incrementDataWritten :: Real a => a -> IcepeakMetrics -> IO ()
--- incrementDataWritten val = void . addCounter (realToFrac val) . icepeakMetricsDataWritten
---
--- incrementJournalWritten :: Real a => a -> IcepeakMetrics -> IO ()
--- incrementJournalWritten val = void . addCounter (realToFrac val) . icepeakMetricsJournalWritten
+setDataSize :: (MonadMonitor m, Real a) => a -> IcepeakMetrics -> m ()
+setDataSize val metrics = setGauge (icepeakMetricsDataSize metrics) (realToFrac val)
 
-incrementSubscribers :: IcepeakMetrics -> IO ()
+setJournalSize :: (MonadMonitor m, Real a) => a -> IcepeakMetrics -> m ()
+setJournalSize val metrics = setGauge (icepeakMetricsJournalSize metrics) (realToFrac val)
+
+incrementDataWritten :: (MonadMonitor m, Real a) => a -> IcepeakMetrics -> m Bool
+incrementDataWritten val metrics = addCounter (icepeakMetricsDataWritten metrics) (realToFrac val)
+
+incrementJournalWritten :: (MonadMonitor m, Real a) => a -> IcepeakMetrics -> m Bool
+incrementJournalWritten val metrics = addCounter (icepeakMetricsJournalWritten metrics) (realToFrac val)
+
+incrementSubscribers :: MonadMonitor m => IcepeakMetrics -> m ()
 incrementSubscribers = incGauge . icepeakMetricsSubscriberCount
 
-decrementSubscribers :: IcepeakMetrics -> IO ()
+decrementSubscribers :: MonadMonitor m => IcepeakMetrics -> m ()
 decrementSubscribers = decGauge . icepeakMetricsSubscriberCount
