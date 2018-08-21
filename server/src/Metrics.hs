@@ -4,10 +4,11 @@ module Metrics where
 import Data.Text (Text, pack)
 import Data.Text.Encoding (decodeUtf8With)
 import Data.Text.Encoding.Error (lenientDecode)
+import Prometheus (Counter, Gauge, Info (..), MonadMonitor, Vector, addCounter, counter, decGauge,
+                   gauge, incCounter, incGauge, register, setGauge, vector, withLabel)
 
 import qualified Network.HTTP.Types as Http
 
-import Prometheus
 
 type HttpMethodLabel = Text
 type HttpStatusCode = Text
@@ -41,7 +42,8 @@ createAndRegisterIcepeakMetrics = IcepeakMetrics
   <*> register (counter (Info "icepeak_data_written" "Total number of bytes written so far."))
   <*> register (counter (Info "icepeak_journal_written_bytes_total"
                               "Total number of bytes written to the journal so far."))
-  <*> register (gauge (Info "icepeak_subscriber_count" "Number of websocket subscriber connections."))
+  <*> register (gauge
+    (Info "icepeak_subscriber_count" "Number of websocket subscriber connections."))
   where
     requestCounter = counter (Info "icepeak_http_requests"
                                    "Total number of HTTP requests since starting Icepeak.")
@@ -55,11 +57,17 @@ setDataSize val metrics = setGauge (icepeakMetricsDataSize metrics) (realToFrac 
 setJournalSize :: (MonadMonitor m, Real a) => a -> IcepeakMetrics -> m ()
 setJournalSize val metrics = setGauge (icepeakMetricsJournalSize metrics) (realToFrac val)
 
+-- | Increment the total data written to disk by the given number of bytes.
+-- Returns True, when it actually increased the counter and otherwise False.
 incrementDataWritten :: (MonadMonitor m, Real a) => a -> IcepeakMetrics -> m Bool
-incrementDataWritten val metrics = addCounter (icepeakMetricsDataWritten metrics) (realToFrac val)
+incrementDataWritten num_bytes metrics = addCounter (icepeakMetricsDataWritten metrics)
+  (realToFrac num_bytes)
 
+-- | Increment the data written to the journal by the given number of bytes.
+-- Returns True, when it actually increased the counter and otherwise False.
 incrementJournalWritten :: (MonadMonitor m, Real a) => a -> IcepeakMetrics -> m Bool
-incrementJournalWritten val metrics = addCounter (icepeakMetricsJournalWritten metrics) (realToFrac val)
+incrementJournalWritten num_bytes metrics = addCounter (icepeakMetricsJournalWritten metrics)
+  (realToFrac num_bytes)
 
 incrementSubscribers :: MonadMonitor m => IcepeakMetrics -> m ()
 incrementSubscribers = incGauge . icepeakMetricsSubscriberCount
