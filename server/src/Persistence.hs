@@ -20,7 +20,6 @@ import qualified Data.ByteString.Char8      as SBS8
 import qualified Data.ByteString.Lazy       as LBS
 import qualified Data.ByteString.Lazy.Char8 as LBS8
 import           Data.Foldable
-import           Data.Monoid
 import           Data.Text                  (Text)
 import qualified Data.Text                  as Text
 import           Data.Traversable
@@ -61,7 +60,7 @@ apply op val = do
     LBS8.hPutStrLn journalHandle entry
     for_ (pcMetrics . pvConfig $ val) $ \metrics -> do
       journalPos <- hTell journalHandle
-      Metrics.incrementJournalWritten (LBS8.length entry) metrics
+      _ <- Metrics.incrementJournalWritten (LBS8.length entry) metrics
       Metrics.setJournalSize journalPos metrics
   -- update value
   atomically $ do
