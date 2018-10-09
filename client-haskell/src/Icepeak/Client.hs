@@ -3,17 +3,19 @@
 -- | Functions are exported in descending order of abstraction level.
 --
 -- >>> :set -XOverloadedStrings
--- >>> import Icepeak.Client (Client (..), deleteAtLeaf, setAtLeaf)
+-- >>> import Icepeak.Client (Client (..), Config (..), deleteAtLeaf, setAtLeaf)
 -- >>> import qualified Network.HTTP.Client as HTTP
 -- >>> httpManager <- HTTP.newManager HTTP.defaultManagerSettings
--- >>> let client = Client "localhost" 3000 (Just "<token>")
--- >>> setAtLeaf httpManager client ["foo", "bar", "baz"] ([Just 1, Just 2, Nothing, Just 4] :: [Maybe Int])
+-- >>> let client = Client httpManager (Config "localhost" 3000 (Just "<token>"))
+-- >>> setAtLeaf client ["foo", "bar", "baz"] ([Just 1, Just 2, Nothing, Just 4] :: [Maybe Int])
 -- Status {statusCode = 202, statusMessage = "Accepted"}
--- >>> deleteAtLeaf httpManager client ["foo", "bar"]
+-- >>> deleteAtLeaf client ["foo", "bar"]
 -- Status {statusCode = 202, statusMessage = "Accepted"}
 module Icepeak.Client
   ( -- * Connection data
     Client (..)
+  , Config (..)
+
     -- * Performing requests
     -- $updatebehavior
   , setAtLeaf
@@ -47,12 +49,15 @@ import qualified Network.HTTP.Types.Status as HTTP
 import qualified Network.HTTP.Types.Header as Header
 import qualified Network.HTTP.Types.URI as URI
 
--- | How to connect to Icepeak?
-data Client = Client
-  { clientHost  :: ByteString
-  , clientPort  :: Word16
-  , clientToken :: Maybe ByteString
-  }
+-- | Config paired with HTTP manager for making requests.
+data Client = Client HTTP.Manager Config
+
+-- | Client connection details: how to connect to Icepeak?
+data Config = Config
+  { configHost  :: ByteString
+  , configPort  :: Word16
+  , configToken :: Maybe ByteString
+  } deriving (Eq, Show)
 
 data Durability
   = EventualDurability
@@ -83,38 +88,38 @@ defaultRequestOptions = RequestOptions EventualDurability
 -- "Network.HTTP.Client". Will not throw any other exceptions.
 
 -- | Set a value at the leaf of a path.
-setAtLeaf :: (MonadIO m, ToJSON a) => HTTP.Manager -> Client -> [Text] -> a -> m HTTP.Status
-setAtLeaf httpManager client path leaf =
-  let request = setAtLeafRequest client path leaf
+setAtLeaf :: (MonadIO m, ToJSON a) => Client -> [Text] -> a -> m HTTP.Status
+setAtLeaf (Client httpManager config) path leaf =
+  let request = setAtLeafRequest config path leaf
   in liftIO . fmap HTTP.responseStatus $ HTTP.httpNoBody request httpManager
 
 -- | Delete the value at the leaf of a path.
-deleteAtLeaf :: MonadIO m => HTTP.Manager -> Client -> [Text] -> m HTTP.Status
-deleteAtLeaf httpManager client path =
-  let request = deleteAtLeafRequest client path
+deleteAtLeaf :: MonadIO m => Client -> [Text] -> m HTTP.Status
+deleteAtLeaf (Client httpManager config) path =
+  let request = deleteAtLeafRequest config path
   in liftIO . fmap HTTP.responseStatus $ HTTP.httpNoBody request httpManager
 
 -- | Return a HTTP request for setting a value at the leaf of a path.
-setAtLeafRequest :: ToJSON a => Client -> [Text] -> a -> HTTP.Request
+setAtLeafRequest :: ToJSON a => Config -> [Text] -> a -> HTTP.Request
 setAtLeafRequest = setAtLeafRequestWithOptions defaultRequestOptions
 
 -- | Return a HTTP request for deleting a value at the leaf of a path.
-deleteAtLeafRequest :: Client -> [Text] -> HTTP.Request
+deleteAtLeafRequest :: Config -> [Text] -> HTTP.Request
 deleteAtLeafRequest = deleteAtLeafRequestWithOptions defaultRequestOptions
 
 -- | Return a HTTP request for setting a value at the leaf of a path.
-setAtLeafRequestWithOptions :: ToJSON a => RequestOptions -> Client -> [Text] -> a -> HTTP.Request
-setAtLeafRequestWithOptions options client path leaf =
-  (baseRequest client)
+setAtLeafRequestWithOptions :: ToJSON a => RequestOptions -> Config -> [Text] -> a -> HTTP.Request
+setAtLeafRequestWithOptions options config path leaf =
+  (baseRequest config)
     { HTTP.method = "PUT"
     , HTTP.path = requestPathForIcepeakPath path (optionsToQuery options)
     , HTTP.requestBody = HTTP.RequestBodyLBS (Aeson.encode leaf)
     }
 
 -- | Return a HTTP request for deleting a value at the leaf of a path.
-deleteAtLeafRequestWithOptions :: RequestOptions -> Client -> [Text] -> HTTP.Request
-deleteAtLeafRequestWithOptions options client path =
-  (baseRequest client)
+deleteAtLeafRequestWithOptions :: RequestOptions -> Config -> [Text] -> HTTP.Request
+deleteAtLeafRequestWithOptions options config path =
+  (baseRequest config)
     { HTTP.method = "DELETE"
     , HTTP.path = requestPathForIcepeakPath path (optionsToQuery options)
     }
@@ -126,9 +131,9 @@ optionsToQuery opts = durabilityParam (requestDurability opts)
     durabilityParam EventualDurability = []
     durabilityParam StrongDurability = [("durable", Nothing)]
 
--- | Return a template for requests off a client.
-baseRequest :: Client -> HTTP.Request
-baseRequest (Client host port maybeToken) =
+-- | Return a template for requests off a config.
+baseRequest :: Config -> HTTP.Request
+baseRequest (Config host port maybeToken) =
   let mkAuthHeader token = (Header.hAuthorization, "Bearer " <> token)
   in HTTP.defaultRequest
     { HTTP.host = host

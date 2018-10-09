@@ -9,7 +9,7 @@ import Prelude hiding (fail)
 import Data.Foldable (traverse_)
 import Data.Text (Text)
 import Data.Text.Arbitrary ()
-import Icepeak.Client (Client (..), setAtLeaf)
+import Icepeak.Client (Client (..), Config (..), setAtLeaf)
 import System.Environment (getArgs)
 import System.Exit (exitFailure)
 import System.IO (hPutStrLn, stderr)
@@ -30,11 +30,11 @@ main = do
 main' :: Int -> IO ()
 main' count = do
   httpManager <- HTTP.newManager HTTP.defaultManagerSettings
-  let client = Client "localhost" 3000 Nothing
+  let client = Client httpManager (Config "localhost" 3000 Nothing)
   let putRandomPayload i = do
         putStr $ "Test #" ++ show i ++ " ... "
         path :: [Text] <- Gen.generate arbitrary
         leaf :: Text <- Gen.generate arbitrary
-        status <- setAtLeaf httpManager client path leaf
+        status <- setAtLeaf client path leaf
         print status
   traverse_ putRandomPayload [1..count]
