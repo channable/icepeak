@@ -9,7 +9,7 @@ module WebsocketServer (
 import Control.Concurrent (modifyMVar_, readMVar)
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TBQueue (readTBQueue)
-import Control.Exception (finally, catch)
+import Control.Exception (SomeAsyncException, SomeException, finally, fromException, catch, throwIO)
 import Control.Monad (forever)
 import Data.Aeson (Value)
 import Data.Text (Text)
@@ -40,8 +40,19 @@ broadcast :: [Text] -> Value -> ServerState -> IO ()
 broadcast =
   let
     send :: WS.Connection -> Value -> IO ()
-    send conn value = do
+    send conn value =
       WS.sendTextData conn (Aeson.encode value)
+      `catch`
+      sendFailed
+
+    sendFailed :: SomeException -> IO ()
+    sendFailed exc
+      -- Rethrow async exceptions, they are meant for inter-thread communication
+      -- (e.g. ThreadKilled) and we don't expect them at this point.
+      | Just asyncExc <- fromException exc = throwIO (asyncExc :: SomeAsyncException)
+      -- We want to catch all other errors in order to prevent them from
+      -- bubbling up and disrupting the broadcasts to other clients.
+      | otherwise = pure ()
   in
     Subscription.broadcast send
 
