@@ -55,7 +55,8 @@ postModification core op = do
   durable <- maybeParam "durable"
   waitVar <- liftIO $ for durable $ \() -> newEmptyMVar
   result <- liftIO $ Core.tryEnqueueCommand (Core.Modify op waitVar) core
-  liftIO $ for_ waitVar $ takeMVar
+  when (result == Enqueued) $
+    liftIO $ for_ waitVar $ takeMVar
   pure result
 
 buildResponse :: EnqueueResult -> ActionM ()

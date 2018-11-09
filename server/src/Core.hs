@@ -59,6 +59,7 @@ data Command
 data Updated = Updated Path Value deriving (Eq, Show)
 
 data EnqueueResult = Enqueued | Dropped
+  deriving (Show, Eq, Ord, Enum, Bounded)
 
 data Core = Core
   { coreCurrentValue :: PersistentValue
