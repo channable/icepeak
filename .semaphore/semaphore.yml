@@ -5,68 +5,51 @@ agent:
     type: e1-standard-8
     os_image: ubuntu1804
 
+# Define a maximum running time for the sum of all jobs.
+# This means that both jobs can take 10 minutes, or one can take 15 and the
+# other 5, or some other combination.
+execution_time_limit:
+  minutes: 20
+
 blocks:
-  - name: "Install and cache GHC"
-    task:
-      env_vars:
-        - name: PIPENV_VENV_IN_PROJECT
-          value: "true"
-      prologue:
-        commands:
-          - sudo apt install libgmp-dev
-
-      jobs:
-      - name: Install and cache dependencies for server
-        commands:
-          - cache restore server-stack-$SEMAPHORE_GIT_BRANCH
-          - checkout
-          - cd server
-          - stack setup -j8 --no-terminal
-          - cd
-          - cache store server-stack-$SEMAPHORE_GIT_BRANCH .stack
-
-      - name: Install and cache dependencies for client
-        commands:
-          - cache restore client-stack-$SEMAPHORE_GIT_BRANCH
-          - checkout
-          - cd client-haskell
-          - stack setup -j8 --no-terminal
-          - cd
-          - cache store client-stack-$SEMAPHORE_GIT_BRANCH .stack
-
-  - name: "Compile and test"
+  - name: "Compile and test icepeak"
     task:
       prologue:
         commands:
           - sudo apt install libgmp-dev
+          - checkout
 
       jobs:
       - name: Compile server and run tests
         commands:
-          - cache restore server-stack-$SEMAPHORE_GIT_BRANCH
-
-          - checkout
           - cd server
-          - cache restore server-stack-work-$SEMAPHORE_GIT_BRANCH
+          - export PACKAGE_YAML_SUM=$(checksum package.yaml)
+          - export STACK_YAML_SUM=$(checksum stack.yaml)
+          - cd
+          - cache restore server-stack-$PACKAGE_YAML_SUM-$STACK_YAML_SUM
+          - cd -
+          - cache restore server-stack-work-$PACKAGE_YAML_SUM-$STACK_YAML_SUM
 
           - stack build -j8 --no-terminal
           - stack test -j8 --no-terminal
 
-          - cache store server-stack-work-$SEMAPHORE_GIT_BRANCH .stack-work
+          - cache store server-stack-work-$PACKAGE_YAML_SUM-$STACK_YAML_SUM .stack-work
           - cd
-          - cache store server-stack-$SEMAPHORE_GIT_BRANCH .stack
+          - cache store server-stack-$PACKAGE_YAML_SUM-$STACK_YAML_SUM .stack
 
       - name: Compile client and run tests
         commands:
-          - cache restore client-stack-$SEMAPHORE_GIT_BRANCH
-
-          - checkout
           - cd client-haskell
-          - cache restore client-stack-work-$SEMAPHORE_GIT_BRANCH
+          - export PACKAGE_YAML_SUM=$(checksum package.yaml)
+          - export STACK_YAML_SUM=$(checksum stack.yaml)
+          - cd
+          - cache restore client-stack-$PACKAGE_YAML_SUM-$STACK_YAML_SUM
+          - cd -
+          - cache restore client-stack-work-$PACKAGE_YAML_SUM-$STACK_YAML_SUM
 
           - stack build -j8 --no-terminal
           - stack test -j8 --no-terminal
 
-          - cache store client-stack-work-$SEMAPHORE_GIT_BRANCH .stack-work
+          - cache store client-stack-work-$PACKAGE_YAML_SUM-$STACK_YAML_SUM .stack-work
           - cd
-          - cache store client-stack-$SEMAPHORE_GIT_BRANCH .stack
+          - cache store client-stack-$PACKAGE_YAML_SUM-$STACK_YAML_SUM .stack
