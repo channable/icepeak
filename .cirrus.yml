@@ -1,5 +1,5 @@
 container:
-  image: commercialhaskell/stackage
+  image: haskell
 
 build_task:
   stackage_cache:
