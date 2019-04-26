@@ -9,14 +9,14 @@ steps:
   displayName: Install Stack
 - script: |
     export PATH=$HOME/.local/bin:$PATH
-    (cd server && stack setup -j2 --no-terminal)
-    (cd client-haskell && stack setup -j2 --no-terminal)
+    (cd server && stack setup -j16 --no-terminal)
+    (cd client-haskell && stack setup -j16 --no-terminal)
   displayName: Build dependencies
 - script: |
     export PATH=$HOME/.local/bin:$PATH
     # Build and test.
-    (cd server && stack build -j2 --no-terminal)
-    (cd server && stack test  -j2 --no-terminal)
-    (cd client-haskell && stack build -j2 --no-terminal)
-    (cd client-haskell && stack test  -j2 --no-terminal)
+    (cd server && stack build -j16 --no-terminal)
+    (cd server && stack test  -j16 --no-terminal)
+    (cd client-haskell && stack build -j16 --no-terminal)
+    (cd client-haskell && stack test  -j16 --no-terminal)
   displayName: Build and test package
