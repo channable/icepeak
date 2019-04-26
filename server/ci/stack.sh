@@ -8,8 +8,8 @@ set -e
 # reside in a fixed location, it cannot be moved. Like any problem in computer
 # science, we solve it with a layer of indirection: symlink /root/.stack to the
 # stack-root in the build working dir. /root/.stack is the default STACK_ROOT.
-rm -f --dir /root/.stack
-rm -f --dir .stack-work
+rm -fr /root/.stack
+rm -fr .stack-work
 ln --symbolic --force --no-target-directory ../../stack-root /root/.stack
 ln --symbolic --force --no-target-directory ../../stack-work .stack-work
 
