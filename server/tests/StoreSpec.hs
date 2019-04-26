@@ -131,5 +131,5 @@ spec = do
       let apply = Store.applyModification op
       in apply value == apply (apply value)
 
-    it "passes this noop test" $ do
+    it "passes this noop test. Wut Cirrus, why do you pass?" $ do
       pure ()
