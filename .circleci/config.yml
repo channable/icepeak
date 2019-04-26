@@ -7,10 +7,12 @@ jobs:
       - checkout
       - run:
           name: "install stack"
-          commands:
-            - "mkdir -p ~/.local/bin"
-            - "export PATH=$HOME/.local/bin:$PATH"
-            - "curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'"
+          command: |
+            mkdir -p ~/.local/bin
+            curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
+      - run:
+          name: "debug path"
+          command: "echo $PATH"
       - run:
           name: "stack version"
           command: "stack --version"
