@@ -31,7 +31,6 @@ import qualified MetricsServer
 -- Install SIGTERM and SIGINT handlers to do a graceful exit.
 installHandlers :: Core -> IO ()
 installHandlers core =
-  putStrLn "Temporary test modification"
   let
     handle = do
       postLog (coreLogger core) "\nTermination sequence initiated ..."
@@ -40,6 +39,7 @@ installHandlers core =
     blockSignals = Nothing
     installHandler signal = Signals.installHandler signal handler blockSignals
   in do
+    putStrLn "Temporary test modification"
     void $ installHandler Signals.sigTERM
     void $ installHandler Signals.sigINT
 
