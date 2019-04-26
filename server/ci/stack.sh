@@ -10,8 +10,8 @@ set -e
 # stack-root in the build working dir. /root/.stack is the default STACK_ROOT.
 rm -fr /root/.stack
 rm -fr .stack-work
-ln --symbolic --force --no-target-directory ../../stack-root /root/.stack
-ln --symbolic --force --no-target-directory ../../stack-work .stack-work
+ln --symbolic ../../stack-root /root/.stack
+ln --symbolic ../../stack-work .stack-work
 
 # NOTE: We do not quote the $@ here, so if the arguments contain whitespace,
 # then this will do additional splitting. That is as intended: in the Concourse
