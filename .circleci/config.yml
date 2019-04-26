@@ -1,4 +1,4 @@
-version: 2.0
+version: 2.1
 jobs:
   build:
     docker:
@@ -6,10 +6,10 @@ jobs:
     steps:
       - checkout
       - run:
-          name: "install curl"
+          name: "install apt dependencies"
           command: |
             apt update
-            apt install -y curl build-essential libgmp-dev zlib1g zlib1g-dev
+            apt install --no-install-recommends -y curl build-essential libgmp-dev zlib1g zlib1g-dev
       - run:
           name: "install stack"
           command: |
