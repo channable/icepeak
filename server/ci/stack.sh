@@ -8,10 +8,8 @@ set -e
 # reside in a fixed location, it cannot be moved. Like any problem in computer
 # science, we solve it with a layer of indirection: symlink /root/.stack to the
 # stack-root in the build working dir. /root/.stack is the default STACK_ROOT.
-rm -fr /root/.stack
-rm -fr .stack-work
-ln --symbolic ../../stack-root /root/.stack
-ln --symbolic ../../stack-work .stack-work
+ln --symbolic $(realpath ../../stack-root) /root/.stack
+ln --symbolic $(realpath ../../stack-work) .stack-work
 
 # NOTE: We do not quote the $@ here, so if the arguments contain whitespace,
 # then this will do additional splitting. That is as intended: in the Concourse
