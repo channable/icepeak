@@ -9,7 +9,7 @@ jobs:
           name: "install curl"
           command: |
             apt update
-            apt install -y curl
+            apt install -y curl build-essential
       - run:
           name: "install stack"
           command: |
