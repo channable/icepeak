@@ -16,15 +16,23 @@ jobs:
   - task: setup
     file: icepeak-src/server/ci/stack.yml
     vars: { "args": "setup" }
+    input_mapping: { stack-root: stack-root-0 }
+    output_mapping: { stack-root: stack-root-1 }
 
   - task: build snapshot
     file: icepeak-src/server/ci/stack.yml
     vars: { "args": "build --only-snapshot" }
+    input_mapping: { stack-root: stack-root-1 }
+    output_mapping: { stack-root: stack-root-2 }
 
   - task: build
     file: icepeak-src/server/ci/stack.yml
     vars: { "args": "build" }
+    input_mapping: { stack-root: stack-root-2 }
+    output_mapping: { stack-root: stack-root-3 }
 
   - task: test
     file: icepeak-src/server/ci/stack.yml
     vars: { "args": "test" }
+    input_mapping: { stack-root: stack-root-3 }
+    output_mapping: { stack-root: stack-root-4 }
