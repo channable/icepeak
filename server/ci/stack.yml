@@ -13,3 +13,7 @@ run:
   dir: icepeak-src/server
   path: ci/stack.sh
   args: ((args))
+
+caches:
+- icepeak-src/server/.stack-root
+- icepeak-src/server/.stack-work
