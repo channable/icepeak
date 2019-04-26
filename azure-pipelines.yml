@@ -11,7 +11,7 @@ steps:
     export PATH=$HOME/.local/bin:$PATH
     (cd server && stack setup -j2 --no-terminal)
     (cd client-haskell && stack setup -j2 --no-terminal)
-  displayName: Build Dependencies
+  displayName: Build dependencies
 - script: |
     export PATH=$HOME/.local/bin:$PATH
     # Build and test.
