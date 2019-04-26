@@ -12,5 +12,5 @@ inputs:
 
 run:
   path: stack
-  args: ["test"]
+  args: ["test", "--force-dirty"]
   dir: "server"
