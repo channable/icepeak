@@ -1,0 +1,10 @@
+version: 2.0
+jobs:
+  build:
+    docker:
+      - image: "commercialhaskell/stackage:lts12"
+    steps:
+      - "checkout"
+      - run:
+          name: "stack version"
+          command: "stack --version"
