@@ -19,4 +19,5 @@ steps:
       (cd server && stack test  -j8 --no-terminal)
       (cd client-haskell && stack build -j8 --no-terminal)
       (cd client-haskell && stack test  -j8 --no-terminal)
+      echo "Finished the build"
     label: "Run build and tests"
