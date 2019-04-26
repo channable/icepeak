@@ -2,7 +2,7 @@
 
 set -e
 
-export STACK_ROOT="${PWD}/.stack-root"
-export STACK_WORK="${PWD}/.stack-work"
+export STACK_ROOT=".stack-root"
+export STACK_WORK=".stack-work"
 
 stack --no-terminal "$@"
