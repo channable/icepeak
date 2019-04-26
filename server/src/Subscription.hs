@@ -119,3 +119,4 @@ showTree tree =
         strHere <> strInner
   in
     "/\n" <> (withPrefix "" tree)
+-- invalidate cache

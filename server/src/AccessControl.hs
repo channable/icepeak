@@ -95,3 +95,4 @@ instance Aeson.FromJSON IcepeakClaim where
     if version == (1 :: Int)
       then IcepeakClaim <$> v .: "whitelist"
       else fail "unsupported version"
+-- invalidate cache

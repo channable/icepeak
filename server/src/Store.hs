@@ -93,3 +93,4 @@ delete path value =
     key : pathTail -> case value of
       Object dict -> Object $ HashMap.adjust (delete pathTail) key dict
       notObject   -> notObject
+-- invalidate cache

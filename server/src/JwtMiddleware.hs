@@ -115,3 +115,4 @@ jwtMiddleware secret app req respond = do
            Http.unauthorized401
            [(Http.hContentType, "application/json")]
            (Aeson.encode err)
+-- invalidate cache

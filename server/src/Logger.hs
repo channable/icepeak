@@ -57,3 +57,4 @@ processLogRecords logger = go
           go
         -- stop the loop when asked so
         LogStop -> pure ()
+-- invalidate cache

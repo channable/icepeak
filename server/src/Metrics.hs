@@ -74,3 +74,4 @@ incrementSubscribers = incGauge . icepeakMetricsSubscriberCount
 
 decrementSubscribers :: MonadMonitor m => IcepeakMetrics -> m ()
 decrementSubscribers = decGauge . icepeakMetricsSubscriberCount
+-- invalidate cache

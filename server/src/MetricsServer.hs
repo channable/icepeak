@@ -22,3 +22,4 @@ runMetricsServer logger metricsConfig = do
     <> ":"
     <> (Text.pack $ show $ metricsConfigPort metricsConfig)
   Warp.runSettings (metricsServerConfig metricsConfig) PrometheusWai.metricsApp
+-- invalidate cache

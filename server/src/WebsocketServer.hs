@@ -142,3 +142,4 @@ processUpdates core = go
           go
         -- Stop the loop when we receive a Nothing.
         Nothing -> pure ()
+-- invalidate cache

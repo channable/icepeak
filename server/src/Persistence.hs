@@ -216,3 +216,4 @@ foldJournalM h f = go
           line <- SBS8.hGetLine h
           x' <- f line x
           go x'
+-- invalidate cache

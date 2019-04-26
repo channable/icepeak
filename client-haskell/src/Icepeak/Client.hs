@@ -147,3 +147,4 @@ requestPathForIcepeakPath pathSegments query = toStrictBS builder
   where
     toStrictBS = ByteString.Lazy.toStrict . Binary.Builder.toLazyByteString
     builder = URI.encodePathSegments pathSegments <> URI.renderQueryBuilder True query
+-- invalidate cache

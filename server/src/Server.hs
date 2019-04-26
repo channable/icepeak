@@ -24,3 +24,4 @@ runServer logger wsApp httpApp port =
   in do
     postLog logger $ pack $ "Listening on port " <> show port <> "."
     Warp.run port $ websocketsOr wsConnectionOpts wsApp httpApp
+-- invalidate cache

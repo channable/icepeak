@@ -101,3 +101,4 @@ getIcepeakClaim token = do
 addIcepeakClaim :: IcepeakClaim -> JWT.JWTClaimsSet -> JWT.JWTClaimsSet
 addIcepeakClaim claim claims = claims
   { JWT.unregisteredClaims = Map.insert "icepeak" (Aeson.toJSON claim) (JWT.unregisteredClaims claims) }
+-- invalidate cache

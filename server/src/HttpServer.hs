@@ -73,3 +73,4 @@ metricsMiddleware metrics app req sendResponse = app req sendWithMetrics
 maybeParam :: (Scotty.Parsable a, Scotty.ScottyError e, Monad m) => LText.Text -> Scotty.ActionT e m (Maybe a)
 maybeParam name = fmap (parseMaybe <=< lookup name) Scotty.params where
   parseMaybe = either (const Nothing) Just . Scotty.parseParam
+-- invalidate cache

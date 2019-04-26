@@ -148,3 +148,4 @@ logSyncSettings cfg logger = case configSyncIntervalMicroSeconds cfg of
     postLog logger ("Sync: every " <> Text.pack (show musecs) <> " microseconds.")
     when (configEnableJournaling cfg) $ do
       postLog logger "Journaling enabled"
+-- invalidate cache

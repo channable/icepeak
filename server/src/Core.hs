@@ -169,3 +169,4 @@ runSyncTimer core = mapM_ go (configSyncIntervalMicroSeconds $ coreConfig core)
     go interval = forever $ do
       enqueueCommand Sync core
       threadDelay interval
+-- invalidate cache

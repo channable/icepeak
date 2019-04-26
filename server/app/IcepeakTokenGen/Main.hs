@@ -82,3 +82,4 @@ authPathReader = eitherReader (go . Text.pack) where
                             | otherwise = Left $ "Invalid mode: " ++ Text.unpack modetxt
                  pathComponents = filter (not . Text.null) $ Text.splitOn "/" pathtxt
              in AuthPath pathComponents <$> modeEither
+-- invalidate cache
