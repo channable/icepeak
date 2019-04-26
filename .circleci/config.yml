@@ -2,18 +2,9 @@ version: 2.1
 jobs:
   build:
     docker:
-      - image: "ubuntu:bionic"
+      - image: "haskell"
     steps:
       - checkout
-      - run:
-          name: "install apt dependencies"
-          command: |
-            apt update
-            apt install --no-install-recommends -y curl build-essential libgmp-dev zlib1g zlib1g-dev
-      - run:
-          name: "install stack"
-          command: |
-            curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C /usr/local/bin '*/stack'
       - run:
           name: "print debug info"
           command: |
