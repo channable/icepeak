@@ -10,12 +10,9 @@ inputs:
 - name: icepeak-src
 - name: stack-root
   optional: true
-- name: stack-work
-  optional: true
 
 outputs:
 - name: stack-root
-- name: stack-work
 
 run:
   dir: icepeak-src/server

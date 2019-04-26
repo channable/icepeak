@@ -7,8 +7,6 @@ set -e
 # local working directory because "../../stack-work" causes
 # "InvalidRelDir".
 export STACK_ROOT=$(realpath "../../stack-root")
-mkdir -p ../../stack-work
-ln -s ../../stack-work .stack-work
 
 # NOTE: We do not quote the $@ here, so if the arguments contain whitespace,
 # then this will do additional splitting. That is as intended: in the Concourse
