@@ -7,10 +7,18 @@ build_task:
     fingerprint_script: cat server/stack.yaml
 
   stack_work_cache:
-    folder: .stack-work
+    folder: server/.stack-work
 
   setup_script: cd server && stack setup
   build_script: cd server && stack build
 
 test_task:
+  stackage_cache:
+    folder: $HOME/.stack
+    fingerprint_script: cat server/stack.yaml
+
+  stack_work_test_cache:
+    folder: server/.stack-work
+
+  setup_script: cd server && stack setup
   test_script: cd server && stack test
