@@ -8,7 +8,8 @@ jobs:
       - run:
           name: "install curl"
           command: |
-            apt install curl
+            apt update
+            apt install -y curl
       - run:
           name: "install stack"
           command: |
