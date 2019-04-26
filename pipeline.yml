@@ -1,0 +1,27 @@
+---
+resources:
+- name: icepeak-src
+  type: git
+  source:
+    uri: https://github.com/channable/icepeak
+    branch: concourse
+
+jobs:
+- name: build server
+  plan:
+  - get: icepeak-src
+    trigger: true
+  - task: run-setup
+    file: server/setup.yml
+  - task: run-build
+    file: server/build.yml
+
+- name: test server
+  plan:
+  - get: icepeak-src
+    passed: ["build server"]
+    trigger: true
+  - task: run-setup
+    file: server/setup.yml
+  - task: run-test
+    file: server/test.yml
