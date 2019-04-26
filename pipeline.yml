@@ -15,16 +15,16 @@ jobs:
 
   - task: setup
     file: icepeak-src/server/ci/stack.yml
-    vars: { "args": ["setup"] }
+    vars: { "args": "setup" }
 
   - task: build snapshot
     file: icepeak-src/server/ci/stack.yml
-    vars: { "args": ["build", "--only-snapshot"] }
+    vars: { "args": "build --only-snapshot" }
 
   - task: build
     file: icepeak-src/server/ci/stack.yml
-    vars: { "args": ["build"] }
+    vars: { "args": "build" }
 
   - task: test
     file: icepeak-src/server/ci/stack.yml
-    vars: { "args": ["test"] }
+    vars: { "args": "test" }
