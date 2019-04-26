@@ -31,6 +31,7 @@ import qualified MetricsServer
 -- Install SIGTERM and SIGINT handlers to do a graceful exit.
 installHandlers :: Core -> IO ()
 installHandlers core =
+  putStrLn "Temporary test modification"
   let
     handle = do
       postLog (coreLogger core) "\nTermination sequence initiated ..."
