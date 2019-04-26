@@ -9,10 +9,14 @@ steps:
   displayName: Install Stack
 - script: |
     export PATH=$HOME/.local/bin:$PATH
-    stack --no-terminal --install-ghc test --only-dependencies
+    (cd server && stack setup -j2 --no-terminal)
+    (cd client-haskell && stack setup -j2 --no-terminal)
   displayName: Build Dependencies
 - script: |
     export PATH=$HOME/.local/bin:$PATH
-    # Build the package, its tests, and its docs and run the tests
-    stack test --haddock --no-haddock-deps
-  displayName: Test Package
+    # Build and test.
+    (cd server && stack build -j2 --no-terminal)
+    (cd server && stack test  -j2 --no-terminal)
+    (cd client-haskell && stack build -j2 --no-terminal)
+    (cd client-haskell && stack test  -j2 --no-terminal)
+  displayName: Build and test package
