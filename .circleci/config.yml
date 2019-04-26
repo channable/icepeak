@@ -20,3 +20,19 @@ jobs:
             echo $PATH
             pwd
             stack --version
+      - run:
+          name: "build server"
+          command: "stack build -j2 --no-terminal"
+          working_directory: "/root/project/server"
+      - run:
+          name: "test server"
+          command: "stack test -j2 --no-terminal"
+          working_directory: "/root/project/server"
+      - run:
+          name: "build client"
+          command: "stack build -j2 --no-terminal"
+          working_directory: "/root/project/client-haskell"
+      - run:
+          name: "test cliient"
+          command: "stack test -j2 --no-terminal"
+          working_directory: "/root/project/client-haskell"
