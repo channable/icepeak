@@ -15,5 +15,5 @@ run:
   args: ((args))
 
 caches:
-- icepeak-src/server/.stack-root
-- icepeak-src/server/.stack-work
+- path: icepeak-src/server/.stack-root
+- path: icepeak-src/server/.stack-work
