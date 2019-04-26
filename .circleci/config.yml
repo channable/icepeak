@@ -9,7 +9,7 @@ jobs:
           name: "install curl"
           command: |
             apt update
-            apt install -y curl build-essential libgmp-dev
+            apt install -y curl build-essential libgmp-dev zlib1g zlib1g-dev
       - run:
           name: "install stack"
           command: |
