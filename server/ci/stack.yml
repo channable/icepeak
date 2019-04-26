@@ -11,5 +11,6 @@ inputs:
 
 run:
   dir: icepeak-src/server
-  path: icepeak-src/server/ci/build.sh
-  args: ((args))
+  #path: icepeak-src/server/ci/build.sh
+  path: ls
+  #args: ((args))
