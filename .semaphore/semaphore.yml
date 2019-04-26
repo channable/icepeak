@@ -6,7 +6,7 @@ agent:
     os_image: ubuntu1804
 
 blocks:
-  - name: "Install dependencies"
+  - name: "Install and cache GHC"
     task:
       env_vars:
         - name: PIPENV_VENV_IN_PROJECT
@@ -21,13 +21,13 @@ blocks:
         commands:
           - cd server
           - stack setup -j8 --no-terminal
-          - cache store server-stack-work-$SEMAPHORE_GIT_BRANCH .stack-work
+          - cache store server-stack-$SEMAPHORE_GIT_BRANCH ~/.stack
 
       - name: Install and cache dependencies for client
         commands:
           - cd client-haskell
           - stack setup -j8 --no-terminal
-          - cache store client-stack-work-$SEMAPHORE_GIT_BRANCH .stack-work
+          - cache store client-stack-$SEMAPHORE_GIT_BRANCH ~/.stack
 
   - name: "Compile and test"
     task:
@@ -39,13 +39,16 @@ blocks:
       jobs:
       - name: Compile server and run tests
         commands:
+          - cache restore client-stack-$SEMAPHORE_GIT_BRANCH,client-stack-work-$SEMAPHORE_GIT_BRANCH
           - cd server
           - stack build -j8 --no-terminal
           - stack test -j8 --no-terminal
+          - cache store server-stack-work-$SEMAPHORE_GIT_BRANCH .stack-work
 
       - name: Compile client and run tests
         commands:
+          - cache restore client-stack-$SEMAPHORE_GIT_BRANCH,client-stack-work-$SEMAPHORE_GIT_BRANCH
           - cd client-haskell
           - stack build -j8 --no-terminal
           - stack test -j8 --no-terminal
-
+          - cache store client-stack-work-$SEMAPHORE_GIT_BRANCH .stack-work
