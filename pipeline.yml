@@ -7,21 +7,24 @@ resources:
     branch: concourse
 
 jobs:
-- name: build server
-  plan:
-  - get: icepeak-src
-    trigger: true
-  - task: run-setup
-    file: icepeak-src/server/setup.yml
-  - task: run-build
-    file: icepeak-src/server/build.yml
 
-- name: test server
+- name: build
   plan:
   - get: icepeak-src
-    passed: ["build server"]
     trigger: true
-  - task: run-setup
-    file: icepeak-src/server/setup.yml
-  - task: run-test
-    file: icepeak-src/server/test.yml
+
+  - task: setup
+    file: icepeak-src/server/ci/stack.yml
+    vars: { "args": ["setup"] }
+
+  - task: build snapshot
+    file: icepeak-src/server/ci/stack.yml
+    vars: { "args": ["build", "--only-snapshot"] }
+
+  - task: build
+    file: icepeak-src/server/ci/stack.yml
+    vars: { "args": ["build"] }
+
+  - task: test
+    file: icepeak-src/server/ci/stack.yml
+    vars: { "args": ["test"] }

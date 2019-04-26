@@ -10,6 +10,6 @@ inputs:
 - name: icepeak-src
 
 run:
-  path: stack
-  args: ["test", "--force-dirty"]
-  dir: "server"
+  dir: server
+  path: ci/build.sh
+  args: ((args))
