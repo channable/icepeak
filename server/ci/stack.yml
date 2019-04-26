@@ -22,5 +22,5 @@ run:
   path: ci/stack.sh
   args: ((args))
 
-caches:
-- path: stack-root
+  #caches:
+  #- path: stack-root

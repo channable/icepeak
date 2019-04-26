@@ -11,6 +11,8 @@ set -e
 ln --symbolic $(realpath ../../stack-root) /root/.stack
 ln --symbolic $(realpath ../../stack-work) .stack-work
 
+set -x
+
 # NOTE: We do not quote the $@ here, so if the arguments contain whitespace,
 # then this will do additional splitting. That is as intended: in the Concourse
 # vars section we can only provide string vars, not arrays, so we need to
