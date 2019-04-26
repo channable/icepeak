@@ -21,4 +21,4 @@ test_task:
     folder: server/.stack-work
 
   setup_script: cd server && stack setup
-  test_script: cd server && stack test
+  test_script: cd server && stack test --force-dirty
