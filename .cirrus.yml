@@ -1,0 +1,16 @@
+container:
+  image: commercialhaskell/stackage
+
+build_task:
+  stackage_cache:
+    folder: $HOME/.stack
+    fingerprint_script: cat server/stack.yaml server/package.yaml
+
+  stack_work_cache:
+    folder: .stack-work
+
+  setup_script: cd server && stack setup
+  build_script: cd server && stack build
+
+test_task:
+  test_script: cd server && stack test
