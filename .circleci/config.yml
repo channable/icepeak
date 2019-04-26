@@ -21,10 +21,16 @@ jobs:
             pwd
             stack --version
       - restore_cache:
-          name: "restore server, client, ghc cache"
+          name: "restore server"
           keys:
             - icepeak-server-{{ checksum "server/package.yaml" }}-{{ checksum "server/stack.yaml" }}
+      - restore_cache:
+          name: "restore client"
+          keys:
             - icepeak-client-{{ checksum "client-haskell/package.yaml" }}-{{ checksum "client-haskell/stack.yaml" }}
+      - restore_cache:
+          name: "restore client"
+          keys:
             - icepeak-ghc-{{ checksum "server/stack.yaml" }}-{{ checksum "client-haskell/stack.yaml" }}
       - run:
           name: "build server"
