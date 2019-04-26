@@ -1,0 +1,13 @@
+steps:
+  - command: "mkdir -p ~/.local/bin\nexport PATH=\\$HOME/.local/bin:\\$PATH\ncurl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'"
+    label: "Before install"
+
+  - wait
+
+  - command: "(cd server && stack setup -j8 --no-terminal)\n(cd client-haskell && stack setup -j8 --no-terminal)"
+    label: "Install the compiler"
+
+  - wait
+
+  - command: "(cd server && stack build -j8 --no-terminal)\n(cd server && stack test  -j8 --no-terminal)\n(cd client-haskell && stack build -j8 --no-terminal)\n(cd client-haskell && stack test  -j8 --no-terminal)"
+    label: "Run build and tests"
