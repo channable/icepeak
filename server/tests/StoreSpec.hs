@@ -130,3 +130,6 @@ spec = do
     prop "is idempotent" $ \op value ->
       let apply = Store.applyModification op
       in apply value == apply (apply value)
+
+    it "passes this noop test" $ do
+      pure ()
