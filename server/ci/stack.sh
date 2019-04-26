@@ -2,11 +2,13 @@
 
 set -e
 
-# NOTE: Stack expects STACK_ROOT to be an absolute path,
-# and STACK_WORK to be relative. Also, we give Stack a
-# local working directory because "../../stack-work" causes
-# "InvalidRelDir".
-export STACK_ROOT=$(realpath "../../stack-root")
+# NOTE: On every build, we get a different working directory. And as build
+# input, the Stack root dir is provided in there. But installing GHC involves
+# creating some scripts with absolute paths, so the Stack root directory should
+# reside in a fixed location, it cannot be moved. Like any problem in computer
+# science, we solve it with a layer of indirection: symlink /root/.stack to the
+# stack-root in the build working dir. /root/.stack is the default STACK_ROOT.
+ln -sf ../../stack-root /root/.stack
 
 # NOTE: We do not quote the $@ here, so if the arguments contain whitespace,
 # then this will do additional splitting. That is as intended: in the Concourse
