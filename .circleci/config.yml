@@ -2,9 +2,9 @@ version: 2.0
 jobs:
   build:
     docker:
-      - image: "commercialhaskell/stackage:lts12"
+      - image: "ubuntu:bionic"
     steps:
-      - "checkout"
+      - checkout
       - run:
           name: "stack version"
           command: "stack --version"
