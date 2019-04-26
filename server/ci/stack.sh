@@ -9,6 +9,7 @@ set -e
 # science, we solve it with a layer of indirection: symlink /root/.stack to the
 # stack-root in the build working dir. /root/.stack is the default STACK_ROOT.
 ln -sf ../../stack-root /root/.stack
+ln -sf ../../stack-work .stack-work
 
 # NOTE: We do not quote the $@ here, so if the arguments contain whitespace,
 # then this will do additional splitting. That is as intended: in the Concourse
