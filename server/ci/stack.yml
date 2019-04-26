@@ -6,21 +6,11 @@ image_resource:
   source:
     repository: haskell
 
-inputs:
-- name: icepeak-src
-- name: stack-root
-  optional: true
-- name: stack-work
-  optional: true
-
-outputs:
-- name: stack-root
-- name: stack-work
-
 run:
   dir: icepeak-src/server
   path: ci/stack.sh
   args: ((args))
 
-  #caches:
-  #- path: stack-root
+caches:
+- path: stack-root
+- path: icepeak-src/server/.stack-work

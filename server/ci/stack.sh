@@ -9,7 +9,6 @@ set -e
 # science, we solve it with a layer of indirection: symlink /root/.stack to the
 # stack-root in the build working dir. /root/.stack is the default STACK_ROOT.
 ln --symbolic $(realpath ../../stack-root) /root/.stack
-ln --symbolic $(realpath ../../stack-work) .stack-work
 
 set -x
 
