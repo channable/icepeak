@@ -1,0 +1,51 @@
+version: v1.0
+name: Icepeak Pipeline
+agent:
+  machine:
+    type: e1-standard-8
+    os_image: ubuntu1804
+
+blocks:
+  - name: "Install dependencies"
+    task:
+      env_vars:
+        - name: PIPENV_VENV_IN_PROJECT
+          value: "true"
+      prologue:
+        commands:
+          - sudo apt install libgmp-dev
+          - checkout
+
+      jobs:
+      - name: Install and cache dependencies for server
+        commands:
+          - cd server
+          - stack setup -j8 --no-terminal
+          - cache store server-stack-work-$SEMAPHORE_GIT_BRANCH .stack-work
+
+      - name: Install and cache dependencies for client
+        commands:
+          - cd client-haskell
+          - stack setup -j8 --no-terminal
+          - cache store client-stack-work-$SEMAPHORE_GIT_BRANCH .stack-work
+
+  - name: "Compile and test"
+    task:
+      prologue:
+        commands:
+          - sudo apt install libgmp-dev
+          - checkout
+
+      jobs:
+      - name: Compile server and run tests
+        commands:
+          - cd server
+          - stack build -j8 --no-terminal
+          - stack test -j8 --no-terminal
+
+      - name: Compile client and run tests
+        commands:
+          - cd client-haskell
+          - stack build -j8 --no-terminal
+          - stack test -j8 --no-terminal
+
