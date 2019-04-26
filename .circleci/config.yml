@@ -20,6 +20,12 @@ jobs:
             echo $PATH
             pwd
             stack --version
+      - restore_cache:
+          name: "restore server, client, ghc cache"
+          keys:
+            - icepeak-server-{{ checksum "server/package.yaml" }}-{{ checksum "server/stack.yaml" }}
+            - icepeak-client-{{ checksum "client-haskell/package.yaml" }}-{{ checksum "client-haskell/stack.yaml" }}
+            - icepeak-ghc-{{ checksum "server/stack.yaml" }}-{{ checksum "client-haskell/stack.yaml" }}
       - run:
           name: "build server"
           command: "stack build -j2 --no-terminal"
@@ -33,6 +39,21 @@ jobs:
           command: "stack build -j2 --no-terminal"
           working_directory: "/root/project/client-haskell"
       - run:
-          name: "test cliient"
+          name: "test client"
           command: "stack test -j2 --no-terminal"
           working_directory: "/root/project/client-haskell"
+      - save_cache:
+          name: "server cache"
+          key: icepeak-server-{{ checksum "server/package.yaml" }}-{{ checksum "server/stack.yaml" }}
+          paths:
+            - "server/.stack-work"
+      - save_cache:
+          name: "client cache"
+          key: icepeak-client-{{ checksum "client-haskell/package.yaml" }}-{{ checksum "client-haskell/stack.yaml" }}
+          paths:
+            - "client-haskell/.stack-work"
+      - save_cache:
+          name: "ghc cache"
+          key: icepeak-ghc-{{ checksum "server/stack.yaml" }}-{{ checksum "client-haskell/stack.yaml" }}
+          paths:
+            - "/root/.stack"
