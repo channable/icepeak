@@ -3,9 +3,12 @@
 set -e
 
 # NOTE: Stack expects STACK_ROOT to be an absolute path,
-# and STACK_WORK to be relative.
+# and STACK_WORK to be relative. Also, we give Stack a
+# local working directory because "../../stack-work" causes
+# "InvalidRelDir".
 export STACK_ROOT=$(realpath "../../stack-root")
-export STACK_WORK="../../stack-work"
+mkdir -p ../../stack-work
+ln -s ../../stack-work .stack-work
 
 # NOTE: We do not quote the $@ here, so if the arguments contain whitespace,
 # then this will do additional splitting. That is as intended: in the Concourse
