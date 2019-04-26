@@ -11,5 +11,5 @@ inputs:
 
 run:
   dir: icepeak-src/server
-  path: icepeak-src/server/ci/stack.sh
+  path: ci/stack.sh
   args: ((args))
