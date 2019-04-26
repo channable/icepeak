@@ -4,7 +4,7 @@ container:
 build_task:
   stackage_cache:
     folder: $HOME/.stack
-    fingerprint_script: cat server/stack.yaml server/package.yaml
+    fingerprint_script: cat server/stack.yaml
 
   stack_work_cache:
     folder: .stack-work
