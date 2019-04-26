@@ -4,7 +4,7 @@ platform: linux
 image_resource:
   type: docker-image
   source:
-    repository: _/haskell
+    repository: haskell
 
 inputs:
 - name: icepeak-src

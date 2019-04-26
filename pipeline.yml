@@ -12,9 +12,9 @@ jobs:
   - get: icepeak-src
     trigger: true
   - task: run-setup
-    file: server/setup.yml
+    file: icepeak-src/server/setup.yml
   - task: run-build
-    file: server/build.yml
+    file: icepeak-src/server/build.yml
 
 - name: test server
   plan:
@@ -22,6 +22,6 @@ jobs:
     passed: ["build server"]
     trigger: true
   - task: run-setup
-    file: server/setup.yml
+    file: icepeak-src/server/setup.yml
   - task: run-test
-    file: server/test.yml
+    file: icepeak-src/server/test.yml
