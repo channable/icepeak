@@ -13,8 +13,7 @@ jobs:
       - run:
           name: "install stack"
           command: |
-            mkdir -p ~/.local/bin
-            curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
+            curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C /usr/local/bin '*/stack'
       - run:
           name: "debug path"
           command: "echo $PATH"
