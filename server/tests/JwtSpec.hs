@@ -36,7 +36,7 @@ spec = do
 
     let testClaims = addIcepeakClaim testAccess emptyClaim
 
-    let testSecret = JWT.binarySecret "2o8357cEuc2o835cmsoei"
+    let testSecret = JWT.HMACSecret "2o8357cEuc2o835cmsoei"
 
     let now = 12512 :: NominalDiffTime
 
@@ -59,7 +59,7 @@ spec = do
     it "should reject a token with wrong secret" $ do
       let claims = testClaims
           nbfToken = Text.encodeUtf8 $ JWT.encodeSigned JWT.HS256 testSecret claims
-          otherSecret = JWT.binarySecret "dfhwcmo845cm8e5"
+          otherSecret = JWT.HMACSecret "dfhwcmo845cm8e5"
       extractClaim now otherSecret nbfToken `shouldBe` Left (VerificationError TokenSignatureInvalid)
 
     prop "should correctly encode and decode token" $ \icepeakClaim ->

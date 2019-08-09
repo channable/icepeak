@@ -26,7 +26,7 @@ data Config = Config
     -- | The secret used for verifying the JWT signatures. If no secret is
     -- specified even though JWT authorization is enabled, tokens will still be
     -- used, but not be verified.
-  , configJwtSecret :: Maybe JWT.Secret
+  , configJwtSecret :: Maybe JWT.Signer
   , configMetricsEndpoint :: Maybe MetricsConfig
   , configQueueCapacity :: Word
   , configSyncIntervalMicroSeconds :: Maybe Int
@@ -88,7 +88,7 @@ configParser environment = Config
     readFromEnvironment :: Read a => String -> Maybe a
     readFromEnvironment var = lookup var environment >>= Read.readMaybe
 
-    secretOption m = JWT.secret . Text.pack <$> strOption m
+    secretOption m = JWT.hmacSecret . Text.pack <$> strOption m
 
 configInfo :: EnvironmentConfig -> ParserInfo Config
 configInfo environment = info parser description

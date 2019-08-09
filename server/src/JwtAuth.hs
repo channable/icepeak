@@ -27,7 +27,7 @@ data VerificationError
   deriving (Show, Eq)
 
 -- | Check that a token is valid at the given time for the given secret.
-verifyToken :: POSIXTime -> JWT.Secret -> SBS.ByteString -> Either VerificationError (JWT VerifiedJWT)
+verifyToken :: POSIXTime -> JWT.Signer -> SBS.ByteString -> Either VerificationError (JWT VerifiedJWT)
 verifyToken now secret = verifyNotBefore now
                        <=< verifyExpiry now
                        <=< verifySignature secret
@@ -54,7 +54,7 @@ verifyExpiry now token =
        else Right token
 
 -- | Verify that the token contains a valid signature.
-verifySignature :: JWT.Secret -> JWT UnverifiedJWT -> Either VerificationError (JWT VerifiedJWT)
+verifySignature :: JWT.Signer -> JWT UnverifiedJWT -> Either VerificationError (JWT VerifiedJWT)
 verifySignature secret token =
  case JWT.verify secret token of
    Nothing     -> Left TokenSignatureInvalid
@@ -74,7 +74,7 @@ data TokenError
   deriving (Show, Eq)
 
 -- | Verify the token and extract the icepeak claim from it.
-extractClaim :: POSIXTime -> JWT.Secret -> SBS.ByteString -> Either TokenError IcepeakClaim
+extractClaim :: POSIXTime -> JWT.Signer -> SBS.ByteString -> Either TokenError IcepeakClaim
 extractClaim now secret tokenBytes = do
   jwt <- first VerificationError $ verifyToken now secret tokenBytes
   claim <- first ClaimError $ getIcepeakClaim jwt
@@ -89,10 +89,9 @@ extractClaimUnverified tokenBytes = do
 
 getIcepeakClaim :: JWT r -> Either String IcepeakClaim
 getIcepeakClaim token = do
-  claimJson <- maybe (Left "Icepeak claim missing.") Right
-    $ Map.lookup "icepeak"
-    $ JWT.unregisteredClaims
-    $ JWT.claims token
+  let (JWT.ClaimsMap claimsMap) = JWT.unregisteredClaims $ JWT.claims token
+      maybeClaim = Map.lookup "icepeak" claimsMap
+  claimJson <- maybe (Left "Icepeak claim missing.") Right maybeClaim
   Aeson.parseEither Aeson.parseJSON claimJson
 
 -- * Token generation
@@ -100,4 +99,6 @@ getIcepeakClaim token = do
 -- | Add the icepeak claim to a set of JWT claims.
 addIcepeakClaim :: IcepeakClaim -> JWT.JWTClaimsSet -> JWT.JWTClaimsSet
 addIcepeakClaim claim claims = claims
-  { JWT.unregisteredClaims = Map.insert "icepeak" (Aeson.toJSON claim) (JWT.unregisteredClaims claims) }
+  { JWT.unregisteredClaims = newClaimsMap <> JWT.unregisteredClaims claims }
+    where
+      newClaimsMap = JWT.ClaimsMap $ Map.fromList [("icepeak", Aeson.toJSON claim)]
