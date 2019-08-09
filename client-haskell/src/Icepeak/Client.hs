@@ -1,12 +1,15 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE LambdaCase #-}
 
 -- | Functions are exported in descending order of abstraction level.
 --
 -- >>> :set -XOverloadedStrings
 -- >>> import Icepeak.Client (Client (..), Config (..), deleteAtLeaf, setAtLeaf)
 -- >>> import qualified Network.HTTP.Client as HTTP
+-- >>> import Control.Retry (constantDelay, limitRetries)
 -- >>> httpManager <- HTTP.newManager HTTP.defaultManagerSettings
--- >>> let client = Client httpManager (Config "localhost" 3000 (Just "<token>"))
+-- >>> let retryPolicy = constantDelay 50000 <> limitRetries 5
+-- >>> let client = Client httpManager (Config "localhost" 3000 (Just "<token>")) (Just retryPolicy)
 -- >>> setAtLeaf client ["foo", "bar", "baz"] ([Just 1, Just 2, Nothing, Just 4] :: [Maybe Int])
 -- Status {statusCode = 202, statusMessage = "Accepted"}
 -- >>> deleteAtLeaf client ["foo", "bar"]
@@ -34,6 +37,8 @@ module Icepeak.Client
   ) where
 
 import Control.Monad.IO.Class (MonadIO (..))
+import Control.Monad.Catch (Handler, Handler(..), MonadMask)
+import Control.Retry (RetryPolicyM, recovering)
 import Data.Aeson (ToJSON)
 import Data.ByteString (ByteString)
 import Data.Foldable (toList)
@@ -48,9 +53,14 @@ import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Types.Status as HTTP
 import qualified Network.HTTP.Types.Header as Header
 import qualified Network.HTTP.Types.URI as URI
+import qualified Control.Retry as Retry
 
 -- | Config paired with HTTP manager for making requests.
-data Client = Client HTTP.Manager Config
+data Client m = Client 
+  { clientHttpManager :: HTTP.Manager
+  , clientConfig      :: Config
+  , clientRetryPolicy :: Maybe (RetryPolicyM m)
+  }
 
 -- | Client connection details: how to connect to Icepeak?
 data Config = Config
@@ -88,16 +98,16 @@ defaultRequestOptions = RequestOptions EventualDurability
 -- "Network.HTTP.Client". Will not throw any other exceptions.
 
 -- | Set a value at the leaf of a path.
-setAtLeaf :: (MonadIO m, ToJSON a) => Client -> [Text] -> a -> m HTTP.Status
-setAtLeaf (Client httpManager config) path leaf =
-  let request = setAtLeafRequest config path leaf
-  in liftIO . fmap HTTP.responseStatus $ HTTP.httpNoBody request httpManager
+setAtLeaf :: (MonadIO m, MonadMask m, ToJSON a) => Client m -> [Text] -> a -> m HTTP.Status
+setAtLeaf client path leaf =
+  let request = setAtLeafRequest (clientConfig client) path leaf
+  in executeRequest client request
 
 -- | Delete the value at the leaf of a path.
-deleteAtLeaf :: MonadIO m => Client -> [Text] -> m HTTP.Status
-deleteAtLeaf (Client httpManager config) path =
-  let request = deleteAtLeafRequest config path
-  in liftIO . fmap HTTP.responseStatus $ HTTP.httpNoBody request httpManager
+deleteAtLeaf :: (MonadIO m, MonadMask m) => Client m -> [Text] -> m HTTP.Status
+deleteAtLeaf client path =
+  let request = deleteAtLeafRequest (clientConfig client) path
+  in executeRequest client request
 
 -- | Return a HTTP request for setting a value at the leaf of a path.
 setAtLeafRequest :: ToJSON a => Config -> [Text] -> a -> HTTP.Request
@@ -147,3 +157,31 @@ requestPathForIcepeakPath pathSegments query = toStrictBS builder
   where
     toStrictBS = ByteString.Lazy.toStrict . Binary.Builder.toLazyByteString
     builder = URI.encodePathSegments pathSegments <> URI.renderQueryBuilder True query
+
+-- | Perform the HTTP request
+executeRequest :: (MonadIO m, MonadMask m) => Client m -> HTTP.Request -> m HTTP.Status
+executeRequest (Client httpManager _ maybeRetryPolicy) request =
+  let 
+    call = liftIO . fmap HTTP.responseStatus $ HTTP.httpNoBody request httpManager
+    retryPolicy = retryPolicyOrNoRetries maybeRetryPolicy
+  in retryOnHttpException call retryPolicy
+
+retryOnHttpException :: (MonadIO m, MonadMask m) => m a -> RetryPolicyM m -> m a
+retryOnHttpException call retryPolicy =
+  recovering retryPolicy [\_ -> httpExceptionHandler] (\_ -> call) 
+
+-- | Get the retry policy from a config, or return the default one - no retries
+retryPolicyOrNoRetries :: Monad m => Maybe (RetryPolicyM m) -> RetryPolicyM m
+retryPolicyOrNoRetries (Just p) = p
+retryPolicyOrNoRetries Nothing = doNotRetry
+
+-- | The do-nothing retry policy
+doNotRetry :: Monad m => RetryPolicyM m
+doNotRetry = Retry.retryPolicy (\_ -> Nothing)
+
+-- | Handler for HTTP exceptions only
+httpExceptionHandler :: Applicative m => Handler m Bool
+httpExceptionHandler = Handler $
+  \case
+    HTTP.HttpExceptionRequest _ _ -> pure True
+    _ -> pure False
