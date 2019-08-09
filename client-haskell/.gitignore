@@ -1,2 +1,3 @@
 /.stack-work
 /icepeak-client.cabal
+/stack.yaml.lock
