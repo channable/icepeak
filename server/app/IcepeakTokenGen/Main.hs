@@ -26,11 +26,12 @@ main = do
   config <- execParser (configInfo env)
   now <- Clock.getPOSIXTime
 
-  let joseHeader = JWT.JOSEHeader {
-    JWT.typ = Just "JWT",
-    JWT.cty = Nothing,
-    JWT.alg = Just JWT.HS256,
-    JWT.kid = Nothing}
+  let joseHeader = JWT.JOSEHeader
+        { JWT.typ = Just "JWT"
+        , JWT.cty = Nothing
+        , JWT.alg = Just JWT.HS256
+        , JWT.kid = Nothing
+        }
 
   let access = IcepeakClaim (configWhitelist config)
       claims = addIcepeakClaim access $ JWT.JWTClaimsSet

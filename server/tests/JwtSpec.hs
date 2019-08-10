@@ -40,11 +40,12 @@ spec = do
 
     let now = 12512 :: NominalDiffTime
 
-    let joseHeader = JWT.JOSEHeader {
-      JWT.typ = Just "JWT",
-      JWT.cty = Nothing,
-      JWT.alg = Just JWT.HS256,
-      JWT.kid = Nothing}
+    let joseHeader = JWT.JOSEHeader
+          { JWT.typ = Just "JWT"
+          , JWT.cty = Nothing
+          , JWT.alg = Just JWT.HS256
+          , JWT.kid = Nothing
+          }
 
     it "should accept a valid token" $ do
       let token = Text.encodeUtf8 $ JWT.encodeSigned testSecret joseHeader testClaims

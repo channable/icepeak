@@ -15,12 +15,12 @@ import qualified Data.Text.IO as Text
 main :: IO ()
 main = Text.putStrLn $ JWT.encodeSigned testSecret joseHeader testClaims
 
-joseHeader = JWT.JOSEHeader {
-  JWT.typ = Just "JWT",
-  JWT.cty = Nothing,
-  JWT.alg = Just JWT.HS256,
-  JWT.kid = Nothing
-}
+joseHeader = JWT.JOSEHeader
+  { JWT.typ = Just "JWT"
+  , JWT.cty = Nothing
+  , JWT.alg = Just JWT.HS256
+  , JWT.kid = Nothing
+  }
 
 testAccess :: IcepeakClaim
 testAccess = IcepeakClaim
