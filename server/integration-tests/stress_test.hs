@@ -22,6 +22,7 @@ import qualified Test.QuickCheck.Gen as Gen
 main :: IO ()
 main = do
   args <- getArgs
+  print args
   case args of
     [count] -> either fail main' (readEither count)
     _ -> fail "usage: stress_test.hs <count>"

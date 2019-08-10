@@ -15,6 +15,7 @@ import Control.Monad (unless)
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TBQueue (TBQueue, newTBQueue, readTBQueue, writeTBQueue, isFullTBQueue)
 import Data.Text (Text)
+import GHC.Natural (Natural)
 import Prelude hiding (log)
 
 import qualified Data.Text.IO as T
@@ -27,7 +28,7 @@ data Logger = Logger { loggerQueue :: LogQueue }
 data LogCommand = LogRecord LogRecord | LogStop
   deriving (Eq, Ord, Show, Read)
 
-newLogger :: Int -> IO Logger
+newLogger :: Natural -> IO Logger
 newLogger queueSize = Logger <$> atomically (newTBQueue queueSize)
 
 -- | Post a non-essential log message to the queue. The message is discarded

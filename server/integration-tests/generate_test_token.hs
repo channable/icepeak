@@ -13,7 +13,14 @@ import qualified Web.JWT as JWT
 import qualified Data.Text.IO as Text
 
 main :: IO ()
-main = Text.putStrLn $ JWT.encodeSigned JWT.HS256 testSecret testClaims
+main = Text.putStrLn $ JWT.encodeSigned testSecret joseHeader testClaims
+
+joseHeader = JWT.JOSEHeader
+  { JWT.typ = Just "JWT"
+  , JWT.cty = Nothing
+  , JWT.alg = Just JWT.HS256
+  , JWT.kid = Nothing
+  }
 
 testAccess :: IcepeakClaim
 testAccess = IcepeakClaim
@@ -30,8 +37,8 @@ testClaims = addIcepeakClaim testAccess $ JWT.JWTClaimsSet
   , JWT.nbf = Nothing
   , JWT.iat = Nothing
   , JWT.jti = Nothing
-  , JWT.unregisteredClaims = Map.empty
+  , JWT.unregisteredClaims = mempty
   }
 
-testSecret :: JWT.Secret
-testSecret = JWT.binarySecret "foo"
+testSecret :: JWT.Signer
+testSecret = JWT.HMACSecret "foo"

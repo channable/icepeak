@@ -1,7 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
-import qualified Data.Map.Strict as Map
 import           Data.Semigroup      ((<>))
 import qualified Data.Text           as Text
 import qualified Data.Text.IO        as Text
@@ -14,7 +13,7 @@ import           AccessControl
 import           JwtAuth
 
 data Config = Config
-  { configJwtSecret      :: Maybe JWT.Secret
+  { configJwtSecret      :: Maybe JWT.Signer
   , configExpiresSeconds :: Maybe Integer
   , configWhitelist      :: [AuthPath]
   }
@@ -27,6 +26,13 @@ main = do
   config <- execParser (configInfo env)
   now <- Clock.getPOSIXTime
 
+  let joseHeader = JWT.JOSEHeader
+        { JWT.typ = Just "JWT"
+        , JWT.cty = Nothing
+        , JWT.alg = Just JWT.HS256
+        , JWT.kid = Nothing
+        }
+
   let access = IcepeakClaim (configWhitelist config)
       claims = addIcepeakClaim access $ JWT.JWTClaimsSet
              { JWT.iss = Nothing
@@ -36,11 +42,11 @@ main = do
              , JWT.nbf = Nothing
              , JWT.iat = Nothing
              , JWT.jti = Nothing
-             , JWT.unregisteredClaims = Map.empty
+             , JWT.unregisteredClaims = mempty
              }
       token = case configJwtSecret config of
-                Nothing -> JWT.encodeUnsigned claims
-                Just key -> JWT.encodeSigned JWT.HS256 key claims
+                Nothing -> JWT.encodeUnsigned claims joseHeader
+                Just key -> JWT.encodeSigned key joseHeader claims
   Text.putStrLn token
 
 configParser :: EnvironmentConfig -> Parser Config
@@ -64,7 +70,7 @@ configParser environment = Config
              ))
   where
     environ var = foldMap value (lookup var environment)
-    secretOption m = JWT.secret . Text.pack <$> strOption m
+    secretOption m = JWT.hmacSecret . Text.pack <$> strOption m
 
 configInfo :: EnvironmentConfig -> ParserInfo Config
 configInfo environment = info parser description

@@ -1,6 +1,5 @@
-resolver: lts-12.6
+resolver: lts-14.0
 
 extra-deps:
-  - prometheus-client-1.0.0
   - prometheus-metrics-ghc-1.0.0
   - wai-middleware-prometheus-1.0.0
