@@ -1,5 +1,7 @@
 #!/usr/bin/env stack
--- stack --stack-yaml ../../client-haskell/stack.yaml runghc --package QuickCheck --package quickcheck-text -- -Wall
+-- stack --stack-yaml ../../client-haskell/stack.yaml runghc --package QuickCheck --package quickcheck-text
+
+{-# OPTIONS_GHC -Wall #-}
 
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}

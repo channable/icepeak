@@ -1,5 +1,7 @@
 #!/usr/bin/env stack
--- stack --stack-yaml ../../server/stack.yaml runghc --package QuickCheck --package quickcheck-text -- -Wall
+-- stack --stack-yaml ../../server/stack.yaml runghc --package QuickCheck --package quickcheck-text --package icepeak
+
+{-# OPTIONS_GHC -Wall #-}
 
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
