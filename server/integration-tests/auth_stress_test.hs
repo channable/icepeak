@@ -14,7 +14,7 @@ import Prelude hiding (fail)
 import Data.Foldable (traverse_)
 import Data.Text (Text)
 import Data.Text.Arbitrary ()
-import Icepeak.Client (Client (..), Config (..), setAtLeaf)
+import Icepeak.Client (Client (..), Config (..), setAtLeaf, doNotRetry)
 import System.Environment (getArgs)
 import System.Exit (exitFailure)
 import System.IO (hPutStrLn, stderr)
@@ -36,7 +36,7 @@ main = do
 main' :: Int -> IO ()
 main' count = do
   httpManager <- HTTP.newManager HTTP.defaultManagerSettings
-  let client = Client httpManager (Config "localhost" 3000 (Just testToken))
+  let client = Client httpManager (Config "localhost" 3000 (Just testToken)) doNotRetry
   let putRandomPayload prefix i = do
         putStr $ "Test #" ++ show i ++ " ... "
         path :: [Text] <- Gen.generate arbitrary

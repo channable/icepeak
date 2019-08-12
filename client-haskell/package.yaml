@@ -17,6 +17,8 @@ dependencies:
  - http-client
  - http-types
  - text
+ - retry
+ - exceptions
 
 library:
   source-dirs: src
