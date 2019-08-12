@@ -9,7 +9,7 @@
 -- >>> import Control.Retry (constantDelay, limitRetries)
 -- >>> httpManager <- HTTP.newManager HTTP.defaultManagerSettings
 -- >>> let retryPolicy = constantDelay 50000 <> limitRetries 5
--- >>> let client = Client httpManager (Config "localhost" 3000 (Just "<token>")) (Just retryPolicy)
+-- >>> let client = Client httpManager (Config "localhost" 3000 (Just "<token>")) retryPolicy
 -- >>> setAtLeaf client ["foo", "bar", "baz"] ([Just 1, Just 2, Nothing, Just 4] :: [Maybe Int])
 -- Status {statusCode = 202, statusMessage = "Accepted"}
 -- >>> deleteAtLeaf client ["foo", "bar"]
@@ -34,6 +34,7 @@ module Icepeak.Client
   , deleteAtLeafRequestWithOptions
   , baseRequest
   , requestPathForIcepeakPath
+  , doNotRetry
   ) where
 
 import Control.Monad.IO.Class (MonadIO (..))
@@ -59,7 +60,7 @@ import qualified Control.Retry as Retry
 data Client m = Client 
   { clientHttpManager :: HTTP.Manager
   , clientConfig      :: Config
-  , clientRetryPolicy :: Maybe (RetryPolicyM m)
+  , clientRetryPolicy :: RetryPolicyM m
   }
 
 -- | Client connection details: how to connect to Icepeak?
@@ -160,20 +161,13 @@ requestPathForIcepeakPath pathSegments query = toStrictBS builder
 
 -- | Perform the HTTP request
 executeRequest :: (MonadIO m, MonadMask m) => Client m -> HTTP.Request -> m HTTP.Status
-executeRequest (Client httpManager _ maybeRetryPolicy) request =
-  let 
-    call = liftIO . fmap HTTP.responseStatus $ HTTP.httpNoBody request httpManager
-    retryPolicy = retryPolicyOrNoRetries maybeRetryPolicy
+executeRequest (Client httpManager _ retryPolicy) request =
+  let call = liftIO . fmap HTTP.responseStatus $ HTTP.httpNoBody request httpManager
   in retryOnHttpException call retryPolicy
 
 retryOnHttpException :: (MonadIO m, MonadMask m) => m a -> RetryPolicyM m -> m a
 retryOnHttpException call retryPolicy =
   recovering retryPolicy [\_ -> httpExceptionHandler] (\_ -> call) 
-
--- | Get the retry policy from a config, or return the default one - no retries
-retryPolicyOrNoRetries :: Monad m => Maybe (RetryPolicyM m) -> RetryPolicyM m
-retryPolicyOrNoRetries (Just p) = p
-retryPolicyOrNoRetries Nothing = doNotRetry
 
 -- | The do-nothing retry policy
 doNotRetry :: Monad m => RetryPolicyM m
