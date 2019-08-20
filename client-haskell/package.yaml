@@ -1,5 +1,5 @@
 name: icepeak-client
-version: '0.0.1'
+version: '0.1.0'
 synopsis: Client library for Icepeak, a fast JSON document store with push notification support
 license: BSD3
 homepage: https://github.com/channable/icepeak
