@@ -36,3 +36,35 @@ Data on Icepeak can be modified by either a PUT request or a DELETE request. The
 or overwrite new information to the Icepeak server and DELETE will remove information from the server.
 In case some information changes, all information that is changed will be send to every 
 client that is listening to that channel. 
+
+- `Put` writes a JSON value to a given path in the JSON structure.
+
+  - If the path descends into a JSON value that is not an object, that value is
+    replaced by an object that just contains the newly created path.
+  - If a value along the path is already an object, the field specified by the
+    path is added to it.
+
+- `Delete` removes a JSON value at a given path.
+
+  - If the path does not exist, nothing happens.
+  - If the path refers to a field in an object, that field is removed from the
+    object.
+
+Both of these operations have an optional parameter, called `durable`, which if set,
+ensures that the action is completed before the response code 202 (accepted) is
+send back to the client. This ensures that no stale data is possible to get via
+a get call. 
+
+Example if `durable` is **not** set:
+1. The client sends a PUT command to the server with a new value for `foo`. 
+2. The server responds with a 202 (accepted) response immidiatly, before completing the action.
+3. A GET request is send to the server, requesting the value for `foo`, but `foo` is not yet updated on the server.
+4. The server responds with an out-of-date copy of the data. 
+5. The update of `foo` is executed on the server and the result is broadcasted.
+
+Example if durable is set:
+1. The client sends a PUT command to the server with a new value for `foo`. 
+2. The server waits for the new value of `foo` to be saved on the server.
+3. The server responds with a 202 (accepted) response.
+4. A GET request is send to the server, requesting the value for `foo`.
+5. The server responds with the updated value of `foo`.
