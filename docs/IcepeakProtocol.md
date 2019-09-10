@@ -52,8 +52,9 @@ client that is listening to that channel.
 
 Both of these operations have an optional parameter, called `durable`, which if set,
 ensures that the action is completed before the response code 202 (accepted) is
-send back to the client. This ensures that no stale data is possible to get via
-a get call. An example of a call that uses `durable` is `http://localhost:3000/foo/bar?durable`
+send back to the client. This ensures that whenever the client might receive the response,
+it can be sure that the request has been processed on the server. An example
+of a call that uses `durable` is `http://localhost:3000/foo/bar?durable`.
 
 Example if `durable` is **not** set:
 1. The client sends a PUT command to the server with a new value for `foo`.
