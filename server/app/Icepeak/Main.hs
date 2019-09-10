@@ -5,6 +5,7 @@ module Main (main) where
 import Control.Exception (fromException, catch, AsyncException, SomeException)
 import Control.Monad (forM, void, when)
 import Data.Foldable (forM_)
+import Data.Maybe (fromMaybe)
 import Data.Semigroup ((<>))
 import Options.Applicative (execParser)
 import System.Environment (getEnvironment)
@@ -15,6 +16,7 @@ import qualified Data.Text as Text
 import qualified Prometheus
 import qualified Prometheus.Metric.GHC
 import qualified System.Posix.Signals as Signals
+import qualified System.Log.Raven.Types as Sentry
 
 import Config (Config (..), configInfo)
 import Core (Core (..))
@@ -27,6 +29,7 @@ import qualified WebsocketServer
 import qualified Logger
 import qualified Metrics
 import qualified MetricsServer
+import qualified CrashLogging
 
 -- Install SIGTERM and SIGINT handlers to do a graceful exit.
 installHandlers :: Core -> IO ()
@@ -45,33 +48,35 @@ installHandlers core =
 
 main :: IO ()
 main = do
-  -- make sure output is flushed regularly
-  hSetBuffering stdout LineBuffering
+  crashLogger <- CrashLogging.getCrashLogger
+  maybe id (CrashLogging.runWithCrashLogger "Main") crashLogger $ do
+    -- make sure output is flushed regularly
+    hSetBuffering stdout LineBuffering
+    --_ <- error "Some error occured"
+    env <- getEnvironment
+    config <- execParser (configInfo env)
 
-  env <- getEnvironment
-  config <- execParser (configInfo env)
+    -- start logging as early as possible
+    logger <- Logger.newLogger (fromIntegral $ configQueueCapacity config)
+    loggerThread <- Async.async $ Logger.processLogRecords logger
 
-  -- start logging as early as possible
-  logger <- Logger.newLogger (fromIntegral $ configQueueCapacity config)
-  loggerThread <- Async.async $ Logger.processLogRecords logger
+    -- setup metrics if enabled
+    icepeakMetrics <- forM (configMetricsEndpoint config) $ const $ do
+      void $ Prometheus.register Prometheus.Metric.GHC.ghcMetrics
+      Metrics.createAndRegisterIcepeakMetrics
 
-  -- setup metrics if enabled
-  icepeakMetrics <- forM (configMetricsEndpoint config) $ const $ do
-    void $ Prometheus.register Prometheus.Metric.GHC.ghcMetrics
-    Metrics.createAndRegisterIcepeakMetrics
+    eitherCore <- Core.newCore config logger icepeakMetrics
+    either putStrLn (runCore crashLogger) eitherCore
 
-  eitherCore <- Core.newCore config logger icepeakMetrics
-  either putStrLn runCore eitherCore
+    -- only stop logging when everything else has stopped
+    Logger.postStop logger
+    Async.wait loggerThread
 
-  -- only stop logging when everything else has stopped
-  Logger.postStop logger
-  Async.wait loggerThread
-
-runCore :: Core -> IO ()
-runCore core = do
+runCore :: Maybe Sentry.SentryService -> Core -> IO ()
+runCore mSentryService core = do
   let config = coreConfig core
   let logger = coreLogger core
-  httpServer <- HttpServer.new core
+  httpServer <- HttpServer.new mSentryService core
   let wsServer = WebsocketServer.acceptConnection core
 
   -- start threads
