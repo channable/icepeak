@@ -13,7 +13,7 @@ An example URL is `ws://yourdomain.com/path/to/channel`.
 There are 2 ways to receive data from an Icepeak server. The first is with a direct GET command over
 the HTTP protocol. An example of such a call would be `GET http://localhost:3000/path/to/channel`.
 This would result in the information that is stored under the `path/to/channel` object, if any.
-The result would be a JSON object with all keys.
+The result would be a JSON value.
 
 The other way to receive data is with a GET call that is upgraded to a WebSocket.
 As long as the connection remains open, Icepeak will send updates whenever a value changes on
@@ -33,8 +33,8 @@ Example:
 ### Modifying data
 
 Data on Icepeak can be modified by either a PUT request or a DELETE request. The PUT will introduce
-or overwrite new information to the Icepeak server and DELETE will remove information from the server.
-In case some information changes, all information that is changed will be send to every
+new or overwrite existing information to the Icepeak server and DELETE will remove information from
+the server. In case some information changes, all information that is changed will be send to every
 client that is listening to that channel.
 
 - `Put` writes a JSON value to a given path in the JSON structure.
