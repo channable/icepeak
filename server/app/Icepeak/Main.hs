@@ -29,7 +29,7 @@ import qualified WebsocketServer
 import qualified Logger
 import qualified Metrics
 import qualified MetricsServer
-import qualified CrashLogging
+import qualified SentryLogging
 
 -- Install SIGTERM and SIGINT handlers to do a graceful exit.
 installHandlers :: Core -> IO ()
@@ -48,8 +48,8 @@ installHandlers core =
 
 main :: IO ()
 main = do
-  crashLogger <- CrashLogging.getCrashLogger
-  maybe id (CrashLogging.runWithCrashLogger "Main") crashLogger $ do
+  crashLogger <- SentryLogging.getCrashLogger
+  maybe id (SentryLogging.runWithCrashLogger "Control loop error") crashLogger $ do
     -- make sure output is flushed regularly
     hSetBuffering stdout LineBuffering
     --_ <- error "Some error occured"
@@ -95,7 +95,7 @@ runCore mSentryService core = do
 
   -- Everything should stop when any of these stops
   (_, runCoreResult) <- Async.waitAny [commandLoopThread, webSocketThread, httpThread]
-  logRunCoreResult logger runCoreResult
+  logRunCoreResult mSentryService logger runCoreResult
 
   -- kill all threads when one of the main threads ended
   Core.postQuit core -- should stop commandLoopThread
@@ -118,8 +118,8 @@ catchRunCoreResult tag action = catch (action >> pure ThreadOk) $ \exc -> case f
     Just (_ :: AsyncException) -> pure ThreadOk
     _ -> pure (tag exc) -- we only worry about non-async exceptions
 
-logRunCoreResult :: Logger -> RunCoreResult -> IO ()
-logRunCoreResult logger rcr = do
+logRunCoreResult :: Maybe Sentry.SentryService -> Logger -> RunCoreResult -> IO ()
+logRunCoreResult mSentryService logger rcr = do
     case rcr of
       CommandLoopException exc -> handleLog "core" exc
       WebSocketsException exc -> handleLog "web sockets server" exc
@@ -128,7 +128,9 @@ logRunCoreResult logger rcr = do
   where
     handleLog name exc
       | Just (_ :: AsyncException) <- fromException exc = pure ()
-      | otherwise = Logger.postLog logger $ name <> " stopped with an exception: " <> Text.pack (show exc)
+      | otherwise = do
+            Logger.postLog logger $ name <> " stopped with an exception: " <> Text.pack (show exc)
+            SentryLogging.logException "Log Run Core Error" mSentryService exc
 
 logAuthSettings :: Config -> Logger -> IO ()
 logAuthSettings cfg logger

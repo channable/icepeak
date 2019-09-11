@@ -1,10 +1,11 @@
-module CrashLogging where
+module SentryLogging(
+  getCrashLogger, logException, logCrashMessage, runWithCrashLogger
+) where
 
 import Data.Maybe
 
 import Control.Exception
 import System.Environment (lookupEnv)
-
 
 import qualified System.Log.Raven as Sentry
 import qualified System.Log.Raven.Transport.HttpConduit as Sentry
@@ -14,7 +15,7 @@ import qualified System.Log.Raven.Types as Sentry
 getCrashLogger :: IO (Maybe Sentry.SentryService)
 getCrashLogger = do
     let
-    maybeSentryDSN <- pure $ Just "http://fake:fake@fake" --lookupEnv "SENTRY_DSN"
+    maybeSentryDSN <- lookupEnv "SENTRY_DSN"
     maybeSentry <- case maybeSentryDSN of
       Nothing -> Nothing <$ putStr "SENTRY_DSN is not set. Won't log to Sentry.\n"
       Just dsn -> Just <$>

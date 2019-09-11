@@ -24,7 +24,7 @@ import Config (Config (..))
 import qualified Store
 import qualified Core
 import qualified Metrics
-import qualified CrashLogging
+import qualified SentryLogging
 
 new :: Maybe Sentry.SentryService -> Core -> IO Application
 new mSentryService core =
@@ -32,7 +32,7 @@ new mSentryService core =
     -- first middleware is the outermost. this has to be the metrics middleware
     -- in order to intercept all requests their corresponding responses
     forM_ (coreMetrics core) $ middleware . metricsMiddleware
-    Scotty.defaultHandler (\e -> liftIO $ CrashLogging.logCrashMessage "Handler" mSentryService (show e) >> error (show e))
+    Scotty.defaultHandler (liftIO . SentryLogging.logCrashMessage "Thread handler error" mSentryService . show)
     when (configEnableJwtAuth $ coreConfig core) $
       middleware $ jwtMiddleware $ configJwtSecret $ coreConfig core
 
