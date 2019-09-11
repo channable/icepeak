@@ -48,10 +48,10 @@ installHandlers core =
 main :: IO ()
 main = do
   crashLogger <- SentryLogging.getCrashLogger
-  maybe id (SentryLogging.runWithCrashLogger "Control loop error") crashLogger $ do
+  SentryLogging.runWithCrashLogger "Control loop error" crashLogger $ do
     -- make sure output is flushed regularly
     hSetBuffering stdout LineBuffering
-    --_ <- error "Some error occured"
+
     env <- getEnvironment
     config <- execParser (configInfo env)
 

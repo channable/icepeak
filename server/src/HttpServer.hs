@@ -32,6 +32,9 @@ new mSentryService core =
     -- first middleware is the outermost. this has to be the metrics middleware
     -- in order to intercept all requests their corresponding responses
     forM_ (coreMetrics core) $ middleware . metricsMiddleware
+    -- Use the Sentry logger if available
+    -- Scottys error handler will only catch errors that are thrown from within
+    -- a ```liftAndCatchIO``` function.
     if isJust mSentryService then
         Scotty.defaultHandler (liftIO . SentryLogging.logCrashMessage "Thread handler error" mSentryService . show)
     else
@@ -61,9 +64,7 @@ postModification :: (Scotty.ScottyError e, MonadIO m) => Core -> Store.Modificat
 postModification core op = do
   -- the parameter is parsed as type (), therefore only presence or absence is important
   durable <- maybeParam "durable"
-  crash <- maybeParam "crash"
-  when (crash == Just ())
-    $ Scotty.liftAndCatchIO $ error "Crash"
+
   waitVar <- Scotty.liftAndCatchIO $ for durable $ \() -> newEmptyMVar
   result <- Scotty.liftAndCatchIO $ Core.tryEnqueueCommand (Core.Modify op waitVar) core
   when (result == Enqueued) $
