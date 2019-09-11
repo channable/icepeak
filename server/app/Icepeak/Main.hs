@@ -2,7 +2,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Main (main) where
 
-import Control.Exception (fromException, catch, AsyncException, SomeException)
+import Control.Exception (fromException, catch, handle, AsyncException, SomeException)
 import Control.Monad (forM, void, when)
 import Data.Foldable (forM_)
 import Data.Semigroup ((<>))
@@ -27,16 +27,15 @@ import qualified WebsocketServer
 import qualified Logger
 import qualified Metrics
 import qualified MetricsServer
-import qualified SentryLogging
 
 -- Install SIGTERM and SIGINT handlers to do a graceful exit.
 installHandlers :: Core -> IO ()
 installHandlers core =
   let
-    handle = do
+    logHandle = do
       postLog (coreLogger core) LogInfo "\nTermination sequence initiated ..."
       Core.postQuit core
-    handler = Signals.CatchOnce handle
+    handler = Signals.CatchOnce logHandle
     blockSignals = Nothing
     installHandler signal = Signals.installHandler signal handler blockSignals
   in do
@@ -55,18 +54,18 @@ main = do
   -- start logging as early as possible
   logger <- Logger.newLogger config
   loggerThread <- Async.async $ Logger.processLogRecords logger
-  SentryLogging.runWithCrashLogger "Control loop error" (Logger.loggerSentryService logger) $ do
+  handle (\e -> postLog logger LogError . Text.pack . show $ (e :: SomeException)) $ do
     -- setup metrics if enabled
     icepeakMetrics <- forM (configMetricsEndpoint config) $ const $ do
       void $ Prometheus.register Prometheus.Metric.GHC.ghcMetrics
       Metrics.createAndRegisterIcepeakMetrics
 
     eitherCore <- Core.newCore config logger icepeakMetrics
-    either (postLog logger LogInfo . Text.pack) runCore eitherCore
+    either (postLog logger LogError . Text.pack) runCore eitherCore
 
     -- only stop logging when everything else has stopped
-    Logger.postStop logger
-    Async.wait loggerThread
+  Logger.postStop logger
+  Async.wait loggerThread
 
 runCore :: Core -> IO ()
 runCore core = do

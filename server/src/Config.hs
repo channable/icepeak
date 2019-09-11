@@ -32,7 +32,11 @@ data Config = Config
   , configSyncIntervalMicroSeconds :: Maybe Int
   -- | Enable journaling, only in conjunction with periodic syncing
   , configEnableJournaling :: Bool
+  -- | Indicates that the sentry logging is disabled, can be used to overwrite
+  -- ```configSentryDSN``` or the environment variable
   , configDisableSentryLogging :: Bool
+  -- | The SENTRY_DSN key that Sentry uses to communicate, if not set, use Nothing.
+  -- Just indicates that a key is given.
   , configSentryDSN :: Maybe String
   }
 

@@ -3,7 +3,8 @@ module SentryLogging(
   getCrashLogger, logException, logCrashMessage, runWithCrashLogger
 ) where
 
-import Control.Exception
+import Control.Exception (handle, SomeException)
+import Data.Foldable (for_)
 
 import qualified System.Log.Raven as Sentry
 import qualified System.Log.Raven.Transport.Debug as Sentry
@@ -29,10 +30,7 @@ logException name mSentryService exception =
 -- is Nothing.
 logCrashMessage :: String -> Maybe Sentry.SentryService -> String -> IO ()
 logCrashMessage name mSentryService message =
-  maybe
-    (pure ())
-    (\ss -> Sentry.register ss name Sentry.Fatal message id)
-    mSentryService
+  for_ mSentryService (\service -> Sentry.register service name Sentry.Fatal message id)
 
 -- | Run some IO operation with possible exceptions and log any exception that
 -- may occur to Sentry.

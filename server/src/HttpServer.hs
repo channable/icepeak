@@ -19,7 +19,7 @@ import qualified Web.Scotty.Trans as Scotty
 import JwtMiddleware (jwtMiddleware)
 import Core (Core (..), EnqueueResult (..))
 import Config (Config (..))
-import Logger
+import Logger (postLog, LogLevel(LogError))
 import qualified Store
 import qualified Core
 import qualified Metrics
@@ -33,7 +33,11 @@ new core =
     -- Use the Sentry logger if available
     -- Scottys error handler will only catch errors that are thrown from within
     -- a ```liftAndCatchIO``` function.
-    Scotty.defaultHandler (liftIO . postLog (coreLogger core) LogError . pack . show)
+    Scotty.defaultHandler (\e -> do
+        liftIO $ postLog (coreLogger core) LogError . pack . show $ e
+        status status503
+        Scotty.text "Internal server error"
+       )
 
     when (configEnableJwtAuth $ coreConfig core) $
       middleware $ jwtMiddleware $ configJwtSecret $ coreConfig core
@@ -60,6 +64,8 @@ postModification :: (Scotty.ScottyError e, MonadIO m) => Core -> Store.Modificat
 postModification core op = do
   -- the parameter is parsed as type (), therefore only presence or absence is important
   durable <- maybeParam "durable"
+  crash <- maybeParam "crash"
+  if crash == Just () then Scotty.liftAndCatchIO (error "Error ") else pure ()
   waitVar <- Scotty.liftAndCatchIO $ for durable $ \() -> newEmptyMVar
   result <- Scotty.liftAndCatchIO $ Core.tryEnqueueCommand (Core.Modify op waitVar) core
   when (result == Enqueued) $

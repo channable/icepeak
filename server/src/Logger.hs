@@ -13,8 +13,8 @@ module Logger
 )
 where
 
-import SentryLogging
-import Config
+import SentryLogging (getCrashLogger, logCrashMessage)
+import Config (Config, configSentryDSN, configDisableSentryLogging, configQueueCapacity)
 
 import Control.Monad (unless, when)
 import Control.Concurrent.STM (atomically)
@@ -22,8 +22,6 @@ import Control.Concurrent.STM.TBQueue (TBQueue, newTBQueue, readTBQueue, writeTB
 import Data.Text (Text, unpack)
 import Data.Maybe (isJust)
 import Prelude hiding (log)
-
-
 
 import qualified System.Log.Raven.Types as Sentry
 
@@ -43,10 +41,13 @@ data LogCommand = LogRecord LogLevel LogRecord | LogStop
 
 newLogger :: Config -> IO Logger
 newLogger config = Logger
-  <$> atomically (newTBQueue (fromIntegral $ configQueueCapacity config))
-  <*> if configDisableSentryLogging config then
-        pure Nothing
-      else maybe (pure Nothing) (fmap Just . getCrashLogger) (configSentryDSN config)
+  <$> createQueue
+  <*> createSentryService
+  where
+    createQueue = atomically (newTBQueue (fromIntegral $ configQueueCapacity config))
+    createSentryService
+      | configDisableSentryLogging config = pure Nothing
+      | otherwise = maybe (pure Nothing) (fmap Just . getCrashLogger) (configSentryDSN config)
 
 -- | Post a non-essential log message to the queue. The message is discarded
 -- when the queue is full.
@@ -73,7 +74,6 @@ processLogRecords logger = go
         LogRecord logLevel logRecord -> do
           T.putStrLn logRecord
           when (logLevel == LogError && isJust (loggerSentryService logger) ) (
-              putStrLn "Sending error message to Sentry" >>
               logCrashMessage "Icepeak error" (loggerSentryService logger) (unpack logRecord)
             )
           go
