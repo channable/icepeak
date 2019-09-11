@@ -83,8 +83,8 @@ configParser environment = Config
               "When omitting this argument, data is persisted after every modification")))
   <*> switch (long "journaling" <>
              help "Enable journaling. This only has an effect when periodic syncing is enabled.")
-  <*> switch (long "enable-sentry-logging" <>
-             help "Enable error logging via Sentry")
+  <*> switch (long "disable-sentry-logging" <>
+             help "Disable error logging via Sentry")
   where
     environ var = foldMap value (lookup var environment)
 

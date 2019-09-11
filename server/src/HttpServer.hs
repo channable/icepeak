@@ -60,6 +60,8 @@ postModification :: (Scotty.ScottyError e, MonadIO m) => Core -> Store.Modificat
 postModification core op = do
   -- the parameter is parsed as type (), therefore only presence or absence is important
   durable <- maybeParam "durable"
+  crash <- maybeParam "crash"
+  if crash == Just () then Scotty.liftAndCatchIO $ error "cras" else pure ()
   waitVar <- Scotty.liftAndCatchIO $ for durable $ \() -> newEmptyMVar
   result <- Scotty.liftAndCatchIO $ Core.tryEnqueueCommand (Core.Modify op waitVar) core
   when (result == Enqueued) $

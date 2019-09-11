@@ -19,6 +19,7 @@ import Control.Monad (unless, when)
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TBQueue (TBQueue, newTBQueue, readTBQueue, writeTBQueue, isFullTBQueue)
 import Data.Text (Text, unpack)
+import Data.Maybe (isJust)
 import GHC.Natural (Natural)
 import Prelude hiding (log)
 
@@ -67,7 +68,7 @@ processLogRecords logger = go
       case cmd of
         LogRecord logLevel logRecord -> do
           T.putStrLn logRecord
-          when (logLevel == LogError) (
+          when (logLevel == LogError && isJust (loggerSentryService logger) ) (
               putStrLn "Sending error message to Sentry" >>
               logCrashMessage "Icepeak error" (loggerSentryService logger) (unpack logRecord)
             )
