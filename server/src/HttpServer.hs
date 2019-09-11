@@ -7,7 +7,7 @@ import Control.Monad
 import Control.Monad.IO.Class
 import Data.Foldable (for_)
 import Data.Traversable (for)
-import Data.Maybe (isJust)
+import Data.Text (pack)
 import Network.HTTP.Types
 import Network.Wai (Application)
 import Web.Scotty (delete, get, json, jsonData, put, regex, middleware, request, scottyApp, status, ActionM)
@@ -16,18 +16,16 @@ import qualified Data.Text.Lazy as LText
 import qualified Network.Wai as Wai
 import qualified Web.Scotty.Trans as Scotty
 
-import qualified System.Log.Raven.Types as Sentry
-
 import JwtMiddleware (jwtMiddleware)
 import Core (Core (..), EnqueueResult (..))
 import Config (Config (..))
+import Logger
 import qualified Store
 import qualified Core
 import qualified Metrics
-import qualified SentryLogging
 
-new :: Maybe Sentry.SentryService -> Core -> IO Application
-new mSentryService core =
+new :: Core -> IO Application
+new core =
   scottyApp $ do
     -- first middleware is the outermost. this has to be the metrics middleware
     -- in order to intercept all requests their corresponding responses
@@ -35,10 +33,8 @@ new mSentryService core =
     -- Use the Sentry logger if available
     -- Scottys error handler will only catch errors that are thrown from within
     -- a ```liftAndCatchIO``` function.
-    if isJust mSentryService then
-        Scotty.defaultHandler (liftIO . SentryLogging.logCrashMessage "Thread handler error" mSentryService . show)
-    else
-        Scotty.defaultHandler (liftIO . putStrLn . LText.unpack )
+    Scotty.defaultHandler (liftIO . postLog (coreLogger core) LogError . pack . show)
+
     when (configEnableJwtAuth $ coreConfig core) $
       middleware $ jwtMiddleware $ configJwtSecret $ coreConfig core
 
@@ -64,7 +60,6 @@ postModification :: (Scotty.ScottyError e, MonadIO m) => Core -> Store.Modificat
 postModification core op = do
   -- the parameter is parsed as type (), therefore only presence or absence is important
   durable <- maybeParam "durable"
-
   waitVar <- Scotty.liftAndCatchIO $ for durable $ \() -> newEmptyMVar
   result <- Scotty.liftAndCatchIO $ Core.tryEnqueueCommand (Core.Modify op waitVar) core
   when (result == Enqueued) $

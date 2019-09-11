@@ -7,7 +7,8 @@ import Control.Exception
 import System.Environment (lookupEnv)
 
 import qualified System.Log.Raven as Sentry
-import qualified System.Log.Raven.Transport.HttpConduit as Sentry
+--import qualified System.Log.Raven.Transport.HttpConduit as Sentry
+import qualified System.Log.Raven.Transport.Debug as Sentry
 import qualified System.Log.Raven.Types as Sentry
 
 -- | Returns a Maybe SentryService which can be used to send error information
@@ -19,8 +20,7 @@ getCrashLogger = do
     maybeSentryDSN <- lookupEnv "SENTRY_DSN"
     case maybeSentryDSN of
       Nothing -> Nothing <$ putStr "SENTRY_DSN is not set. Won't log to Sentry.\n"
-      Just dsn -> Just <$>
-        Sentry.initRaven dsn id Sentry.sendRecord Sentry.stderrFallback
+      Just dsn -> Just <$> Sentry.initRaven dsn id Sentry.dumpRecord Sentry.errorFallback
 
 -- | Send some exception that has occured to Sentry. Function does nothing when
 -- Sentry service is Nothing

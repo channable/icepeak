@@ -26,7 +26,7 @@ import           Data.Traversable
 import           System.Directory           (getFileSize, renameFile)
 import           System.IO
 import           System.IO.Error (tryIOError, isDoesNotExistError, isPermissionError)
-import           Logger                     (Logger)
+import           Logger                     (Logger, LogLevel(..))
 import qualified Logger
 import qualified Metrics
 import qualified Store
@@ -186,7 +186,7 @@ readData filePath logger = ExceptT $ do
         -- if this fails, we want the whole program to crash since something is wrong
         SBS.writeFile filePath "{}"
 
-        Logger.postLogBlocking logger message
+        Logger.postLogBlocking logger LogInfo message
         pure $ Right emptyObject
 
     Left e | isPermissionError e -> do
@@ -202,7 +202,7 @@ readData filePath logger = ExceptT $ do
 
 -- | Log a message in the context of a PersistentValue.
 logMessage :: PersistentValue -> Text -> IO ()
-logMessage pval msg = Logger.postLogBlocking (pcLogger $ pvConfig pval) msg
+logMessage pval msg = Logger.postLogBlocking (pcLogger $ pvConfig pval) LogInfo msg
 
 -- | Left fold over all journal entries.
 foldJournalM :: Handle -> (SBS8.ByteString -> a -> IO a) -> a -> IO a

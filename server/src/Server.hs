@@ -15,12 +15,12 @@ import Network.WebSockets (ServerApp)
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.WebSockets as WebSockets
 
-import Logger (Logger, postLog)
+import Logger (Logger, LogLevel(..), postLog)
 
 runServer :: Logger -> ServerApp -> Application -> Int -> IO ()
 runServer logger wsApp httpApp port =
   let
     wsConnectionOpts = WebSockets.defaultConnectionOptions
   in do
-    postLog logger $ pack $ "Listening on port " <> show port <> "."
+    postLog logger LogInfo $ pack $ "Listening on port " <> show port <> "."
     Warp.run port $ websocketsOr wsConnectionOpts wsApp httpApp

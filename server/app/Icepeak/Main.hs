@@ -15,11 +15,10 @@ import qualified Data.Text as Text
 import qualified Prometheus
 import qualified Prometheus.Metric.GHC
 import qualified System.Posix.Signals as Signals
-import qualified System.Log.Raven.Types as Sentry
 
 import Config (Config (..), configInfo)
 import Core (Core (..))
-import Logger (Logger, postLog)
+import Logger (Logger, LogLevel(..), postLog)
 
 import qualified Core
 import qualified HttpServer
@@ -35,7 +34,7 @@ installHandlers :: Core -> IO ()
 installHandlers core =
   let
     handle = do
-      postLog (coreLogger core) "\nTermination sequence initiated ..."
+      postLog (coreLogger core) LogInfo "\nTermination sequence initiated ..."
       Core.postQuit core
     handler = Signals.CatchOnce handle
     blockSignals = Nothing
@@ -47,35 +46,35 @@ installHandlers core =
 
 main :: IO ()
 main = do
-  crashLogger <- SentryLogging.getCrashLogger
-  SentryLogging.runWithCrashLogger "Control loop error" crashLogger $ do
-    -- make sure output is flushed regularly
-    hSetBuffering stdout LineBuffering
+  -- make sure output is flushed regularly
+  hSetBuffering stdout LineBuffering
 
-    env <- getEnvironment
-    config <- execParser (configInfo env)
+  env <- getEnvironment
+  config <- execParser (configInfo env)
 
-    -- start logging as early as possible
-    logger <- Logger.newLogger (fromIntegral $ configQueueCapacity config)
-    loggerThread <- Async.async $ Logger.processLogRecords logger
-
+  -- start logging as early as possible
+  logger <- Logger.newLogger
+    (fromIntegral $ configQueueCapacity config)
+    (configDisableSentryLogging config)
+  loggerThread <- Async.async $ Logger.processLogRecords logger
+  SentryLogging.runWithCrashLogger "Control loop error" (Logger.loggerSentryService logger) $ do
     -- setup metrics if enabled
     icepeakMetrics <- forM (configMetricsEndpoint config) $ const $ do
       void $ Prometheus.register Prometheus.Metric.GHC.ghcMetrics
       Metrics.createAndRegisterIcepeakMetrics
 
     eitherCore <- Core.newCore config logger icepeakMetrics
-    either putStrLn (runCore crashLogger) eitherCore
+    either (postLog logger LogInfo . Text.pack) runCore eitherCore
 
     -- only stop logging when everything else has stopped
     Logger.postStop logger
     Async.wait loggerThread
 
-runCore :: Maybe Sentry.SentryService -> Core -> IO ()
-runCore mSentryService core = do
+runCore :: Core -> IO ()
+runCore core = do
   let config = coreConfig core
   let logger = coreLogger core
-  httpServer <- HttpServer.new mSentryService core
+  httpServer <- HttpServer.new core
   let wsServer = WebsocketServer.acceptConnection core
 
   -- start threads
@@ -90,11 +89,11 @@ runCore mSentryService core = do
   logAuthSettings config logger
   logQueueSettings config logger
   logSyncSettings config logger
-  postLog logger "System online. ** robot sounds **"
+  postLog logger LogInfo "System online. ** robot sounds **"
 
   -- Everything should stop when any of these stops
   (_, runCoreResult) <- Async.waitAny [commandLoopThread, webSocketThread, httpThread]
-  logRunCoreResult mSentryService logger runCoreResult
+  logRunCoreResult logger runCoreResult
 
   -- kill all threads when one of the main threads ended
   Core.postQuit core -- should stop commandLoopThread
@@ -117,8 +116,8 @@ catchRunCoreResult tag action = catch (action >> pure ThreadOk) $ \exc -> case f
     Just (_ :: AsyncException) -> pure ThreadOk
     _ -> pure (tag exc) -- we only worry about non-async exceptions
 
-logRunCoreResult :: Maybe Sentry.SentryService -> Logger -> RunCoreResult -> IO ()
-logRunCoreResult mSentryService logger rcr = do
+logRunCoreResult :: Logger -> RunCoreResult -> IO ()
+logRunCoreResult logger rcr = do
     case rcr of
       CommandLoopException exc -> handleLog "core" exc
       WebSocketsException exc -> handleLog "web sockets server" exc
@@ -128,29 +127,28 @@ logRunCoreResult mSentryService logger rcr = do
     handleLog name exc
       | Just (_ :: AsyncException) <- fromException exc = pure ()
       | otherwise = do
-            Logger.postLog logger $ name <> " stopped with an exception: " <> Text.pack (show exc)
-            SentryLogging.logException "Log Run Core Error" mSentryService exc
+            Logger.postLog logger LogError $ name <> " stopped with an exception: " <> Text.pack (show exc)
 
 logAuthSettings :: Config -> Logger -> IO ()
 logAuthSettings cfg logger
   | configEnableJwtAuth cfg = case configJwtSecret cfg of
-      Just _ -> postLog logger "JWT authorization enabled and secret provided, tokens will be verified."
-      Nothing -> postLog logger "JWT authorization enabled but no secret provided, tokens will NOT be verified."
+      Just _ -> postLog logger LogInfo "JWT authorization enabled and secret provided, tokens will be verified."
+      Nothing -> postLog logger LogInfo "JWT authorization enabled but no secret provided, tokens will NOT be verified."
   | otherwise = case configJwtSecret cfg of
-      Just _ -> postLog logger "WARNING a JWT secret has been provided, but JWT authorization is disabled."
-      Nothing -> postLog logger "JWT authorization disabled."
+      Just _ -> postLog logger LogInfo "WARNING a JWT secret has been provided, but JWT authorization is disabled."
+      Nothing -> postLog logger LogInfo "JWT authorization disabled."
 
 logQueueSettings :: Config -> Logger -> IO ()
 logQueueSettings cfg logger =
-  postLog logger ("Queue capacity is set to " <> Text.pack (show (configQueueCapacity cfg)) <> ".")
+  postLog logger LogInfo ("Queue capacity is set to " <> Text.pack (show (configQueueCapacity cfg)) <> ".")
 
 logSyncSettings :: Config -> Logger -> IO ()
 logSyncSettings cfg logger = case configSyncIntervalMicroSeconds cfg of
   Nothing -> do
-    postLog logger "Sync: Persisting after every modification"
+    postLog logger LogInfo "Sync: Persisting after every modification"
     when (configEnableJournaling cfg) $ do
-      postLog logger "Journaling has no effect when periodic syncing is disabled"
+      postLog logger LogInfo "Journaling has no effect when periodic syncing is disabled"
   Just musecs -> do
-    postLog logger ("Sync: every " <> Text.pack (show musecs) <> " microseconds.")
+    postLog logger LogInfo ("Sync: every " <> Text.pack (show musecs) <> " microseconds.")
     when (configEnableJournaling cfg) $ do
-      postLog logger "Journaling enabled"
+      postLog logger LogInfo "Journaling enabled"
