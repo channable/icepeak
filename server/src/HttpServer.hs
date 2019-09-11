@@ -2,12 +2,12 @@
 
 module HttpServer (new) where
 
-import Control.Exception
 import Control.Concurrent.MVar (newEmptyMVar, takeMVar)
 import Control.Monad
 import Control.Monad.IO.Class
 import Data.Foldable (for_)
 import Data.Traversable (for)
+import Data.Maybe (isJust)
 import Network.HTTP.Types
 import Network.Wai (Application)
 import Web.Scotty (delete, get, json, jsonData, put, regex, middleware, request, scottyApp, status, ActionM)
@@ -32,7 +32,10 @@ new mSentryService core =
     -- first middleware is the outermost. this has to be the metrics middleware
     -- in order to intercept all requests their corresponding responses
     forM_ (coreMetrics core) $ middleware . metricsMiddleware
-    Scotty.defaultHandler (liftIO . SentryLogging.logCrashMessage "Thread handler error" mSentryService . show)
+    if isJust mSentryService then
+        Scotty.defaultHandler (liftIO . SentryLogging.logCrashMessage "Thread handler error" mSentryService . show)
+    else
+        Scotty.defaultHandler (liftIO . putStrLn . LText.unpack )
     when (configEnableJwtAuth $ coreConfig core) $
       middleware $ jwtMiddleware $ configJwtSecret $ coreConfig core
 
@@ -60,7 +63,7 @@ postModification core op = do
   durable <- maybeParam "durable"
   crash <- maybeParam "crash"
   when (crash == Just ())
-    (Scotty.liftAndCatchIO $ error "Crash")
+    $ Scotty.liftAndCatchIO $ error "Crash"
   waitVar <- Scotty.liftAndCatchIO $ for durable $ \() -> newEmptyMVar
   result <- Scotty.liftAndCatchIO $ Core.tryEnqueueCommand (Core.Modify op waitVar) core
   when (result == Enqueued) $

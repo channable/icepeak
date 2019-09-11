@@ -2,13 +2,10 @@ module SentryLogging(
   getCrashLogger, logException, logCrashMessage, runWithCrashLogger
 ) where
 
-import Data.Maybe
-
 import Control.Exception
 import System.Environment (lookupEnv)
 
 import qualified System.Log.Raven as Sentry
-import qualified System.Log.Raven.Transport.HttpConduit as Sentry
 import qualified System.Log.Raven.Transport.Debug as Sentry
 import qualified System.Log.Raven.Types as Sentry
 
