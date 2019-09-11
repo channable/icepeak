@@ -4,23 +4,16 @@ module SentryLogging(
 ) where
 
 import Control.Exception
-import System.Environment (lookupEnv)
 
 import qualified System.Log.Raven as Sentry
---import qualified System.Log.Raven.Transport.HttpConduit as Sentry
 import qualified System.Log.Raven.Transport.Debug as Sentry
 import qualified System.Log.Raven.Types as Sentry
 
 -- | Returns a Maybe SentryService which can be used to send error information
 -- to Sentry. Return value is Nothing is the environment variable SENTRY_DSN is
 -- not set.
-getCrashLogger :: IO (Maybe Sentry.SentryService)
-getCrashLogger = do
-    let
-    maybeSentryDSN <- lookupEnv "SENTRY_DSN"
-    case maybeSentryDSN of
-      Nothing -> Nothing <$ putStr "SENTRY_DSN is not set. Won't log to Sentry.\n"
-      Just dsn -> Just <$> Sentry.initRaven dsn id Sentry.dumpRecord Sentry.errorFallback
+getCrashLogger :: String -> IO Sentry.SentryService
+getCrashLogger dsn = Sentry.initRaven dsn id Sentry.dumpRecord Sentry.errorFallback
 
 -- | Send some exception that has occured to Sentry. Function does nothing when
 -- Sentry service is Nothing

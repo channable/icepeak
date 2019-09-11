@@ -33,6 +33,7 @@ data Config = Config
   -- | Enable journaling, only in conjunction with periodic syncing
   , configEnableJournaling :: Bool
   , configDisableSentryLogging :: Bool
+  , configSentryDSN :: Maybe String
   }
 
 data MetricsConfig = MetricsConfig
@@ -85,6 +86,12 @@ configParser environment = Config
              help "Enable journaling. This only has an effect when periodic syncing is enabled.")
   <*> switch (long "disable-sentry-logging" <>
              help "Disable error logging via Sentry")
+  <*> optional (strOption (
+              long "sentry-dsn" <>
+              metavar "SENTRY_DSN" <>
+              environ "SENTRY_DSN" <>
+              help "Sentry DSN used for Sentry logging, defaults to the value of the SENTRY_DSN environment variable if present. If no secret is passed, Sentry logging will be disabled."))
+
   where
     environ var = foldMap value (lookup var environment)
 

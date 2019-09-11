@@ -53,9 +53,7 @@ main = do
   config <- execParser (configInfo env)
 
   -- start logging as early as possible
-  logger <- Logger.newLogger
-    (fromIntegral $ configQueueCapacity config)
-    (configDisableSentryLogging config)
+  logger <- Logger.newLogger config
   loggerThread <- Async.async $ Logger.processLogRecords logger
   SentryLogging.runWithCrashLogger "Control loop error" (Logger.loggerSentryService logger) $ do
     -- setup metrics if enabled

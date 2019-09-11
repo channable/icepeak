@@ -14,14 +14,16 @@ module Logger
 where
 
 import SentryLogging
+import Config
 
 import Control.Monad (unless, when)
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TBQueue (TBQueue, newTBQueue, readTBQueue, writeTBQueue, isFullTBQueue)
 import Data.Text (Text, unpack)
 import Data.Maybe (isJust)
-import GHC.Natural (Natural)
 import Prelude hiding (log)
+
+
 
 import qualified System.Log.Raven.Types as Sentry
 
@@ -39,10 +41,12 @@ data Logger = Logger { loggerQueue :: LogQueue, loggerSentryService :: Maybe Sen
 data LogCommand = LogRecord LogLevel LogRecord | LogStop
   deriving (Eq, Ord, Show, Read)
 
-newLogger :: Natural -> Bool -> IO Logger
-newLogger queueSize disableSentryLogging = Logger
-  <$> atomically (newTBQueue queueSize)
-  <*> if disableSentryLogging then pure Nothing else getCrashLogger
+newLogger :: Config -> IO Logger
+newLogger config = Logger
+  <$> atomically (newTBQueue (fromIntegral $ configQueueCapacity config))
+  <*> if configDisableSentryLogging config then
+        pure Nothing
+      else maybe (pure Nothing) (fmap Just . getCrashLogger) (configSentryDSN config)
 
 -- | Post a non-essential log message to the queue. The message is discarded
 -- when the queue is full.
