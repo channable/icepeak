@@ -47,7 +47,7 @@ newLogger config = Logger
     createQueue = atomically (newTBQueue (fromIntegral $ configQueueCapacity config))
     createSentryService
       | configDisableSentryLogging config = pure Nothing
-      | otherwise = maybe (pure Nothing) (fmap Just . getCrashLogger) (configSentryDSN config)
+      | otherwise = traverse getCrashLogger (configSentryDSN config)
 
 -- | Post a non-essential log message to the queue. The message is discarded
 -- when the queue is full.
