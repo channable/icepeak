@@ -16,11 +16,10 @@ where
 import SentryLogging (getCrashLogger, logCrashMessage)
 import Config (Config, configSentryDSN, configDisableSentryLogging, configQueueCapacity)
 
-import Control.Monad (unless, when)
+import Control.Monad (unless, when, forM_)
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TBQueue (TBQueue, newTBQueue, readTBQueue, writeTBQueue, isFullTBQueue)
 import Data.Text (Text, unpack)
-import Data.Maybe (isJust)
 import Prelude hiding (log)
 
 import qualified System.Log.Raven.Types as Sentry
@@ -73,8 +72,10 @@ processLogRecords logger = go
       case cmd of
         LogRecord logLevel logRecord -> do
           T.putStrLn logRecord
-          when (logLevel == LogError && isJust (loggerSentryService logger) ) (
-              logCrashMessage "Icepeak error" (loggerSentryService logger) (unpack logRecord)
+          when (logLevel == LogError) (
+              forM_
+                (loggerSentryService logger)
+                (\service -> logCrashMessage "Icepeak" service (unpack logRecord))
             )
           go
         -- stop the loop when asked so
