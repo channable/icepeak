@@ -24,6 +24,7 @@ dependencies:
 - prometheus-client
 - prometheus-metrics-ghc
 - random
+- raven-haskell
 - scotty
 - stm
 - text
@@ -58,6 +59,7 @@ library:
   - Metrics
   - MetricsServer
   - Persistence
+  - SentryLogging
   - Server
   - Store
   - Subscription

@@ -2,7 +2,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Main (main) where
 
-import Control.Exception (fromException, catch, AsyncException, SomeException)
+import Control.Exception (fromException, catch, handle, AsyncException, SomeException)
 import Control.Monad (forM, void, when)
 import Data.Foldable (forM_)
 import Data.Semigroup ((<>))
@@ -18,7 +18,7 @@ import qualified System.Posix.Signals as Signals
 
 import Config (Config (..), configInfo)
 import Core (Core (..))
-import Logger (Logger, postLog)
+import Logger (Logger, LogLevel(..), postLog)
 
 import qualified Core
 import qualified HttpServer
@@ -32,10 +32,10 @@ import qualified MetricsServer
 installHandlers :: Core -> IO ()
 installHandlers core =
   let
-    handle = do
-      postLog (coreLogger core) "\nTermination sequence initiated ..."
+    logHandle = do
+      postLog (coreLogger core) LogInfo "\nTermination sequence initiated ..."
       Core.postQuit core
-    handler = Signals.CatchOnce handle
+    handler = Signals.CatchOnce logHandle
     blockSignals = Nothing
     installHandler signal = Signals.installHandler signal handler blockSignals
   in do
@@ -52,18 +52,18 @@ main = do
   config <- execParser (configInfo env)
 
   -- start logging as early as possible
-  logger <- Logger.newLogger (fromIntegral $ configQueueCapacity config)
+  logger <- Logger.newLogger config
   loggerThread <- Async.async $ Logger.processLogRecords logger
+  handle (\e -> postLog logger LogError . Text.pack . show $ (e :: SomeException)) $ do
+    -- setup metrics if enabled
+    icepeakMetrics <- forM (configMetricsEndpoint config) $ const $ do
+      void $ Prometheus.register Prometheus.Metric.GHC.ghcMetrics
+      Metrics.createAndRegisterIcepeakMetrics
 
-  -- setup metrics if enabled
-  icepeakMetrics <- forM (configMetricsEndpoint config) $ const $ do
-    void $ Prometheus.register Prometheus.Metric.GHC.ghcMetrics
-    Metrics.createAndRegisterIcepeakMetrics
+    eitherCore <- Core.newCore config logger icepeakMetrics
+    either (postLog logger LogError . Text.pack) runCore eitherCore
 
-  eitherCore <- Core.newCore config logger icepeakMetrics
-  either putStrLn runCore eitherCore
-
-  -- only stop logging when everything else has stopped
+    -- only stop logging when everything else has stopped
   Logger.postStop logger
   Async.wait loggerThread
 
@@ -86,7 +86,7 @@ runCore core = do
   logAuthSettings config logger
   logQueueSettings config logger
   logSyncSettings config logger
-  postLog logger "System online. ** robot sounds **"
+  postLog logger LogInfo "System online. ** robot sounds **"
 
   -- Everything should stop when any of these stops
   (_, runCoreResult) <- Async.waitAny [commandLoopThread, webSocketThread, httpThread]
@@ -123,28 +123,29 @@ logRunCoreResult logger rcr = do
   where
     handleLog name exc
       | Just (_ :: AsyncException) <- fromException exc = pure ()
-      | otherwise = Logger.postLog logger $ name <> " stopped with an exception: " <> Text.pack (show exc)
+      | otherwise = do
+            Logger.postLog logger LogError $ name <> " stopped with an exception: " <> Text.pack (show exc)
 
 logAuthSettings :: Config -> Logger -> IO ()
 logAuthSettings cfg logger
   | configEnableJwtAuth cfg = case configJwtSecret cfg of
-      Just _ -> postLog logger "JWT authorization enabled and secret provided, tokens will be verified."
-      Nothing -> postLog logger "JWT authorization enabled but no secret provided, tokens will NOT be verified."
+      Just _ -> postLog logger LogInfo "JWT authorization enabled and secret provided, tokens will be verified."
+      Nothing -> postLog logger LogInfo "JWT authorization enabled but no secret provided, tokens will NOT be verified."
   | otherwise = case configJwtSecret cfg of
-      Just _ -> postLog logger "WARNING a JWT secret has been provided, but JWT authorization is disabled."
-      Nothing -> postLog logger "JWT authorization disabled."
+      Just _ -> postLog logger LogInfo "WARNING a JWT secret has been provided, but JWT authorization is disabled."
+      Nothing -> postLog logger LogInfo "JWT authorization disabled."
 
 logQueueSettings :: Config -> Logger -> IO ()
 logQueueSettings cfg logger =
-  postLog logger ("Queue capacity is set to " <> Text.pack (show (configQueueCapacity cfg)) <> ".")
+  postLog logger LogInfo ("Queue capacity is set to " <> Text.pack (show (configQueueCapacity cfg)) <> ".")
 
 logSyncSettings :: Config -> Logger -> IO ()
 logSyncSettings cfg logger = case configSyncIntervalMicroSeconds cfg of
   Nothing -> do
-    postLog logger "Sync: Persisting after every modification"
+    postLog logger LogInfo "Sync: Persisting after every modification"
     when (configEnableJournaling cfg) $ do
-      postLog logger "Journaling has no effect when periodic syncing is disabled"
+      postLog logger LogInfo "Journaling has no effect when periodic syncing is disabled"
   Just musecs -> do
-    postLog logger ("Sync: every " <> Text.pack (show musecs) <> " microseconds.")
+    postLog logger LogInfo ("Sync: every " <> Text.pack (show musecs) <> " microseconds.")
     when (configEnableJournaling cfg) $ do
-      postLog logger "Journaling enabled"
+      postLog logger LogInfo "Journaling enabled"

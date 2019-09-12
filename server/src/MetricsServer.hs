@@ -8,7 +8,7 @@ import qualified Network.Wai.Handler.Warp          as Warp
 import qualified Network.Wai.Middleware.Prometheus as PrometheusWai
 
 import           Config                            (MetricsConfig (..))
-import           Logger                            (Logger, postLog)
+import           Logger                            (Logger, LogLevel(..), postLog)
 
 metricsServerConfig :: MetricsConfig -> Warp.Settings
 metricsServerConfig config = Warp.defaultSettings
@@ -17,7 +17,7 @@ metricsServerConfig config = Warp.defaultSettings
 
 runMetricsServer :: Logger -> MetricsConfig -> IO ()
 runMetricsServer logger metricsConfig = do
-  Logger.postLog logger $ "Metrics provided on "
+  Logger.postLog logger LogInfo $ "Metrics provided on "
     <> (Text.pack $ show $ metricsConfigHost metricsConfig)
     <> ":"
     <> (Text.pack $ show $ metricsConfigPort metricsConfig)
