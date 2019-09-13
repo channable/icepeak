@@ -57,7 +57,7 @@ import qualified Network.HTTP.Types.URI as URI
 import qualified Control.Retry as Retry
 
 -- | Config paired with HTTP manager for making requests.
-data Client m = Client 
+data Client m = Client
   { clientHttpManager :: HTTP.Manager
   , clientConfig      :: Config
   , clientRetryPolicy :: RetryPolicyM m
@@ -146,7 +146,7 @@ optionsToQuery opts = durabilityParam (requestDurability opts)
 baseRequest :: Config -> HTTP.Request
 baseRequest (Config host port maybeToken) =
   let mkAuthHeader token = (Header.hAuthorization, "Bearer " <> token)
-  in HTTP.defaultRequest
+  in HTTP.setRequestCheckStatus $ HTTP.defaultRequest
     { HTTP.host = host
     , HTTP.port = fromIntegral port
     , HTTP.requestHeaders = toList $ fmap mkAuthHeader maybeToken
@@ -167,7 +167,7 @@ executeRequest (Client httpManager _ retryPolicy) request =
 
 retryOnHttpException :: (MonadIO m, MonadMask m) => m a -> RetryPolicyM m -> m a
 retryOnHttpException call retryPolicy =
-  recovering retryPolicy [\_ -> httpExceptionHandler] (\_ -> call) 
+  recovering retryPolicy [\_ -> httpExceptionHandler] (\_ -> call)
 
 -- | The do-nothing retry policy
 doNotRetry :: Monad m => RetryPolicyM m
