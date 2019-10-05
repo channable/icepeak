@@ -27,3 +27,5 @@ cabal.project.local
 icepeak.json
 icepeak.json.journal
 icepeak.json.new
+*.idea
+*.iml
