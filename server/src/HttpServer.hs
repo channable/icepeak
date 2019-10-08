@@ -16,6 +16,7 @@ import qualified Data.Text.Lazy as LText
 import qualified Network.Wai as Wai
 import qualified Web.Scotty.Trans as Scotty
 
+import HTTPMethodInvalid (canonicalizeHTTPMethods,limitHTTPMethods)
 import JwtMiddleware (jwtMiddleware)
 import Core (Core (..), EnqueueResult (..))
 import Config (Config (..))
@@ -27,9 +28,15 @@ import qualified Metrics
 new :: Core -> IO Application
 new core =
   scottyApp $ do
-    -- first middleware is the outermost. this has to be the metrics middleware
-    -- in order to intercept all requests their corresponding responses
+    -- First we check whether the request HTTP method is a recognised HTTP method.
+    -- Any arbitrary ByteString is accepted as a request method and we store those 
+    -- in the exposed metrics, this is a DoS vector.
+    middleware canonicalizeHTTPMethods
+    -- Second middleware is the metrics middleware in order to intercept
+    -- all requests and their corresponding responses
     forM_ (coreMetrics core) $ middleware . metricsMiddleware
+    -- Early out after the request has been stored in the metrics.
+    middleware limitHTTPMethods
     -- Use the Sentry logger if available
     -- Scottys error handler will only catch errors that are thrown from within
     -- a ```liftAndCatchIO``` function.
