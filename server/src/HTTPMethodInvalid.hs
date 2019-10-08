@@ -9,6 +9,7 @@ import qualified Data.ByteString.Lazy.Char8 as LBS
 -- | Checks that the HTTP method is one of the StdMethods.
 -- StdMethod: HTTP standard method (as defined by RFC 2616, and PATCH which is defined by RFC 5789).
 -- Otherwise sets the HTTP method to INVALID.
+-- post: HTTP method is canonicalized
 canonicalizeHTTPMethods :: Wai.Middleware
 canonicalizeHTTPMethods app request respond = do
   let method = Wai.requestMethod request
@@ -17,7 +18,7 @@ canonicalizeHTTPMethods app request respond = do
   app request' respond
 
 -- | Early exit for INVALID HTTP methods.
--- pre: HTTP method is canonicalized
+-- pre: HTTP method is canonicalized.
 limitHTTPMethods :: Wai.Middleware
 limitHTTPMethods app request respond =
   if Wai.requestMethod request == invalid
