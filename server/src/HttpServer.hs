@@ -35,7 +35,7 @@ new core =
     -- Second middleware is the metrics middleware in order to intercept
     -- all requests and their corresponding responses
     forM_ (coreMetrics core) $ middleware . metricsMiddleware
-    -- Early out after the request has been stored in the metrics.
+    -- Exit on unknown HTTP verb after the request has been stored in the metrics.
     middleware limitHTTPMethods
     -- Use the Sentry logger if available
     -- Scottys error handler will only catch errors that are thrown from within
