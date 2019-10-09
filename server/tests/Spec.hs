@@ -5,6 +5,7 @@ import qualified ApiSpec
 import qualified CoreSpec
 import qualified JwtSpec
 import qualified PersistenceSpec
+import qualified RequestSpec
 import qualified SocketSpec
 import qualified StoreSpec
 import qualified SubscriptionTreeSpec
@@ -16,6 +17,7 @@ main = hspec $ do
   CoreSpec.spec
   JwtSpec.spec
   PersistenceSpec.spec
+  RequestSpec.spec
   SocketSpec.spec
   StoreSpec.spec
   SubscriptionTreeSpec.spec
