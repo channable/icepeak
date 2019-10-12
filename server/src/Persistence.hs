@@ -31,6 +31,8 @@ import qualified Logger
 import qualified Metrics
 import qualified Store
 
+import Config (StorageBackend (..))
+
 data PersistentValue = PersistentValue
   { pvConfig  :: PersistenceConfig
   , pvValue   :: TVar Store.Value
@@ -68,6 +70,14 @@ apply op val = do
     writeTVar (pvIsDirty val) True
 
 -- * IO
+
+loadFromBackend :: StorageBackend -> PersistenceConfig -> IO (Either String PersistentValue)
+loadFromBackend File pc = load pc
+loadFromBackend Sqlite pc = undefined
+
+syncToBackend :: StorageBackend -> PersistentValue -> IO ()
+syncToBackend File pv = sync pv
+syncToBackend Sqlite pv = undefined
 
 -- | Load the persisted data from disk and recover journal entries.
 load :: PersistenceConfig -> IO (Either String PersistentValue)

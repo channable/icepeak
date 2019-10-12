@@ -1,6 +1,7 @@
 module Config (
   Config (..),
   MetricsConfig (..),
+  StorageBackend (..),
   periodicSyncingEnabled,
   configInfo,
 ) where
@@ -16,6 +17,9 @@ import Data.String (fromString)
 import qualified Data.List as List
 import qualified Data.Text as Text
 import qualified Web.JWT as JWT
+
+
+data StorageBackend = File | Sqlite
 
 -- command-line arguments
 data Config = Config
@@ -38,6 +42,7 @@ data Config = Config
   -- | The SENTRY_DSN key that Sentry uses to communicate, if not set, use Nothing.
   -- Just indicates that a key is given.
   , configSentryDSN :: Maybe String
+  , configStorageBackend :: Maybe StorageBackend
   }
 
 data MetricsConfig = MetricsConfig
@@ -95,6 +100,11 @@ configParser environment = Config
               metavar "SENTRY_DSN" <>
               environ "SENTRY_DSN" <>
               help "Sentry DSN used for Sentry logging, defaults to the value of the SENTRY_DSN environment variable if present. If no secret is passed, Sentry logging will be disabled."))
+  <*> optional (option storageBackendReader
+                 (long "storage-backend" <>
+                  metavar "file|sqlite" <>
+                  help "asdf"
+                 ))
 
   where
     environ var = foldMap value (lookup var environment)
@@ -113,6 +123,13 @@ configInfo environment = info parser description
 
 
 -- * Reader functions
+
+storageBackendReader :: ReadM StorageBackend
+storageBackendReader = eitherReader $ \input ->
+  case input of
+    "file" -> Right File
+    "sqlite" -> Right Sqlite
+    _ -> Left "Invalid storage backend."
 
 metricsConfigReader :: ReadM MetricsConfig
 metricsConfigReader = eitherReader $ \input ->
