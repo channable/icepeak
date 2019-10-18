@@ -26,10 +26,7 @@ data Config = Config
   { configDataFile :: FilePath
   , configPort :: Int
     -- | Enables the use of JWT for authorization in JWT.
-  , configEnableJwtAuth :: Bool
-    -- | The secret used for verifying the JWT signatures. If no secret is
-    -- specified even though JWT authorization is enabled, tokens will still be
-    -- used, but not be verified.
+  , configEnableJwtAuth :: Bool -- | The secret used for verifying the JWT signatures. If no secret is -- specified even though JWT authorization is enabled, tokens will still be -- used, but not be verified.
   , configJwtSecret :: Maybe JWT.Signer
   , configMetricsEndpoint :: Maybe MetricsConfig
   , configQueueCapacity :: Word
@@ -42,7 +39,7 @@ data Config = Config
   -- | The SENTRY_DSN key that Sentry uses to communicate, if not set, use Nothing.
   -- Just indicates that a key is given.
   , configSentryDSN :: Maybe String
-  , configStorageBackend :: Maybe StorageBackend
+  , configStorageBackend :: StorageBackend
   }
 
 data MetricsConfig = MetricsConfig
@@ -100,11 +97,7 @@ configParser environment = Config
               metavar "SENTRY_DSN" <>
               environ "SENTRY_DSN" <>
               help "Sentry DSN used for Sentry logging, defaults to the value of the SENTRY_DSN environment variable if present. If no secret is passed, Sentry logging will be disabled."))
-  <*> optional (option storageBackendReader
-                 (long "storage-backend" <>
-                  metavar "file|sqlite" <>
-                  help "asdf"
-                 ))
+  <*> storageBackend
 
   where
     environ var = foldMap value (lookup var environment)
@@ -121,15 +114,18 @@ configInfo environment = info parser description
     description = fullDesc <>
       header "Icepeak - Fast Json document store with push notification support."
 
+-- * Parsers
+
+storageBackend :: Parser StorageBackend
+storageBackend = fileBackend <|> sqliteBackend
+
+fileBackend :: Parser StorageBackend
+fileBackend = flag' File (long "file" <> help "Use a file as the storage backend." )
+
+sqliteBackend :: Parser StorageBackend
+sqliteBackend = flag' Sqlite (long "sqlite" <> help "Use a sqlite file as the storage backend." )
 
 -- * Reader functions
-
-storageBackendReader :: ReadM StorageBackend
-storageBackendReader = eitherReader $ \input ->
-  case input of
-    "file" -> Right File
-    "sqlite" -> Right Sqlite
-    _ -> Left "Invalid storage backend."
 
 metricsConfigReader :: ReadM MetricsConfig
 metricsConfigReader = eitherReader $ \input ->
