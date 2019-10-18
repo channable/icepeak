@@ -27,6 +27,7 @@ import           Data.Foldable
 import           Data.Text                  (Text)
 import qualified Data.Text                  as Text
 import           Data.Text.Encoding (encodeUtf8)
+import           Data.Text.Lazy.Encoding (decodeUtf8)
 import           Data.Traversable
 import           Database.SQLite.Simple
 import           GHC.Generics (Generic)
@@ -84,7 +85,7 @@ loadFromBackend Sqlite pc = loadSqliteFile pc
 
 syncToBackend :: StorageBackend -> PersistentValue -> IO ()
 syncToBackend File pv = syncFile pv
-syncToBackend Sqlite _pv = undefined
+syncToBackend Sqlite pv = syncSqliteFile pv
 
 -- * SQLite loading and syncing
 
@@ -93,6 +94,7 @@ syncToBackend Sqlite _pv = undefined
 -- This single field wholds the whole JSON value for now.
 -- TODO: This should be a ByteString instead of a Text, so that we can directly decode this
 -- to JSON. Alternatively, we could make it a Blob, which always maps to a ByteString in Haskell.
+--data JsonRow = JsonRow {getJsonText :: SBS.ByteString} deriving (Generic, Show)
 data JsonRow = JsonRow {getJsonText :: Text} deriving (Generic, Show)
 
 instance FromRow JsonRow where
@@ -100,6 +102,15 @@ instance FromRow JsonRow where
 
 instance Aeson.FromJSON JsonRow
 instance Aeson.ToJSON JsonRow
+
+--instance Aeson.FromJSON JsonRow where
+--  parseJSON :: Value -> Parser JsonRow
+--
+--instance Aeson.ToJSON JsonRow where
+--  toJSON :: JsonRow -> Value
+--  toJSON (JsonRow byteString) = decode
+
+--  toEncoding (JsonRow )=
 
 loadSqliteFile :: PersistenceConfig -> IO (Either String PersistentValue)
 loadSqliteFile config = runExceptT $ do
@@ -128,17 +139,49 @@ readSqliteData filePath _logger = ExceptT $ do
   -- TODO: We might want to have a primary key here after all. Then we could have multiple
   -- JSON values next to each other.
   --  liftIO $ execute_ conn "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, str TEXT)"
-  liftIO $ execute_ conn "CREATE TABLE IF NOT EXISTS test (value TEXT)"
+  liftIO $ execute_ conn "CREATE TABLE IF NOT EXISTS test (value BLOB)"
   jsonRows <- liftIO $ (query_ conn "SELECT * from test" :: IO [JsonRow])
   liftIO $ mapM_ print jsonRows
 
   case jsonRows of
     -- if there is no data yet, we simply return the empty object. We do the same thing for the
     -- file backend.
-    [] -> pure $ Right Aeson.emptyObject
+    [] -> do
+      liftIO $ execute conn "INSERT INTO test (value) VALUES (?)" (Only $ Aeson.encode Aeson.emptyObject)
+      pure $ Right Aeson.emptyObject
     _  -> case Aeson.eitherDecodeStrict (encodeUtf8 $ getJsonText $ head $ jsonRows) of
+--    _  -> case Aeson.eitherDecodeStrict (getJsonText $ head $ jsonRows) of
             Left msg  -> pure $ Left $ "Failed to decode the initial data: " ++ show msg
             Right value -> pure $ Right (value :: Store.Value)
+
+-- | Write the data to the SQLite file if it has changed.
+syncSqliteFile :: PersistentValue -> IO ()
+syncSqliteFile val = do
+  (dirty, value) <- atomically $ (,) <$> readTVar (pvIsDirty val)
+                                     <*> readTVar (pvValue val)
+                                     <*  writeTVar (pvIsDirty val) False
+  -- simple optimization: only write when something changed
+  when dirty $ do
+    let filePath = pcDataFile $ pvConfig val
+
+    conn <- open filePath
+    -- we can always UPDATE here, since we know that there will be at least one row, since
+    -- we issue an INSERT when we load in an empty database
+--    liftIO $ executeNamed conn "UPDATE test SET value = :value" [":value" := ("{}" :: Text)]
+--    liftIO $ executeNamed conn "UPDATE test SET value = :value" [":value" := Aeson.encode value]
+    liftIO $ executeNamed conn "UPDATE test SET value = :value" [":value" := (decodeUtf8 $ Aeson.encode value)]
+
+    -- the journal is idempotent, so there is no harm if icepeak crashes between
+    -- the previous and the next action
+    for_ (pvJournal val) $ \journalHandle -> do
+      hSeek journalHandle AbsoluteSeek 0
+      hSetFileSize journalHandle 0
+    -- handle metrics last
+    forM_ (pcMetrics . pvConfig $ val) $ \m -> do
+      size <- getFileSize filePath
+      Metrics.setDataSize size m
+      Metrics.setJournalSize (0 :: Int) m
+      Metrics.incrementDataWritten size m
 
 -- * File loading and syncing
 
