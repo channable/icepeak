@@ -141,7 +141,6 @@ readSqliteData filePath _logger = ExceptT $ do
   --  liftIO $ execute_ conn "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, str TEXT)"
   liftIO $ execute_ conn "CREATE TABLE IF NOT EXISTS test (value BLOB)"
   jsonRows <- liftIO $ (query_ conn "SELECT * from test" :: IO [JsonRow])
-  liftIO $ mapM_ print jsonRows
 
   case jsonRows of
     -- if there is no data yet, we simply return the empty object. We do the same thing for the
@@ -167,8 +166,6 @@ syncSqliteFile val = do
     conn <- open filePath
     -- we can always UPDATE here, since we know that there will be at least one row, since
     -- we issue an INSERT when we load in an empty database
---    liftIO $ executeNamed conn "UPDATE test SET value = :value" [":value" := ("{}" :: Text)]
---    liftIO $ executeNamed conn "UPDATE test SET value = :value" [":value" := Aeson.encode value]
     liftIO $ executeNamed conn "UPDATE test SET value = :value" [":value" := (decodeUtf8 $ Aeson.encode value)]
 
     -- the journal is idempotent, so there is no harm if icepeak crashes between
