@@ -13,7 +13,7 @@ import Data.Aeson (FromJSON, ToJSON, Value, decode, encode)
 import Data.Text (Text)
 import Database.SQLite.Simple
 import GHC.Generics (Generic)
-import Data.Text.Lazy.Encoding
+import Data.Text.Lazy.Encoding (encodeUtf8)
 
 import qualified Data.ByteString.Lazy.Char8 as BL
 

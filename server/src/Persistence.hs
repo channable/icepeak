@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns      #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-| This module abstracts over the details of persisting the value. Journaling is
   also handled here, if enabled. -}
@@ -17,6 +18,7 @@ import           Control.Concurrent.STM
 import           Control.Exception
 import           Control.Monad.Except
 import qualified Data.Aeson                 as Aeson
+import qualified Data.Aeson.Types           as Aeson
 import qualified Data.ByteString            as SBS
 import qualified Data.ByteString.Char8      as SBS8
 import qualified Data.ByteString.Lazy       as LBS
@@ -24,7 +26,10 @@ import qualified Data.ByteString.Lazy.Char8 as LBS8
 import           Data.Foldable
 import           Data.Text                  (Text)
 import qualified Data.Text                  as Text
+import           Data.Text.Encoding (encodeUtf8)
 import           Data.Traversable
+import           Database.SQLite.Simple
+import           GHC.Generics (Generic)
 import           System.Directory           (getFileSize, renameFile)
 import           System.IO
 import           System.IO.Error (tryIOError, isDoesNotExistError, isPermissionError)
@@ -74,16 +79,72 @@ apply op val = do
 -- * IO
 
 loadFromBackend :: StorageBackend -> PersistenceConfig -> IO (Either String PersistentValue)
-loadFromBackend File pc = load pc
-loadFromBackend Sqlite _pc = undefined
+loadFromBackend File pc = loadFile pc
+loadFromBackend Sqlite pc = loadSqliteFile pc
 
 syncToBackend :: StorageBackend -> PersistentValue -> IO ()
-syncToBackend File pv = sync pv
+syncToBackend File pv = syncFile pv
 syncToBackend Sqlite _pv = undefined
 
+-- * SQLite loading and syncing
+
+
+-- | There is just one row and it contains just one column of type String.
+-- This single field wholds the whole JSON value for now.
+-- TODO: This should be a ByteString instead of a Text, so that we can directly decode this
+-- to JSON. Alternatively, we could make it a Blob, which always maps to a ByteString in Haskell.
+data JsonRow = JsonRow {getJsonText :: Text} deriving (Generic, Show)
+
+instance FromRow JsonRow where
+  fromRow = JsonRow <$> field
+
+instance Aeson.FromJSON JsonRow
+instance Aeson.ToJSON JsonRow
+
+loadSqliteFile :: PersistenceConfig -> IO (Either String PersistentValue)
+loadSqliteFile config = runExceptT $ do
+  liftIO $ forM_ (pcMetrics config) $ \m -> do
+    size <- getFileSize (pcDataFile config)
+    Metrics.setDataSize size m
+
+  value <- readSqliteData (pcDataFile config) (pcLogger config)
+  valueVar <- lift $ newTVarIO value
+  dirtyVar <- lift $ newTVarIO False
+  journal <- for (pcJournalFile config) openJournal
+  let val = PersistentValue
+        { pvConfig  = config
+        , pvValue   = valueVar
+        , pvIsDirty = dirtyVar
+        , pvJournal = journal
+        }
+  recoverJournal val
+  return val
+
+-- | Read and decode the Sqlite data file from disk
+readSqliteData :: FilePath -> Logger -> ExceptT String IO Store.Value
+readSqliteData _filePath _logger = ExceptT $ do
+  -- read the data from SQLite
+  conn <- liftIO $ open "test.db"
+  -- TODO: We might want to have a primary key here after all. Then we could have multiple
+  -- JSON values next to each other.
+  --  liftIO $ execute_ conn "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, str TEXT)"
+  liftIO $ execute_ conn "CREATE TABLE IF NOT EXISTS test (value TEXT)"
+  jsonRows <- liftIO $ (query_ conn "SELECT * from test" :: IO [JsonRow])
+  liftIO $ mapM_ print jsonRows
+
+  case jsonRows of
+    -- if there is no data yet, we simply return the empty object. We do the same thing for the
+    -- file backend.
+    [] -> pure $ Right Aeson.emptyObject
+    _  -> case Aeson.eitherDecodeStrict (encodeUtf8 $ getJsonText $ head $ jsonRows) of
+            Left msg  -> pure $ Left $ "Failed to decode the initial data: " ++ show msg
+            Right value -> pure $ Right (value :: Store.Value)
+
+-- * File loading and syncing
+
 -- | Load the persisted data from disk and recover journal entries.
-load :: PersistenceConfig -> IO (Either String PersistentValue)
-load config = runExceptT $ do
+loadFile :: PersistenceConfig -> IO (Either String PersistentValue)
+loadFile config = runExceptT $ do
   value <- readData (pcDataFile config) (pcLogger config)
   liftIO $ forM_ (pcMetrics config) $ \m -> do
     size <- getFileSize (pcDataFile config)
@@ -101,8 +162,8 @@ load config = runExceptT $ do
   return val
 
 -- | Write the data to disk if it has changed.
-sync :: PersistentValue -> IO ()
-sync val = do
+syncFile :: PersistentValue -> IO ()
+syncFile val = do
   (dirty, value) <- atomically $ (,) <$> readTVar (pvIsDirty val)
                                      <*> readTVar (pvValue val)
                                      <*  writeTVar (pvIsDirty val) False
@@ -154,7 +215,7 @@ recoverJournal pval = for_ (pvJournal pval) $ \journalHandle -> ExceptT $ fmap f
       writeTVar (pvValue pval) finalValue
       writeTVar (pvIsDirty pval) True
     -- syncing takes care of cleaning the journal
-    sync pval
+    syncFile pval
 
   when (total > 0) $ do
     logMessage pval "Journal replayed"
