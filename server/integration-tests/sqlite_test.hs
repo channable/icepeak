@@ -49,6 +49,6 @@ main = do
   jsonValue <- query_ conn "SELECT json(1)" :: IO [JsonValue]
   BL.putStrLn $ encode jsonValue
 
-  execute conn "INSERT INTO test (str) VALUES (?)" (Only (encode (decode "{\"some\": 123}" :: Value)))
+  execute conn "INSERT INTO test (str) VALUES (?)" (Only ("{\"some\": 123}" :: String))
 
   close conn

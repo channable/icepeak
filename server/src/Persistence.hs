@@ -7,8 +7,10 @@ module Persistence
   , PersistenceConfig (..)
   , getValue
   , apply
-  , load
-  , sync
+--  , load
+  , loadFromBackend
+--  , sync
+  , syncToBackend
   ) where
 
 import           Control.Concurrent.STM
@@ -73,11 +75,11 @@ apply op val = do
 
 loadFromBackend :: StorageBackend -> PersistenceConfig -> IO (Either String PersistentValue)
 loadFromBackend File pc = load pc
-loadFromBackend Sqlite pc = undefined
+loadFromBackend Sqlite _pc = undefined
 
 syncToBackend :: StorageBackend -> PersistentValue -> IO ()
 syncToBackend File pv = sync pv
-syncToBackend Sqlite pv = undefined
+syncToBackend Sqlite _pv = undefined
 
 -- | Load the persisted data from disk and recover journal entries.
 load :: PersistenceConfig -> IO (Either String PersistentValue)
