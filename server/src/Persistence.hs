@@ -122,9 +122,9 @@ loadSqliteFile config = runExceptT $ do
 
 -- | Read and decode the Sqlite data file from disk
 readSqliteData :: FilePath -> Logger -> ExceptT String IO Store.Value
-readSqliteData _filePath _logger = ExceptT $ do
+readSqliteData filePath _logger = ExceptT $ do
   -- read the data from SQLite
-  conn <- liftIO $ open "test.db"
+  conn <- liftIO $ open filePath
   -- TODO: We might want to have a primary key here after all. Then we could have multiple
   -- JSON values next to each other.
   --  liftIO $ execute_ conn "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, str TEXT)"

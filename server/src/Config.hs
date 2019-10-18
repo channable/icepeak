@@ -56,6 +56,7 @@ type EnvironmentConfig = [(String, String)]
 
 configParser :: EnvironmentConfig -> Parser Config
 configParser environment = Config
+  -- TODO: We should use a different default ("icepeak.db") when SQLite is chosen as the storage backend
   <$> strOption (long "data-file" <>
                  metavar "DATA_FILE" <>
                  value "icepeak.json" <>
