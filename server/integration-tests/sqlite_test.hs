@@ -9,46 +9,37 @@
 {- | Test whether SQLite was installed with JSON support enabled by calling the "json" SQL
 function.
 -}
-import Data.Aeson (FromJSON, ToJSON, Value, decode, encode)
+import Data.Aeson (Value, eitherDecode)
 import Data.Text (Text)
 import Database.SQLite.Simple
-import GHC.Generics (Generic)
-import Data.Text.Lazy.Encoding (encodeUtf8)
 
-import qualified Data.ByteString.Lazy.Char8 as BL
+import qualified Data.ByteString.Lazy as BSL
 
-data TestField = TestField Int String deriving (Show)
+data TestField = TestField BSL.ByteString deriving (Show)
 
 instance FromRow TestField where
-  fromRow = TestField <$> field <*> field
-
-
-data JsonValue = JsonValue (Maybe Value) deriving (Generic, Show)
-
-instance FromRow JsonValue where
-  -- TODO: The "field" parser already parses to Text, so it's silly to then first encode this
-  -- again only to then decode it, in order to parse it as JSON
-  fromRow = JsonValue <$> (fmap (decode . encodeUtf8) field)
-
-instance FromJSON JsonValue
-instance ToJSON JsonValue
+  fromRow = TestField <$> field
 
 
 main :: IO ()
 main = do
   conn <- open "test.db"
-  -- execute conn "INSERT INTO test (str) VALUES (?)" (Only ("test string 2" :: String))
-  r <- query_ conn "SELECT * from test" :: IO [TestField]
-  mapM_ print r
+
+  -- we use the BLOB type here, since we want to store a bytestring directly, and we don't want
+  -- sqlite-simple to do any decoding, since we can better do this directly using Aeson.decode
+  execute_ conn "CREATE TABLE IF NOT EXISTS test (value BLOB)"
 
   -- make sure that SQLite was compiled with JSON support enabled
   text <- query_ conn "SELECT json(1)" :: IO [Only Text]
   mapM_ print text
 
-  -- parse the Text value to our own datatype instead
-  jsonValue <- query_ conn "SELECT json(1)" :: IO [JsonValue]
-  BL.putStrLn $ encode jsonValue
+  -- update the single field in the test database
+  executeNamed conn "UPDATE test SET value = :value" [":value" := ("{}" :: BSL.ByteString)]
 
-  execute conn "INSERT INTO test (str) VALUES (?)" (Only ("{\"some\": 123}" :: String))
+  -- make sure that we can read the JSON value back from the database
+  (TestField bytestring):_ <- query_ conn "SELECT * from test" :: IO [TestField]
+  let value = eitherDecode bytestring :: (Either String Value)
+  print bytestring
+  print value
 
   close conn
