@@ -26,11 +26,8 @@ import qualified Data.ByteString.Lazy.Char8 as LBS8
 import           Data.Foldable
 import           Data.Text                  (Text)
 import qualified Data.Text                  as Text
-import           Data.Text.Encoding (encodeUtf8)
-import           Data.Text.Lazy.Encoding (decodeUtf8)
 import           Data.Traversable
 import           Database.SQLite.Simple
-import           GHC.Generics (Generic)
 import           System.Directory           (getFileSize, renameFile)
 import           System.IO
 import           System.IO.Error (tryIOError, isDoesNotExistError, isPermissionError)
@@ -89,28 +86,12 @@ syncToBackend Sqlite pv = syncSqliteFile pv
 
 -- * SQLite loading and syncing
 
-
--- | There is just one row and it contains just one column of type String.
--- This single field wholds the whole JSON value for now.
--- TODO: This should be a ByteString instead of a Text, so that we can directly decode this
--- to JSON. Alternatively, we could make it a Blob, which always maps to a ByteString in Haskell.
---data JsonRow = JsonRow {getJsonText :: SBS.ByteString} deriving (Generic, Show)
-data JsonRow = JsonRow {getJsonText :: Text} deriving (Generic, Show)
+-- | There is currently just one row and it contains only one column of type SBS.ByteString.
+-- This single field holds the whole JSON value for now.
+data JsonRow = JsonRow {jsonByteString :: SBS.ByteString} deriving (Show)
 
 instance FromRow JsonRow where
   fromRow = JsonRow <$> field
-
-instance Aeson.FromJSON JsonRow
-instance Aeson.ToJSON JsonRow
-
---instance Aeson.FromJSON JsonRow where
---  parseJSON :: Value -> Parser JsonRow
---
---instance Aeson.ToJSON JsonRow where
---  toJSON :: JsonRow -> Value
---  toJSON (JsonRow byteString) = decode
-
---  toEncoding (JsonRow )=
 
 loadSqliteFile :: PersistenceConfig -> IO (Either String PersistentValue)
 loadSqliteFile config = runExceptT $ do
@@ -138,7 +119,6 @@ readSqliteData filePath _logger = ExceptT $ do
   conn <- liftIO $ open filePath
   -- TODO: We might want to have a primary key here after all. Then we could have multiple
   -- JSON values next to each other.
-  --  liftIO $ execute_ conn "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, str TEXT)"
   liftIO $ execute_ conn "CREATE TABLE IF NOT EXISTS test (value BLOB)"
   jsonRows <- liftIO $ (query_ conn "SELECT * from test" :: IO [JsonRow])
 
@@ -148,8 +128,7 @@ readSqliteData filePath _logger = ExceptT $ do
     [] -> do
       liftIO $ execute conn "INSERT INTO test (value) VALUES (?)" (Only $ Aeson.encode Aeson.emptyObject)
       pure $ Right Aeson.emptyObject
-    _  -> case Aeson.eitherDecodeStrict (encodeUtf8 $ getJsonText $ head $ jsonRows) of
---    _  -> case Aeson.eitherDecodeStrict (getJsonText $ head $ jsonRows) of
+    _  -> case Aeson.eitherDecodeStrict (jsonByteString $ head $ jsonRows) of
             Left msg  -> pure $ Left $ "Failed to decode the initial data: " ++ show msg
             Right value -> pure $ Right (value :: Store.Value)
 
@@ -166,7 +145,7 @@ syncSqliteFile val = do
     conn <- open filePath
     -- we can always UPDATE here, since we know that there will be at least one row, since
     -- we issue an INSERT when we load in an empty database
-    liftIO $ executeNamed conn "UPDATE test SET value = :value" [":value" := (decodeUtf8 $ Aeson.encode value)]
+    liftIO $ executeNamed conn "UPDATE test SET value = :value" [":value" := Aeson.encode value]
 
     -- the journal is idempotent, so there is no harm if icepeak crashes between
     -- the previous and the next action
