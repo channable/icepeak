@@ -271,15 +271,14 @@ readData filePath logger = ExceptT $ do
   case eitherEncodedValue of
     Left e | isDoesNotExistError e -> do
         -- If there is no icepeak.json file yet, we create an empty one instead.
-        let emptyObject = Aeson.object []
-            message = "WARNING: Could not read data from " <> Text.pack filePath <>
+        let message = "WARNING: Could not read data from " <> Text.pack filePath <>
                       " because the file does not exist yet. Created an empty database instead."
 
         -- if this fails, we want the whole program to crash since something is wrong
         SBS.writeFile filePath "{}"
 
         Logger.postLogBlocking logger LogInfo message
-        pure $ Right emptyObject
+        pure $ Right Aeson.emptyObject
 
     Left e | isPermissionError e -> do
         pure $ Left $ "File " ++ filePath ++ " cannot be read due to a permission error." ++
@@ -287,10 +286,17 @@ readData filePath logger = ExceptT $ do
     -- other permission errors should also lead to program termination
     Left e -> pure $ Left (show e)
 
+    -- in case the data-file is empty we write the empty object "{}" to it and return it
+    Right "" -> do
+        let message = "WARNING: The provided --data-file " <> Text.pack filePath <>
+                      " is empty. Will write a default database of {} to this file."
+        SBS.writeFile filePath "{}"
+        Logger.postLogBlocking logger LogInfo message
+        pure $ Right Aeson.emptyObject
     Right encodedValue -> do
       case Aeson.eitherDecodeStrict encodedValue of
         Left msg  -> pure $ Left $ "Failed to decode the initial data: " ++ show msg
-        Right value -> pure $ Right $ value
+        Right value -> pure $ Right value
 
 -- | Log a message in the context of a PersistentValue.
 logMessage :: PersistentValue -> Text -> IO ()
