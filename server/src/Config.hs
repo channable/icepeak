@@ -124,7 +124,9 @@ storageBackend :: Parser StorageBackend
 storageBackend = fileBackend <|> sqliteBackend
 
 fileBackend :: Parser StorageBackend
-fileBackend = flag' File (long "file" <> help "Use a file as the storage backend." )
+-- The first 'File' here is the default value. We want --file to be used by default, when nothing
+-- is specified on the command-line. This ensures backwards-compatibility.
+fileBackend = flag File File (long "file" <> help "Use a file as the storage backend." )
 
 sqliteBackend :: Parser StorageBackend
 sqliteBackend = flag' Sqlite (long "sqlite" <> help "Use a sqlite file as the storage backend." )
