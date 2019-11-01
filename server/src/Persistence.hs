@@ -8,9 +8,7 @@ module Persistence
   , PersistenceConfig (..)
   , getValue
   , apply
---  , load
   , loadFromBackend
---  , sync
   , syncToBackend
   ) where
 
@@ -27,7 +25,8 @@ import           Data.Foldable
 import           Data.Text                  (Text)
 import qualified Data.Text                  as Text
 import           Data.Traversable
-import           Database.SQLite.Simple
+import           Database.SQLite.Simple     (FromRow (..), NamedParam (..), Only (..), execute,
+                                             execute_, executeNamed, field, open, query_)
 import           System.Directory           (getFileSize, renameFile)
 import           System.IO
 import           System.IO.Error (tryIOError, isDoesNotExistError, isPermissionError)

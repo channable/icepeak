@@ -6,8 +6,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-{- | Test whether SQLite was installed with JSON support enabled by calling the "json" SQL
-function.
+{- | Test inserting and reading a JSON value as type BLOB in Sqlite.
 -}
 import Data.Aeson (Value, eitherDecode)
 import Data.Text (Text)

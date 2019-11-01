@@ -26,7 +26,10 @@ data Config = Config
   { configDataFile :: FilePath
   , configPort :: Int
     -- | Enables the use of JWT for authorization in JWT.
-  , configEnableJwtAuth :: Bool -- | The secret used for verifying the JWT signatures. If no secret is -- specified even though JWT authorization is enabled, tokens will still be -- used, but not be verified.
+  , configEnableJwtAuth :: Bool
+  -- | The secret used for verifying the JWT signatures. If no secret is
+  -- specified even though JWT authorization is enabled, tokens will still be
+  -- used, but not be verified.
   , configJwtSecret :: Maybe JWT.Signer
   , configMetricsEndpoint :: Maybe MetricsConfig
   , configQueueCapacity :: Word

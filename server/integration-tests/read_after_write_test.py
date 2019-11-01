@@ -44,5 +44,3 @@ read_after_write_check('/so', {'cool': {}}, json3)
 read_after_write_check('/so/hot', json1, json4)
 
 print('All read-after-write tests passed successfully!')
-
-

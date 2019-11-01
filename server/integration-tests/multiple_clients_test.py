@@ -7,7 +7,6 @@ received the same data.
 import asyncio
 import json
 import requests
-import sys
 import websockets
 
 test_url = 'http://localhost:3000/so/cool'
@@ -22,7 +21,7 @@ async def validate_data(connections, expected_result):
         assert parsed_result == expected_result, 'Input data: {} is different from output data: {}'.format(
             expected_result, parsed_result)
 
-    print('All 10 clients received {} successfully!'.format(expected_result))
+    print(f'All 10 clients received {expected_result} successfully!')
 
 
 async def main():
