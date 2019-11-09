@@ -76,8 +76,33 @@ apply op val = do
 -- * IO
 
 loadFromBackend :: StorageBackend -> PersistenceConfig -> IO (Either String PersistentValue)
-loadFromBackend File pc = loadFile pc
-loadFromBackend Sqlite pc = loadSqliteFile pc
+loadFromBackend backend config = runExceptT $ do
+  let metrics = pcMetrics config
+      dataFilePath = pcDataFile config
+      logger = pcLogger config
+
+  -- We immediately set the dataSize metric, so that Prometheus can start scraping it
+  liftIO $ forM_ metrics $ \metric -> do
+    size <- getFileSize dataFilePath
+    Metrics.setDataSize size metric
+
+  -- Read the data from disk and parse it as an Aeson.Value
+  value <- case backend of
+    File -> readData dataFilePath logger
+    Sqlite -> readSqliteData dataFilePath logger
+
+  valueVar <- lift $ newTVarIO value
+  dirtyVar <- lift $ newTVarIO False
+  journal <- for (pcJournalFile config) openJournal
+
+  let val = PersistentValue
+        { pvConfig  = config
+        , pvValue   = valueVar
+        , pvIsDirty = dirtyVar
+        , pvJournal = journal
+        }
+  recoverJournal val
+  return val
 
 syncToBackend :: StorageBackend -> PersistentValue -> IO ()
 syncToBackend File pv = syncFile pv
@@ -91,25 +116,6 @@ data JsonRow = JsonRow {jsonByteString :: SBS.ByteString} deriving (Show)
 
 instance FromRow JsonRow where
   fromRow = JsonRow <$> field
-
-loadSqliteFile :: PersistenceConfig -> IO (Either String PersistentValue)
-loadSqliteFile config = runExceptT $ do
-  liftIO $ forM_ (pcMetrics config) $ \m -> do
-    size <- getFileSize (pcDataFile config)
-    Metrics.setDataSize size m
-
-  value <- readSqliteData (pcDataFile config) (pcLogger config)
-  valueVar <- lift $ newTVarIO value
-  dirtyVar <- lift $ newTVarIO False
-  journal <- for (pcJournalFile config) openJournal
-  let val = PersistentValue
-        { pvConfig  = config
-        , pvValue   = valueVar
-        , pvIsDirty = dirtyVar
-        , pvJournal = journal
-        }
-  recoverJournal val
-  return val
 
 -- | Read and decode the Sqlite data file from disk
 readSqliteData :: FilePath -> Logger -> ExceptT String IO Store.Value
@@ -153,26 +159,7 @@ syncSqliteFile val = do
     -- handle metrics last
     updateMetrics val
 
--- * File loading and syncing
-
--- | Load the persisted data from disk and recover journal entries.
-loadFile :: PersistenceConfig -> IO (Either String PersistentValue)
-loadFile config = runExceptT $ do
-  value <- readData (pcDataFile config) (pcLogger config)
-  liftIO $ forM_ (pcMetrics config) $ \m -> do
-    size <- getFileSize (pcDataFile config)
-    Metrics.setDataSize size m
-  valueVar <- lift $ newTVarIO value
-  dirtyVar <- lift $ newTVarIO False
-  journal <- for (pcJournalFile config) openJournal
-  let val = PersistentValue
-        { pvConfig  = config
-        , pvValue   = valueVar
-        , pvIsDirty = dirtyVar
-        , pvJournal = journal
-        }
-  recoverJournal val
-  return val
+-- * File syncing
 
 -- | Write the data to disk if it has changed.
 syncFile :: PersistentValue -> IO ()
