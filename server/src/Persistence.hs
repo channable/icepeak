@@ -148,15 +148,10 @@ syncSqliteFile val = do
 
     -- the journal is idempotent, so there is no harm if icepeak crashes between
     -- the previous and the next action
-    for_ (pvJournal val) $ \journalHandle -> do
-      hSeek journalHandle AbsoluteSeek 0
-      hSetFileSize journalHandle 0
+    truncateJournal val
+
     -- handle metrics last
-    forM_ (pcMetrics . pvConfig $ val) $ \m -> do
-      size <- getFileSize filePath
-      Metrics.setDataSize size m
-      Metrics.setJournalSize (0 :: Int) m
-      Metrics.incrementDataWritten size m
+    updateMetrics val
 
 -- * File loading and syncing
 
@@ -194,21 +189,44 @@ syncFile val = do
     -- temporary file will thus not corrupt the datastore
     LBS.writeFile tempFileName (Aeson.encode value)
     renameFile tempFileName fileName
+
     -- the journal is idempotent, so there is no harm if icepeak crashes between
     -- the previous and the next action
-    for_ (pvJournal val) $ \journalHandle -> do
-      hSeek journalHandle AbsoluteSeek 0
-      hSetFileSize journalHandle 0
+    truncateJournal val
+
     -- handle metrics last
-    forM_ (pcMetrics . pvConfig $ val) $ \m -> do
-      size <- getFileSize fileName
-      Metrics.setDataSize size m
-      Metrics.setJournalSize (0 :: Int) m
-      Metrics.incrementDataWritten size m
+    updateMetrics val
 
 -- * Private helper functions
 
 -- Note that some of these functions are still exported in order to be usable in the test suite
+
+-- | Seek to the beginning of the journal file and set the file size to zero.
+-- This should be called after all journal entries have been replayed, and the data has been
+-- synced to disk.
+truncateJournal :: PersistentValue -> IO ()
+truncateJournal val = do
+    for_ (pvJournal val) $ \journalHandle -> do
+      -- we must seek back to the beginning of the file *before* calling hSetFileSize, since that
+      -- function does not change the file cursor, which means that the first write that follows
+      -- would fill up the file with \NUL bytes up to the original cursor position.
+      hSeek journalHandle AbsoluteSeek 0
+      hSetFileSize journalHandle 0
+
+-- | We keep track of three metrics related to persistence:
+-- 1. The current size of the data file
+-- 2. The current size of the journal file
+-- 3. The total amount of data written to disk since the process was started
+--    (not counting journal writes)
+updateMetrics :: PersistentValue -> IO ()
+updateMetrics val = do
+    let filePath = pcDataFile . pvConfig $ val
+        metrics = pcMetrics . pvConfig $ val
+    forM_ metrics $ \metric -> do
+      size <- getFileSize filePath
+      Metrics.setDataSize size metric
+      Metrics.setJournalSize (0 :: Int) metric
+      Metrics.incrementDataWritten size metric
 
 -- | Open or create the journal file
 openJournal :: FilePath -> ExceptT String IO Handle
