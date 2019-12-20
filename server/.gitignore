@@ -30,3 +30,6 @@ icepeak.json.journal
 icepeak.json.new
 *.idea
 *.iml
+
+# Nix result symlinks
+result*
