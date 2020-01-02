@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 if [ ! -f "stack.yaml" ]; then
     echo "Run test in server package directory"
