@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.7
+#!/usr/bin/env python3
 """
 Test PUTing some data into Icepeak and getting it back over a websocket.
 
@@ -30,7 +30,9 @@ async def assert_result_equals(uri, expected_result):
 
 
 def read_after_write_check(url_path, data, expected_result):
-    url = f'http://localhost:3000{url_path}'
+    # Note, we must send a durable request here, since we otherwise would have a race condition
+    url = f'http://localhost:3000{url_path}?durable'
+    print(f'Putting: {data} to {url}')
     requests.put(url, json.dumps(data))
 
     test = assert_result_equals(f'ws://localhost:3000', expected_result)
