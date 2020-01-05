@@ -1,6 +1,7 @@
 {-# LANGUAGE BangPatterns      #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-| This module abstracts over the details of persisting the value. Journaling is
   also handled here, if enabled. -}
 module Persistence
@@ -9,6 +10,7 @@ module Persistence
   , getValue
   , apply
   , loadFromBackend
+  , setupStorageBackend
   , syncToBackend
   ) where
 
@@ -28,6 +30,7 @@ import           Data.Traversable
 import           Database.SQLite.Simple     (FromRow (..), NamedParam (..), Only (..), execute,
                                              execute_, executeNamed, field, open, query_)
 import           System.Directory           (getFileSize, renameFile)
+import           System.Exit                (die)
 import           System.IO
 import           System.IO.Error (tryIOError, isDoesNotExistError, isPermissionError)
 import           Logger                     (Logger, LogLevel(..))
@@ -75,11 +78,45 @@ apply op val = do
 
 -- * IO
 
+-- | Ensure that we can access the chosen storage file, and validate that it has the right file format
+setupStorageBackend :: StorageBackend -> FilePath -> IO ()
+setupStorageBackend File filePath = do
+  eitherEncodedValue <- tryIOError $ SBS.readFile filePath
+  case eitherEncodedValue of
+    Left e | isDoesNotExistError e -> do
+        -- If there is no icepeak.json file yet, we create an empty one instead.
+        let message = "WARNING: Could not read data from " ++ filePath ++
+                      " because the file does not exist yet. Created an empty database instead."
+
+        -- if this fails, we want the whole program to crash since something is wrong
+        SBS.writeFile filePath "{}"
+        putStrLn message
+
+    Left e | isPermissionError e ->
+        die $ "File " ++ filePath ++ " cannot be read due to a permission error. Please check the file permissions."
+    -- other errors should also lead to program termination
+    Left e -> die (show e)
+
+    -- in case the data-file is empty we write the empty object "{}" to it and return it
+    Right "" -> do
+        let message = "WARNING: The provided --data-file " ++ filePath ++
+                      " is empty. Will write a default database of {} to this file."
+        putStrLn message
+        SBS.writeFile filePath "{}"
+    Right encodedValue -> case Aeson.eitherDecodeStrict encodedValue of
+        Left msg  -> die $ "Failed to decode the initial data in " ++ filePath ++ ": " ++ show msg
+        Right (_value :: Aeson.Value) -> pure ()
+setupStorageBackend Sqlite filePath = do
+  -- read the data from SQLite
+  conn <- liftIO $ open filePath
+  -- TODO: We might want to have a primary key here after all. Then we could have multiple
+  -- JSON values next to each other.
+  liftIO $ execute_ conn "CREATE TABLE IF NOT EXISTS icepeak (value BLOB)"
+
 loadFromBackend :: StorageBackend -> PersistenceConfig -> IO (Either String PersistentValue)
 loadFromBackend backend config = runExceptT $ do
   let metrics = pcMetrics config
       dataFilePath = pcDataFile config
-      logger = pcLogger config
 
   -- We immediately set the dataSize metric, so that Prometheus can start scraping it
   liftIO $ forM_ metrics $ \metric -> do
@@ -88,8 +125,8 @@ loadFromBackend backend config = runExceptT $ do
 
   -- Read the data from disk and parse it as an Aeson.Value
   value <- case backend of
-    File -> readData dataFilePath logger
-    Sqlite -> readSqliteData dataFilePath logger
+    File -> readData dataFilePath
+    Sqlite -> readSqliteData dataFilePath
 
   valueVar <- lift $ newTVarIO value
   dirtyVar <- lift $ newTVarIO False
@@ -118,20 +155,17 @@ instance FromRow JsonRow where
   fromRow = JsonRow <$> field
 
 -- | Read and decode the Sqlite data file from disk
-readSqliteData :: FilePath -> Logger -> ExceptT String IO Store.Value
-readSqliteData filePath _logger = ExceptT $ do
+readSqliteData :: FilePath -> ExceptT String IO Store.Value
+readSqliteData filePath = ExceptT $ do
   -- read the data from SQLite
   conn <- liftIO $ open filePath
-  -- TODO: We might want to have a primary key here after all. Then we could have multiple
-  -- JSON values next to each other.
-  liftIO $ execute_ conn "CREATE TABLE IF NOT EXISTS test (value BLOB)"
   jsonRows <- liftIO $ (query_ conn "SELECT * from test" :: IO [JsonRow])
 
   case jsonRows of
     -- if there is no data yet, we simply return the empty object. We do the same thing for the
     -- file backend.
     [] -> do
-      liftIO $ execute conn "INSERT INTO test (value) VALUES (?)" (Only $ Aeson.encode Aeson.emptyObject)
+      liftIO $ execute conn "INSERT INTO icepeak (value) VALUES (?)" (Only $ Aeson.encode Aeson.emptyObject)
       pure $ Right Aeson.emptyObject
     _  -> case Aeson.eitherDecodeStrict (jsonByteString $ head $ jsonRows) of
             Left msg  -> pure $ Left $ "Failed to decode the initial data: " ++ show msg
@@ -150,7 +184,7 @@ syncSqliteFile val = do
     conn <- open filePath
     -- we can always UPDATE here, since we know that there will be at least one row, since
     -- we issue an INSERT when we load in an empty database
-    liftIO $ executeNamed conn "UPDATE test SET value = :value" [":value" := Aeson.encode value]
+    liftIO $ executeNamed conn "UPDATE icepeak SET value = :value" [":value" := Aeson.encode value]
 
     -- the journal is idempotent, so there is no harm if icepeak crashes between
     -- the previous and the next action
@@ -192,7 +226,7 @@ syncFile val = do
 -- This should be called after all journal entries have been replayed, and the data has been
 -- synced to disk.
 truncateJournal :: PersistentValue -> IO ()
-truncateJournal val = do
+truncateJournal val =
     for_ (pvJournal val) $ \journalHandle -> do
       -- we must seek back to the beginning of the file *before* calling hSetFileSize, since that
       -- function does not change the file cursor, which means that the first write that follows
@@ -269,38 +303,15 @@ recoverJournal pval = for_ (pvJournal pval) $ \journalHandle -> ExceptT $ fmap f
       <> Text.pack (show line) <> ": " <> Text.pack err
 
 -- | Read and decode the data file from disk
-readData :: FilePath -> Logger -> ExceptT String IO Store.Value
-readData filePath logger = ExceptT $ do
+readData :: FilePath -> ExceptT String IO Store.Value
+readData filePath = ExceptT $ do
   eitherEncodedValue <- tryIOError $ SBS.readFile filePath
   case eitherEncodedValue of
-    Left e | isDoesNotExistError e -> do
-        -- If there is no icepeak.json file yet, we create an empty one instead.
-        let message = "WARNING: Could not read data from " <> Text.pack filePath <>
-                      " because the file does not exist yet. Created an empty database instead."
-
-        -- if this fails, we want the whole program to crash since something is wrong
-        SBS.writeFile filePath "{}"
-
-        Logger.postLogBlocking logger LogInfo message
-        pure $ Right Aeson.emptyObject
-
-    Left e | isPermissionError e -> do
-        pure $ Left $ "File " ++ filePath ++ " cannot be read due to a permission error." ++
-                      "Please check the file permissions."
-    -- other permission errors should also lead to program termination
+    -- we do not expect any errors here, since we validated the file earlier already
     Left e -> pure $ Left (show e)
-
-    -- in case the data-file is empty we write the empty object "{}" to it and return it
-    Right "" -> do
-        let message = "WARNING: The provided --data-file " <> Text.pack filePath <>
-                      " is empty. Will write a default database of {} to this file."
-        SBS.writeFile filePath "{}"
-        Logger.postLogBlocking logger LogInfo message
-        pure $ Right Aeson.emptyObject
-    Right encodedValue -> do
-      case Aeson.eitherDecodeStrict encodedValue of
-        Left msg  -> pure $ Left $ "Failed to decode the initial data: " ++ show msg
-        Right value -> pure $ Right value
+    Right encodedValue -> case Aeson.eitherDecodeStrict encodedValue of
+      Left msg  -> pure $ Left $ "Failed to decode the initial data: " ++ show msg
+      Right value -> pure $ Right value
 
 -- | Log a message in the context of a PersistentValue.
 logMessage :: PersistentValue -> Text -> IO ()

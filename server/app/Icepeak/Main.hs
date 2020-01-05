@@ -18,6 +18,7 @@ import qualified System.Posix.Signals as Signals
 
 import Config (Config (..), configInfo)
 import Core (Core (..))
+import Persistence (setupStorageBackend)
 import Logger (Logger, LogLevel(..), postLog)
 
 import qualified Core
@@ -51,6 +52,9 @@ main = do
   env <- getEnvironment
   config <- execParser (configInfo env)
 
+  -- make sure the storage file exists and that it has the right format - otherwise, fail early
+  setupStorageBackend (configStorageBackend config) (configDataFile config)
+
   -- start logging as early as possible
   logger <- Logger.newLogger config
   loggerThread <- Async.async $ Logger.processLogRecords logger
@@ -66,6 +70,7 @@ main = do
     -- only stop logging when everything else has stopped
   Logger.postStop logger
   Async.wait loggerThread
+
 
 runCore :: Core -> IO ()
 runCore core = do
@@ -86,6 +91,7 @@ runCore core = do
   logAuthSettings config logger
   logQueueSettings config logger
   logSyncSettings config logger
+
   postLog logger LogInfo "System online. ** robot sounds **"
 
   -- Everything should stop when any of these stops
