@@ -109,9 +109,13 @@ setupStorageBackend File filePath = do
 setupStorageBackend Sqlite filePath = do
   -- read the data from SQLite
   conn <- liftIO $ open filePath
-  -- TODO: We might want to have a primary key here after all. Then we could have multiple
-  -- JSON values next to each other.
   liftIO $ execute_ conn "CREATE TABLE IF NOT EXISTS icepeak (value BLOB)"
+
+  jsonRows <- liftIO $ (query_ conn "SELECT * from icepeak" :: IO [JsonRow])
+  case jsonRows of
+    -- ensure that there is one row in the table, so that we can UPDATE it later
+    [] -> liftIO $ execute conn "INSERT INTO icepeak (value) VALUES (?)" (Only $ Aeson.encode Aeson.emptyObject)
+    _ -> pure()
 
 loadFromBackend :: StorageBackend -> PersistenceConfig -> IO (Either String PersistentValue)
 loadFromBackend backend config = runExceptT $ do
@@ -159,14 +163,12 @@ readSqliteData :: FilePath -> ExceptT String IO Store.Value
 readSqliteData filePath = ExceptT $ do
   -- read the data from SQLite
   conn <- liftIO $ open filePath
-  jsonRows <- liftIO $ (query_ conn "SELECT * from test" :: IO [JsonRow])
+  jsonRows <- liftIO $ (query_ conn "SELECT * from icepeak" :: IO [JsonRow])
 
   case jsonRows of
     -- if there is no data yet, we simply return the empty object. We do the same thing for the
     -- file backend.
-    [] -> do
-      liftIO $ execute conn "INSERT INTO icepeak (value) VALUES (?)" (Only $ Aeson.encode Aeson.emptyObject)
-      pure $ Right Aeson.emptyObject
+    [] -> pure $ Right Aeson.emptyObject
     _  -> case Aeson.eitherDecodeStrict (jsonByteString $ head $ jsonRows) of
             Left msg  -> pure $ Left $ "Failed to decode the initial data: " ++ show msg
             Right value -> pure $ Right (value :: Store.Value)
