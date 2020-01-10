@@ -18,7 +18,7 @@ import qualified System.Posix.Signals as Signals
 
 import Config (Config (..), configInfo)
 import Core (Core (..))
-import Persistence (setupStorageBackend)
+import Persistence (getDataFile, setupStorageBackend)
 import Logger (Logger, LogLevel(..), postLog)
 
 import qualified Core
@@ -53,7 +53,8 @@ main = do
   config <- execParser (configInfo env)
 
   -- make sure the storage file exists and that it has the right format - otherwise, fail early
-  setupStorageBackend (configStorageBackend config) (configDataFile config)
+  let dataFile = getDataFile (configStorageBackend config) (configDataFile config)
+  setupStorageBackend (configStorageBackend config) dataFile
 
   -- start logging as early as possible
   logger <- Logger.newLogger config

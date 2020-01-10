@@ -23,7 +23,7 @@ data StorageBackend = File | Sqlite
 
 -- command-line arguments
 data Config = Config
-  { configDataFile :: FilePath
+  { configDataFile :: Maybe FilePath
   , configPort :: Int
     -- | Enables the use of JWT for authorization in JWT.
   , configEnableJwtAuth :: Bool
@@ -59,11 +59,10 @@ type EnvironmentConfig = [(String, String)]
 
 configParser :: EnvironmentConfig -> Parser Config
 configParser environment = Config
-  -- TODO: We should use a different default ("icepeak.db") when SQLite is chosen as the storage backend
-  <$> strOption (long "data-file" <>
-                 metavar "DATA_FILE" <>
-                 value "icepeak.json" <>
-                 help "File where data is persisted to. Default: icepeak.json")
+  -- Note: If no --data-file is given we default either to icepeak.json or icepeak.db
+  <$> optional (strOption (long "data-file" <>
+                   metavar "DATA_FILE" <>
+                   help "File where data is persisted to. Default: icepeak.json"))
   <*> option auto (long "port" <>
                    metavar "PORT" <>
                    maybe (value 3000) value (readFromEnvironment "ICEPEAK_PORT") <>

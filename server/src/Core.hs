@@ -84,7 +84,7 @@ newCore :: Config -> Logger -> Maybe Metrics.IcepeakMetrics -> IO (Either String
 newCore config logger metrics = do
   let queueCapacity = fromIntegral . configQueueCapacity $ config
   -- load the persistent data from disk
-  let filePath = configDataFile config
+  let filePath = Persistence.getDataFile (configStorageBackend config) (configDataFile config)
       journalFile
         | configEnableJournaling config
           && periodicSyncingEnabled config = Just $ filePath ++ ".journal"

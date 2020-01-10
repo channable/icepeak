@@ -24,6 +24,7 @@ cabal.project.local
 # Vim swap files
 *.swp
 *.swo
+icepeak.db
 icepeak.json
 icepeak.json.journal
 icepeak.json.new

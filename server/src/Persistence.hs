@@ -7,6 +7,7 @@
 module Persistence
   ( PersistentValue
   , PersistenceConfig (..)
+  , getDataFile
   , getValue
   , apply
   , loadFromBackend
@@ -75,6 +76,14 @@ apply op val = do
   atomically $ do
     modifyTVar (pvValue val) (Store.applyModification op)
     writeTVar (pvIsDirty val) True
+
+
+-- If no --data-file was supplied we default to either icepeak.json, for the file backend,
+-- or icepeak.db, for the Sqlite backend
+getDataFile :: StorageBackend -> Maybe FilePath -> FilePath
+getDataFile _ (Just filePath) = filePath
+getDataFile File _ = "icepeak.json"
+getDataFile Sqlite _ = "icepeak.db"
 
 -- * IO
 
