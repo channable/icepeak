@@ -14,7 +14,6 @@ test_url = 'http://localhost:3000/so/cool'
 
 async def validate_data(connections, expected_result):
     for connection in connections:
-        # print('receiving {}'.format(connection))
         result = await connection.recv()
         parsed_result = json.loads(result)
 

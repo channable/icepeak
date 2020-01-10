@@ -166,8 +166,7 @@ readSqliteData filePath = ExceptT $ do
   jsonRows <- liftIO $ (query_ conn "SELECT * from icepeak" :: IO [JsonRow])
 
   case jsonRows of
-    -- if there is no data yet, we simply return the empty object. We do the same thing for the
-    -- file backend.
+    -- the 'setupStorageBackend' function verifies that we can read the database and that at least one row exists
     [] -> pure $ Right Aeson.emptyObject
     _  -> case Aeson.eitherDecodeStrict (jsonByteString $ head $ jsonRows) of
             Left msg  -> pure $ Left $ "Failed to decode the initial data: " ++ show msg

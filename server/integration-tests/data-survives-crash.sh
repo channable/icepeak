@@ -14,7 +14,7 @@ BACKEND_FLAGS=("--file" "--sqlite")
 
 for item in ${BACKEND_FLAGS[*]}
 do
-echo ">>>>>>>> Testing backend: $item"
+echo "-------- Testing backend: $item"
 DATA_FILE=`mktemp`
 # stack exec -- icepeak $item
 stack exec -- icepeak $item --data-file="$DATA_FILE" --sync-interval 60s --journaling &
