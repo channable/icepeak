@@ -84,12 +84,12 @@ newCore :: Config -> Logger -> Maybe Metrics.IcepeakMetrics -> IO (Either String
 newCore config logger metrics = do
   let queueCapacity = fromIntegral . configQueueCapacity $ config
   -- load the persistent data from disk
-  let filePath = configDataFile config
+  let filePath = Persistence.getDataFile (configStorageBackend config) (configDataFile config)
       journalFile
         | configEnableJournaling config
           && periodicSyncingEnabled config = Just $ filePath ++ ".journal"
         | otherwise = Nothing
-  eitherValue <- Persistence.load PersistenceConfig
+  eitherValue <- Persistence.loadFromBackend (configStorageBackend config) PersistenceConfig
     { pcDataFile = filePath
     , pcJournalFile = journalFile
     , pcLogger = logger
@@ -139,21 +139,24 @@ withCoreMetrics core act = liftIO $ forM_ (coreMetrics core) act
 runCommandLoop :: Core -> IO ()
 runCommandLoop core = go
   where
+    config = coreConfig core
+    currentValue = coreCurrentValue core
+    storageBackend = configStorageBackend config
     go = do
       command <- atomically $ readTBQueue (coreQueue core)
       case command of
         Modify op maybeNotifyVar -> do
-          Persistence.apply op (coreCurrentValue core)
+          Persistence.apply op currentValue
           postUpdate (Store.modificationPath op) core
           -- when periodic syncing is disabled, data is persisted after every modification
           unless (periodicSyncingEnabled $ coreConfig core) $
-            Persistence.sync (coreCurrentValue core)
+            Persistence.syncToBackend storageBackend currentValue
           mapM_ (`putMVar` ()) maybeNotifyVar
           go
         Sync -> do
-          Persistence.sync (coreCurrentValue core)
+          Persistence.syncToBackend storageBackend currentValue
           go
-        Stop -> Persistence.sync (coreCurrentValue core)
+        Stop -> Persistence.syncToBackend storageBackend currentValue
 
 -- | Post an update to the core's update queue (read by the websocket subscribers)
 postUpdate :: Path -> Core -> IO ()

@@ -1,6 +1,7 @@
 module Config (
   Config (..),
   MetricsConfig (..),
+  StorageBackend (..),
   periodicSyncingEnabled,
   configInfo,
 ) where
@@ -17,15 +18,18 @@ import qualified Data.List as List
 import qualified Data.Text as Text
 import qualified Web.JWT as JWT
 
+
+data StorageBackend = File | Sqlite
+
 -- command-line arguments
 data Config = Config
-  { configDataFile :: FilePath
+  { configDataFile :: Maybe FilePath
   , configPort :: Int
     -- | Enables the use of JWT for authorization in JWT.
   , configEnableJwtAuth :: Bool
-    -- | The secret used for verifying the JWT signatures. If no secret is
-    -- specified even though JWT authorization is enabled, tokens will still be
-    -- used, but not be verified.
+  -- | The secret used for verifying the JWT signatures. If no secret is
+  -- specified even though JWT authorization is enabled, tokens will still be
+  -- used, but not be verified.
   , configJwtSecret :: Maybe JWT.Signer
   , configMetricsEndpoint :: Maybe MetricsConfig
   , configQueueCapacity :: Word
@@ -38,6 +42,7 @@ data Config = Config
   -- | The SENTRY_DSN key that Sentry uses to communicate, if not set, use Nothing.
   -- Just indicates that a key is given.
   , configSentryDSN :: Maybe String
+  , configStorageBackend :: StorageBackend
   }
 
 data MetricsConfig = MetricsConfig
@@ -54,10 +59,10 @@ type EnvironmentConfig = [(String, String)]
 
 configParser :: EnvironmentConfig -> Parser Config
 configParser environment = Config
-  <$> strOption (long "data-file" <>
-                 metavar "DATA_FILE" <>
-                 value "icepeak.json" <>
-                 help "File where data is persisted to. Default: icepeak.json")
+  -- Note: If no --data-file is given we default either to icepeak.json or icepeak.db
+  <$> optional (strOption (long "data-file" <>
+                   metavar "DATA_FILE" <>
+                   help "File where data is persisted to. Default: icepeak.json"))
   <*> option auto (long "port" <>
                    metavar "PORT" <>
                    maybe (value 3000) value (readFromEnvironment "ICEPEAK_PORT") <>
@@ -95,6 +100,7 @@ configParser environment = Config
               metavar "SENTRY_DSN" <>
               environ "SENTRY_DSN" <>
               help "Sentry DSN used for Sentry logging, defaults to the value of the SENTRY_DSN environment variable if present. If no secret is passed, Sentry logging will be disabled."))
+  <*> storageBackend
 
   where
     environ var = foldMap value (lookup var environment)
@@ -111,6 +117,18 @@ configInfo environment = info parser description
     description = fullDesc <>
       header "Icepeak - Fast Json document store with push notification support."
 
+-- * Parsers
+
+storageBackend :: Parser StorageBackend
+storageBackend = fileBackend <|> sqliteBackend
+
+fileBackend :: Parser StorageBackend
+-- The first 'File' here is the default value. We want --file to be used by default, when nothing
+-- is specified on the command-line. This ensures backwards-compatibility.
+fileBackend = flag File File (long "file" <> help "Use a file as the storage backend." )
+
+sqliteBackend :: Parser StorageBackend
+sqliteBackend = flag' Sqlite (long "sqlite" <> help "Use a sqlite file as the storage backend." )
 
 -- * Reader functions
 

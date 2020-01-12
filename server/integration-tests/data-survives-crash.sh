@@ -1,4 +1,4 @@
-#/bin/bash
+#!/usr/bin/env bash
 
 if [ ! -f "stack.yaml" ]; then
     echo "Run test in server package directory"
@@ -7,11 +7,17 @@ fi
 
 ########## Preparations
 stack build
-DATA_FILE=`mktemp`
-echo '{}' > "$DATA_FILE"
+
+BACKEND_FLAGS=("--file" "--sqlite")
 
 ########## 1st Pass
-stack exec -- icepeak --data-file="$DATA_FILE" --sync-interval 60s --journaling > /dev/null &
+
+for item in ${BACKEND_FLAGS[*]}
+do
+echo "-------- Testing backend: $item"
+DATA_FILE=`mktemp`
+# stack exec -- icepeak $item
+stack exec -- icepeak $item --data-file="$DATA_FILE" --sync-interval 60s --journaling &
 ICEPEAK_PID=$!
 echo "Icepeak started PID=$ICEPEAK_PID"
 sleep 1
@@ -26,7 +32,7 @@ wait $ICEPEAK_PID
 sleep 1
 
 ########## 2nd PASS
-stack exec -- icepeak --data-file="$DATA_FILE" --sync-interval 60s --journaling > /dev/null &
+stack exec -- icepeak $item --data-file="$DATA_FILE" --sync-interval 60s --journaling > /dev/null &
 ICEPEAK_PID=$!
 echo "Icepeak started PID=$ICEPEAK_PID"
 sleep 1
@@ -38,6 +44,7 @@ wait $ICEPEAK_PID
 ########## Cleanup
 rm "$DATA_FILE"
 rm "$DATA_FILE.journal"
+done
 
 ########## Evaluation
 if [ "$RESULT" -eq "$VALUE_FOO_A" ]; then

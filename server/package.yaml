@@ -26,6 +26,7 @@ dependencies:
 - random
 - raven-haskell
 - scotty
+- sqlite-simple
 - stm
 - text
 - time

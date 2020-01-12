@@ -10,13 +10,13 @@ import Prelude hiding (fail)
 
 import AccessControl
 import JwtAuth
-import qualified Data.Map.Strict as Map
 import qualified Web.JWT as JWT
 import qualified Data.Text.IO as Text
 
 main :: IO ()
 main = Text.putStrLn $ JWT.encodeSigned testSecret joseHeader testClaims
 
+joseHeader :: JWT.JOSEHeader
 joseHeader = JWT.JOSEHeader
   { JWT.typ = Just "JWT"
   , JWT.cty = Nothing
