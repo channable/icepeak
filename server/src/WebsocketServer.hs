@@ -72,11 +72,11 @@ acceptConnection core pending = do
         }
     AuthAccepted -> do
       let path = fst $ Uri.decodePath $ WS.requestPath $ WS.pendingRequest pending
-      conn <- WS.acceptRequest pending
-      -- Fork a pinging thread to keep idle connections open and to detect closed connections.
+      connection <- WS.acceptRequest pending
+      -- Fork a pinging thread, for each client, to keep idle connections open and to detect
+      -- closed connections. Sends a ping message every 30 seconds.
       -- Note: The thread dies silently if the connection crashes or is closed.
-      WS.forkPingThread conn 30
-      handleClient conn path core
+      WS.withPingThread connection 30 (pure ()) $ handleClient connection path core
 
 -- * Authorization
 

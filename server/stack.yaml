@@ -1,6 +1,6 @@
-resolver: lts-14.0
+resolver: lts-14.20
 
 extra-deps:
-  - raven-haskell-0.1.2.0
+  - raven-haskell-0.1.2.1
   - prometheus-metrics-ghc-1.0.0
   - wai-middleware-prometheus-1.0.0
