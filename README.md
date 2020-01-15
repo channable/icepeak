@@ -23,8 +23,9 @@ Icepeak supports JWT-based authorization. JWT claims can be used
 to restrict the prefixes in the JSON document that a client can read or write.
 See [JWT Authorization](#jwt-authorization).
 
-See [connection_test.py](server/integration-tests/connection_test.py) for a simple example that PUTs some
-data via the HTTP API and then retrieves it again over a websocket connection.
+See [read_after_write_test.py](server/integration-tests/read_after_write_test.py) for a simple
+example that PUTs some data via the HTTP API and then retrieves it again over a websocket
+connection.
 
 See [listener.html](server/integration-tests/listener.html) for a Javascript-based example of a
 websocket listener.
@@ -58,7 +59,7 @@ And run `icepeak` itself with `stack exec icepeak`.
 Install with `stack install`.
 
 Integration tests are in `/server/integration-tests`.
-They are stand-alone scripts that can be executed directly, e.g. `./connection_test.py`.
+They are stand-alone scripts that can be executed directly, e.g. `./read_after_write_test.py`.
 
 ## Building the Haskell client library
 
