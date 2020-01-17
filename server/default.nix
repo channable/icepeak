@@ -1,5 +1,17 @@
 let
-  pkgs = import ../nix/nixpkgs.nix {};
-  icepeak-server = pkgs.haskellPackages.callPackage ./server.nix {};
+  config = {
+    packageOverrides = pkgs: rec {
+      haskellPackages = pkgs.haskellPackages.override {
+        overrides = haskellPackagesNew: haskellPackagesOld: rec {
+          icepeak = haskellPackagesNew.callPackage ./server.nix { };
+          websockets = haskellPackagesNew.callPackage ../nix/websockets.nix { };
+        };
+      };
+    };
+  };
+
+  pkgs = import ../nix/nixpkgs.nix { inherit config; };
 in
-  icepeak-server
+  {
+    icepeak-server = pkgs.haskellPackages.icepeak;
+  }
