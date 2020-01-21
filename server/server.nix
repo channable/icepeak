@@ -41,7 +41,56 @@
 mkDerivation {
   pname = "icepeak";
   version = "0.6.2";
-  src = ./.;
+
+  src =
+    let
+      # Naive whitelist of file function. We could make this nicer eventually,
+      # but this works. This also makes it obvious we do not run the integration
+      # tests as part of building.
+      srcPaths = builtins.map builtins.toString [
+        ./package.yaml
+
+        ./tests
+        ./tests/AccessControlSpec.hs
+        ./tests/ApiSpec.hs
+        ./tests/CoreSpec.hs
+        ./tests/JwtSpec.hs
+        ./tests/OrphanInstances.hs
+        ./tests/PersistenceSpec.hs
+        ./tests/RequestSpec.hs
+        ./tests/SocketSpec.hs
+        ./tests/Spec.hs
+        ./tests/StoreSpec.hs
+        ./tests/SubscriptionTreeSpec.hs
+
+        ./src
+        ./src/AccessControl.hs
+        ./src/Config.hs
+        ./src/Core.hs
+        ./src/HTTPMethodInvalid.hs
+        ./src/HttpServer.hs
+        ./src/JwtAuth.hs
+        ./src/JwtMiddleware.hs
+        ./src/Logger.hs
+        ./src/Metrics.hs
+        ./src/MetricsServer.hs
+        ./src/Persistence.hs
+        ./src/SentryLogging.hs
+        ./src/Server.hs
+        ./src/Store.hs
+        ./src/Subscription.hs
+        ./src/WebsocketServer.hs
+
+        ./app
+        ./app/Icepeak
+        ./app/Icepeak/Main.hs
+        ./app/IcepeakTokenGen
+        ./app/IcepeakTokenGen/Main.hs
+      ];
+    in
+      builtins.filterSource
+        (path: (type: builtins.elem path srcPaths))
+        ./.;
 
   isLibrary = false;
   isExecutable = true;
