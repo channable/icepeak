@@ -5,6 +5,7 @@
 , containers
 , directory
 , hashable
+, hpack
 , hspec
 , hspec-wai
 , http-types
@@ -41,6 +42,10 @@
 mkDerivation {
   pname = "icepeak";
   version = "0.6.2";
+
+  # Opt in to hpack. We don't commit the cabal file in our repo currently.
+  buildTools = [ hpack ];
+  preConfigure = "hpack .";
 
   src =
     let
