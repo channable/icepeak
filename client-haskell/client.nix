@@ -24,7 +24,8 @@ mkDerivation {
       srcPaths = builtins.map builtins.toString [
           ./package.yaml
           ./src
-          ./src/Client.hs
+          ./src/Icepeak
+          ./src/Icepeak/Client.hs
       ];
     in
       builtins.filterSource
