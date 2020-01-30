@@ -46,3 +46,4 @@ script:
   - (cd client-haskell && stack test  -j2 --no-terminal)
   # Check that the nix builds work
   - nix-build --no-out-link -E '(import ./nix/nixpkgs.nix {}).haskellPackages.callPackage ./client-haskell/client.nix {}'
+  - nix-build --no-out-link ./server/default.nix
