@@ -33,6 +33,10 @@ install:
   # interactive terminal capabilities.
   - (cd server && stack setup -j2 --no-terminal)
   - (cd client-haskell && stack setup -j2 --no-terminal)
+  - curl -o install-nix-2.3.1 https://nixos.org/releases/nix/nix-2.3.1/install
+  - sha256sum --check nix/nix_sha256sums
+  - sh ./install-nix-2.3.1 --no-daemon
+  - . $HOME/.nix-profile/etc/profile.d/nix.sh
 
 script:
   # Build and test.
@@ -40,3 +44,6 @@ script:
   - (cd server && stack test  -j2 --no-terminal)
   - (cd client-haskell && stack build -j2 --no-terminal)
   - (cd client-haskell && stack test  -j2 --no-terminal)
+  # Check that the nix builds work
+  - nix-build --no-out-link -E '(import ./nix/nixpkgs.nix {}).haskellPackages.callPackage ./client-haskell/client.nix {}'
+  - nix-build --no-out-link ./server/default.nix
