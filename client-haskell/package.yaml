@@ -22,3 +22,5 @@ dependencies:
 
 library:
   source-dirs: src
+  exposed-modules:
+  - Icepeak.Client
