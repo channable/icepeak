@@ -6,19 +6,9 @@
 }:
 
 let
-  config = {
-    packageOverrides = pkgs: rec {
-      haskellPackages = pkgs.haskellPackages.override {
-        overrides = haskellPackagesNew: haskellPackagesOld: rec {
-          icepeak = haskellPackagesNew.callPackage ./server.nix { };
-          websockets = haskellPackagesNew.callPackage ../nix/websockets.nix { };
-        };
-      };
-    };
-  };
-
-  pkgs = getPkgs { inherit config; };
+  pkgs = getPkgs { };
+  icepeak-server = pkgs.haskellPackages.callPackage ./server.nix { };
 in
   {
-    icepeak-server = pkgs.haskellPackages.icepeak;
+    icepeak-server = icepeak-server;
   }
