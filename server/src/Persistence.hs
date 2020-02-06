@@ -44,6 +44,8 @@ import qualified Logger
 import qualified Metrics
 import qualified Store
 
+import GHC.Int (Int64)
+
 import Config (StorageBackend (..))
 
 data PersistentValue = PersistentValue
@@ -126,7 +128,7 @@ setupStorageBackend Sqlite filePath = do
   conn <- liftIO $ open filePath
   liftIO $ execute_ conn "CREATE TABLE IF NOT EXISTS icepeak (value BLOB)"
 
-  jsonRows <- liftIO $ (query_ conn "SELECT * from icepeak" :: IO [JsonRow])
+  jsonRows <- liftIO $ (query_ conn "SELECT * FROM icepeak" :: IO [JsonRow])
   case jsonRows of
     -- ensure that there is one row in the table, so that we can UPDATE it later
     [] -> liftIO $ execute conn "INSERT INTO icepeak (value) VALUES (?)" (Only $ Aeson.encode Aeson.emptyObject)
@@ -141,21 +143,35 @@ setupStorageBackend Postgres _filePath = do
     Left Nothing -> error "Unspecified connection error"
     Right connection -> do
       putStrLn "Acquired connection!"
-      result <- Session.run session connection
+      result <- Session.run createSession connection
       print result
+
+      jsonRows <- Session.run selectSession connection
+      print jsonRows
+
       Connection.release connection
   where
     -- TODO: Read these settings from environment variables
     connectionSettings = Connection.settings "localhost" 5434 "icepeak" "icepeak" "icepeak"
 
-    session :: Session.Session ()
-    session = Session.statement () createTable
+    createSession :: Session.Session ()
+    createSession = Session.statement () createTable
+
+    selectSession :: Session.Session Int64
+    selectSession = Session.statement () selectStar
 
     createTable :: Statement.Statement () ()
     createTable =  Statement.Statement
       "CREATE TABLE IF NOT EXISTS icepeak (value JSONB)"
       Encoders.noParams
       Decoders.noResult
+      False -- don't prepare this statement, since we are running it only once
+
+    selectStar :: Statement.Statement () Int64
+    selectStar = Statement.Statement
+      "SELECT count(*) FROM icepeak"
+      Encoders.noParams
+      (Decoders.singleRow $ Decoders.column (Decoders.nonNullable Decoders.int8))
       False -- don't prepare this statement, since we are running it only once
 
 loadFromBackend :: StorageBackend -> PersistenceConfig -> IO (Either String PersistentValue)
