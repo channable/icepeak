@@ -127,6 +127,10 @@ setupStorageBackend Sqlite filePath = do
     [] -> liftIO $ execute conn "INSERT INTO icepeak (value) VALUES (?)" (Only $ Aeson.encode Aeson.emptyObject)
     _ -> pure()
 
+-- TODO: The "filePath" could be the connection string, but that would be a bit of a hack.
+-- We should ensure here that we can connect to Postgres as the right user, and that the "icepeak" table exists
+setupStorageBackend Postgres filePath = pure ()
+
 loadFromBackend :: StorageBackend -> PersistenceConfig -> IO (Either String PersistentValue)
 loadFromBackend backend config = runExceptT $ do
   let metrics = pcMetrics config
@@ -141,6 +145,7 @@ loadFromBackend backend config = runExceptT $ do
   value <- case backend of
     File -> readData dataFilePath
     Sqlite -> readSqliteData dataFilePath
+    Postgres -> readPostgresData dataFilePath
 
   valueVar <- lift $ newTVarIO value
   dirtyVar <- lift $ newTVarIO False
@@ -158,6 +163,7 @@ loadFromBackend backend config = runExceptT $ do
 syncToBackend :: StorageBackend -> PersistentValue -> IO ()
 syncToBackend File pv = syncFile pv
 syncToBackend Sqlite pv = syncSqliteFile pv
+syncToBackend Postgres pv = syncPostgres pv
 
 -- * SQLite loading and syncing
 
@@ -167,6 +173,9 @@ data JsonRow = JsonRow {jsonByteString :: SBS.ByteString} deriving (Show)
 
 instance FromRow JsonRow where
   fromRow = JsonRow <$> field
+
+readPostgresData :: FilePath -> ExceptT String IO Store.Value
+readPostgresData filePath = undefined
 
 -- | Read and decode the Sqlite data file from disk
 readSqliteData :: FilePath -> ExceptT String IO Store.Value
@@ -181,6 +190,9 @@ readSqliteData filePath = ExceptT $ do
     _  -> case Aeson.eitherDecodeStrict (jsonByteString $ head $ jsonRows) of
             Left msg  -> pure $ Left $ "Failed to decode the initial data: " ++ show msg
             Right value -> pure $ Right (value :: Store.Value)
+
+syncPostgres :: PersistentValue -> IO ()
+syncPostgres val = undefined
 
 -- | Write the data to the SQLite file if it has changed.
 syncSqliteFile :: PersistentValue -> IO ()
