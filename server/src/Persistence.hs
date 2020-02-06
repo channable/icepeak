@@ -84,6 +84,7 @@ getDataFile :: StorageBackend -> Maybe FilePath -> FilePath
 getDataFile _ (Just filePath) = filePath
 getDataFile File _ = "icepeak.json"
 getDataFile Sqlite _ = "icepeak.db"
+getDataFile Postgres _ = "postgres.db"  -- TODO: This doesn't make any sense for Postgres
 
 -- * IO
 

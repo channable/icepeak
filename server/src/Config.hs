@@ -19,7 +19,7 @@ import qualified Data.Text as Text
 import qualified Web.JWT as JWT
 
 
-data StorageBackend = File | Sqlite
+data StorageBackend = File | Sqlite | Postgres
 
 -- command-line arguments
 data Config = Config
@@ -120,7 +120,7 @@ configInfo environment = info parser description
 -- * Parsers
 
 storageBackend :: Parser StorageBackend
-storageBackend = fileBackend <|> sqliteBackend
+storageBackend = fileBackend <|> sqliteBackend <|> postgresBackend
 
 fileBackend :: Parser StorageBackend
 -- The first 'File' here is the default value. We want --file to be used by default, when nothing
@@ -129,6 +129,9 @@ fileBackend = flag File File (long "file" <> help "Use a file as the storage bac
 
 sqliteBackend :: Parser StorageBackend
 sqliteBackend = flag' Sqlite (long "sqlite" <> help "Use a sqlite file as the storage backend." )
+
+postgresBackend :: Parser StorageBackend
+postgresBackend = flag' Postgres (long "postgres" <> help "Use Postgres as the storage backend." )
 
 -- * Reader functions
 
