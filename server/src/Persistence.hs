@@ -30,6 +30,11 @@ import qualified Data.Text                  as Text
 import           Data.Traversable
 import           Database.SQLite.Simple     (FromRow (..), NamedParam (..), Only (..), execute,
                                              execute_, executeNamed, field, open, query_)
+import qualified Hasql.Session as Session
+import qualified Hasql.Connection as Connection
+import qualified Hasql.Statement as Statement
+import qualified Hasql.Encoders as Encoders
+import qualified Hasql.Decoders as Decoders
 import           System.Directory           (getFileSize, renameFile)
 import           System.Exit                (die)
 import           System.IO
@@ -129,7 +134,29 @@ setupStorageBackend Sqlite filePath = do
 
 -- TODO: The "filePath" could be the connection string, but that would be a bit of a hack.
 -- We should ensure here that we can connect to Postgres as the right user, and that the "icepeak" table exists
-setupStorageBackend Postgres filePath = pure ()
+setupStorageBackend Postgres _filePath = do
+  connectionResult <- Connection.acquire connectionSettings
+  case connectionResult of
+    Left (Just errMsg) -> error $ "Could not connect to Postgres" ++  show errMsg
+    Left Nothing -> error "Unspecified connection error"
+    Right connection -> do
+      putStrLn "Acquired connection!"
+      result <- Session.run session connection
+      print result
+      Connection.release connection
+  where
+    -- TODO: Read these settings from environment variables
+    connectionSettings = Connection.settings "localhost" 5434 "icepeak" "icepeak" "icepeak"
+
+    session :: Session.Session ()
+    session = Session.statement () createTable
+
+    createTable :: Statement.Statement () ()
+    createTable =  Statement.Statement
+      "CREATE TABLE IF NOT EXISTS icepeak (value JSONB)"
+      Encoders.noParams
+      Decoders.noResult
+      False -- don't prepare this statement, since we are running it only once
 
 loadFromBackend :: StorageBackend -> PersistenceConfig -> IO (Either String PersistentValue)
 loadFromBackend backend config = runExceptT $ do
@@ -175,7 +202,7 @@ instance FromRow JsonRow where
   fromRow = JsonRow <$> field
 
 readPostgresData :: FilePath -> ExceptT String IO Store.Value
-readPostgresData filePath = undefined
+readPostgresData _filePath = undefined
 
 -- | Read and decode the Sqlite data file from disk
 readSqliteData :: FilePath -> ExceptT String IO Store.Value
@@ -192,7 +219,7 @@ readSqliteData filePath = ExceptT $ do
             Right value -> pure $ Right (value :: Store.Value)
 
 syncPostgres :: PersistentValue -> IO ()
-syncPostgres val = undefined
+syncPostgres _val = undefined
 
 -- | Write the data to the SQLite file if it has changed.
 syncSqliteFile :: PersistentValue -> IO ()
