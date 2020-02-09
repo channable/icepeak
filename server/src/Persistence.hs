@@ -25,6 +25,7 @@ import qualified Data.ByteString.Char8      as SBS8
 import qualified Data.ByteString.Lazy       as LBS
 import qualified Data.ByteString.Lazy.Char8 as LBS8
 import           Data.Foldable
+-- import           Data.Functor.Contravariant (contramap)
 import           Data.Text                  (Text)
 import qualified Data.Text                  as Text
 import           Data.Traversable
@@ -132,33 +133,38 @@ setupStorageBackend Sqlite filePath = do
   case jsonRows of
     -- ensure that there is one row in the table, so that we can UPDATE it later
     [] -> liftIO $ execute conn "INSERT INTO icepeak (value) VALUES (?)" (Only $ Aeson.encode Aeson.emptyObject)
-    _ -> pure()
+    _ -> pure ()
 
 -- TODO: The "filePath" could be the connection string, but that would be a bit of a hack.
--- We should ensure here that we can connect to Postgres as the right user, and that the "icepeak" table exists
+-- We ensure here that we can connect to Postgres as the right user, and that the "icepeak" table exists and
+-- contains exactly one row (with one column, called 'value')
 setupStorageBackend Postgres _filePath = do
   connectionResult <- Connection.acquire connectionSettings
   case connectionResult of
-    Left (Just errMsg) -> error $ "Could not connect to Postgres" ++  show errMsg
-    Left Nothing -> error "Unspecified connection error"
+    Left (Just errMsg) -> error $ "Could not connect to Postgres: " ++  show errMsg
+    Left Nothing -> error "Unspecified Postgres connection error"
     Right connection -> do
-      putStrLn "Acquired connection!"
-      result <- Session.run createSession connection
-      print result
-
-      jsonRows <- Session.run selectSession connection
-      print jsonRows
+      jsonRows <- Session.run (createSession >> selectSession) connection
+      result <- case jsonRows of
+        Left queryError -> error $ "Could not query the icepeak table: " ++  show queryError
+        Right nrRows -> case nrRows of
+          0 -> Session.run insertSession connection
+          1 -> pure (Right ())  -- there should be exactly one row
+          _ -> error "There should not be more than one row in the icepeak table. Please fix manually."
 
       Connection.release connection
   where
     -- TODO: Read these settings from environment variables
     connectionSettings = Connection.settings "localhost" 5434 "icepeak" "icepeak" "icepeak"
 
-    createSession :: Session.Session ()
+    createSession :: Session.Session  ()
     createSession = Session.statement () createTable
 
     selectSession :: Session.Session Int64
     selectSession = Session.statement () selectStar
+
+    insertSession :: Session.Session ()
+    insertSession = Session.statement () insertJsonValue
 
     createTable :: Statement.Statement () ()
     createTable =  Statement.Statement
@@ -172,6 +178,13 @@ setupStorageBackend Postgres _filePath = do
       "SELECT count(*) FROM icepeak"
       Encoders.noParams
       (Decoders.singleRow $ Decoders.column (Decoders.nonNullable Decoders.int8))
+      False -- don't prepare this statement, since we are running it only once
+
+    insertJsonValue :: Statement.Statement () ()
+    insertJsonValue = Statement.Statement
+      "INSERT INTO icepeak (value) VALUES ('{}'::jsonb);"
+      Encoders.noParams
+      Decoders.noResult
       False -- don't prepare this statement, since we are running it only once
 
 loadFromBackend :: StorageBackend -> PersistenceConfig -> IO (Either String PersistentValue)
