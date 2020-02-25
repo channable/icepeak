@@ -138,22 +138,27 @@ setupStorageBackend Sqlite filePath = do
 -- TODO: The "filePath" could be the connection string, but that would be a bit of a hack.
 -- We ensure here that we can connect to Postgres as the right user, and that the "icepeak" table exists and
 -- contains exactly one row (with one column, called 'value')
-setupStorageBackend Postgres _filePath = do
-  connectionResult <- Connection.acquire connectionSettings
-  case connectionResult of
-    Left (Just errMsg) -> error $ "Could not connect to Postgres: " ++  show errMsg
-    Left Nothing -> error "Unspecified Postgres connection error"
-    Right connection -> do
-      jsonRows <- Session.run (createSession >> selectSession) connection
-      result <- case jsonRows of
-        Left queryError -> error $ "Could not query the icepeak table: " ++  show queryError
-        Right nrRows -> case nrRows of
-          0 -> Session.run insertSession connection
-          1 -> pure (Right ())  -- there should be exactly one row
-          _ -> error "There should not be more than one row in the icepeak table. Please fix manually."
+setupStorageBackend Postgres _filePath =
+  bracket
+    (Connection.acquire connectionSettings)
+    (\connectionResult -> either (error . show) Connection.release connectionResult)
+    setupIcepeakTable
 
-      Connection.release connection
   where
+    setupIcepeakTable :: Either Connection.ConnectionError Connection.Connection -> IO ()
+    setupIcepeakTable connectionResult =
+      case connectionResult of
+        Left (Just errMsg) -> error $ "Could not connect to Postgres: " ++  show errMsg
+        Left Nothing -> error "Unspecified Postgres connection error"
+        Right connection -> do
+          jsonRows <- Session.run (createSession >> selectSession) connection
+          case jsonRows of
+            Left queryError -> error $ "Could not query the icepeak table: " ++  show queryError
+            Right nrRows -> case nrRows of
+              0 -> Session.run insertSession connection >>= either (error . show) (\_ -> pure ())
+              1 -> pure ()  -- there should be exactly one row
+              _ -> error "There should not be more than one row in the icepeak table. Please fix manually."
+
     -- TODO: Read these settings from environment variables
     connectionSettings = Connection.settings "localhost" 5434 "icepeak" "icepeak" "icepeak"
 
