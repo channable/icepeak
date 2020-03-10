@@ -1,6 +1,8 @@
-resolver: lts-14.23
+resolver: lts-15.3
 
 extra-deps:
   - raven-haskell-0.1.2.1
   - prometheus-metrics-ghc-1.0.0
   - wai-middleware-prometheus-1.0.0
+  - sqlite-simple-0.4.18.0
+  - direct-sqlite-2.3.26
