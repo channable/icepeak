@@ -67,7 +67,7 @@ setJournalSize val metrics = setGauge (icepeakMetricsJournalSize metrics) (realT
 -- Returns True, when it actually increased the counter and otherwise False.
 incrementDataWritten :: (MonadMonitor m, Real a) => a -> IcepeakMetrics -> m Bool
 incrementDataWritten num_bytes metrics = do
-  addCounter (icepeakMetricsDataWritten      metrics) (realToFrac num_bytes)
+  _ <- addCounter (icepeakMetricsDataWritten metrics) (realToFrac num_bytes) -- Ignore the result to silence linter
   addCounter (icepeakMetricsDataWrittenTotal metrics) (realToFrac num_bytes)
 
 -- | Increment the data written to the journal by the given number of bytes.
