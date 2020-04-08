@@ -26,29 +26,43 @@ before_install:
 - export PATH=$HOME/.local/bin:$PATH
 - travis_retry curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
 
-install:
-  # Install the compiler. Pass --no-terminal to tell Stack it is not running in
-  # an interactive terminal, so it prints messages sequentially instead of
-  # updating them. The latter is less spammy but Travis does not support these
-  # interactive terminal capabilities.
-  - (cd server && stack setup -j2 --no-terminal)
-  - (cd client-haskell && stack setup -j2 --no-terminal)
-  - curl -o install-nix-2.3.1 https://nixos.org/releases/nix/nix-2.3.1/install
-  - sha256sum --check nix/nix_sha256sums
-  - sh ./install-nix-2.3.1 --no-daemon
-  - . $HOME/.nix-profile/etc/profile.d/nix.sh
-
 jobs:
   include:
-    - script:
-      # Build and test.
-      - (cd server && stack build -j2 --no-terminal)
-      - (cd server && stack test  -j2 --no-terminal)
-    - script:
-      - (cd client-haskell && stack build -j2 --no-terminal)
-      - (cd client-haskell && stack test  -j2 --no-terminal)
+    # Build and test jobs.
+    - name: Tests for server
+      cache:
+        directories:
+          - $HOME/.stack
+          - $TRAVIS_BUILD_DIR/server/.stack-work
+      script:
+        - (cd server && stack setup -j2 --no-terminal)
+        - (cd server && stack build -j2 --no-terminal)
+        - (cd server && stack test  -j2 --no-terminal)
+    - name: Tests for Haskell client
+      cache:
+        directories:
+          - $HOME/.stack
+          - $TRAVIS_BUILD_DIR/client-haskell/.stack-work
+      script:
+        - (cd client-haskell && stack setup -j2 --no-terminal)
+        - (cd client-haskell && stack build -j2 --no-terminal)
+        - (cd client-haskell && stack test  -j2 --no-terminal)
     # Check that the nix builds work
-    - script:
-      - nix-build --no-out-link -E '(import ./nix/nixpkgs.nix {}).haskellPackages.callPackage ./client-haskell/client.nix {}'
-    - script:
-      - nix-build --no-out-link ./server/default.nix
+    - name: Nix build of Haskell client
+      cache: disabled # no need to pull in .stack?
+      install:
+        - curl -o install-nix-2.3.1 https://nixos.org/releases/nix/nix-2.3.1/install
+        - sha256sum --check nix/nix_sha256sums
+        - sh ./install-nix-2.3.1 --no-daemon
+        - . $HOME/.nix-profile/etc/profile.d/nix.sh
+      script:
+        - nix-build --no-out-link -E '(import ./nix/nixpkgs.nix {}).haskellPackages.callPackage ./client-haskell/client.nix {}'
+    - name: Nix build of server
+      cache: disabled
+      install:
+        - curl -o install-nix-2.3.1 https://nixos.org/releases/nix/nix-2.3.1/install
+        - sha256sum --check nix/nix_sha256sums
+        - sh ./install-nix-2.3.1 --no-daemon
+        - . $HOME/.nix-profile/etc/profile.d/nix.sh
+      script:
+        - nix-build --no-out-link ./server/default.nix
