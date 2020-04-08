@@ -39,15 +39,16 @@ install:
   - . $HOME/.nix-profile/etc/profile.d/nix.sh
 
 jobs:
-  script:
-    # Build and test.
-    - (cd server && stack build -j2 --no-terminal)
-    - (cd server && stack test  -j2 --no-terminal)
-  script:
-    - (cd client-haskell && stack build -j2 --no-terminal)
-    - (cd client-haskell && stack test  -j2 --no-terminal)
-  # Check that the nix builds work
-  script:
-    - nix-build --no-out-link -E '(import ./nix/nixpkgs.nix {}).haskellPackages.callPackage ./client-haskell/client.nix {}'
-  script:
-    - nix-build --no-out-link ./server/default.nix
+  include:
+    script:
+      # Build and test.
+      - (cd server && stack build -j2 --no-terminal)
+      - (cd server && stack test  -j2 --no-terminal)
+    script:
+      - (cd client-haskell && stack build -j2 --no-terminal)
+      - (cd client-haskell && stack test  -j2 --no-terminal)
+    # Check that the nix builds work
+    script:
+      - nix-build --no-out-link -E '(import ./nix/nixpkgs.nix {}).haskellPackages.callPackage ./client-haskell/client.nix {}'
+    script:
+      - nix-build --no-out-link ./server/default.nix
