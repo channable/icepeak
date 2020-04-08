@@ -49,7 +49,7 @@ jobs:
         - (cd client-haskell && stack test  -j2 --no-terminal)
     # Check that the nix builds work
     - name: Nix build of Haskell client
-      cache: disabled # no need to pull in .stack?
+      cache: false # no need to pull in .stack here
       install:
         - curl -o install-nix-2.3.1 https://nixos.org/releases/nix/nix-2.3.1/install
         - sha256sum --check nix/nix_sha256sums
@@ -58,7 +58,7 @@ jobs:
       script:
         - nix-build --no-out-link -E '(import ./nix/nixpkgs.nix {}).haskellPackages.callPackage ./client-haskell/client.nix {}'
     - name: Nix build of server
-      cache: disabled
+      cache: false # no need to pull in .stack here
       install:
         - curl -o install-nix-2.3.1 https://nixos.org/releases/nix/nix-2.3.1/install
         - sha256sum --check nix/nix_sha256sums
