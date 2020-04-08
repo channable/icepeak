@@ -1,5 +1,5 @@
 # Use a minimal base image.
-language: generic
+language: minimal
 
 # Do not spam us with build status emails please.
 notifications:
