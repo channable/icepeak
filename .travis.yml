@@ -13,12 +13,6 @@ addons:
       # Haskell requires libgmp for big integers.
       - libgmp-dev
 
-cache:
-  directories:
-    - $HOME/.stack
-    - $TRAVIS_BUILD_DIR/server/.stack-work
-    - $TRAVIS_BUILD_DIR/client-haskell/.stack-work
-
 before_install:
 # Download and unpack the stack executable
 # We need the latest version to work around some bugs in older versions of stack
