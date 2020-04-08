@@ -38,12 +38,16 @@ install:
   - sh ./install-nix-2.3.1 --no-daemon
   - . $HOME/.nix-profile/etc/profile.d/nix.sh
 
-script:
-  # Build and test.
-  - (cd server && stack build -j2 --no-terminal)
-  - (cd server && stack test  -j2 --no-terminal)
-  - (cd client-haskell && stack build -j2 --no-terminal)
-  - (cd client-haskell && stack test  -j2 --no-terminal)
+jobs:
+  script:
+    # Build and test.
+    - (cd server && stack build -j2 --no-terminal)
+    - (cd server && stack test  -j2 --no-terminal)
+  script:
+    - (cd client-haskell && stack build -j2 --no-terminal)
+    - (cd client-haskell && stack test  -j2 --no-terminal)
   # Check that the nix builds work
-  - nix-build --no-out-link -E '(import ./nix/nixpkgs.nix {}).haskellPackages.callPackage ./client-haskell/client.nix {}'
-  - nix-build --no-out-link ./server/default.nix
+  script:
+    - nix-build --no-out-link -E '(import ./nix/nixpkgs.nix {}).haskellPackages.callPackage ./client-haskell/client.nix {}'
+  script:
+    - nix-build --no-out-link ./server/default.nix
