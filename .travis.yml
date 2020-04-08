@@ -40,15 +40,15 @@ install:
 
 jobs:
   include:
-    script:
+    - script:
       # Build and test.
       - (cd server && stack build -j2 --no-terminal)
       - (cd server && stack test  -j2 --no-terminal)
-    script:
+    - script:
       - (cd client-haskell && stack build -j2 --no-terminal)
       - (cd client-haskell && stack test  -j2 --no-terminal)
     # Check that the nix builds work
-    script:
+    - script:
       - nix-build --no-out-link -E '(import ./nix/nixpkgs.nix {}).haskellPackages.callPackage ./client-haskell/client.nix {}'
-    script:
+    - script:
       - nix-build --no-out-link ./server/default.nix
