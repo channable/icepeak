@@ -1,1 +1,14 @@
-resolver: lts-15.3
+resolver: lts-16.23
+
+# Note: This section will be ignored by stack, on non-NixOS systems.
+# It can be explicitly enabled on non-NixOS systems by passing --nix.
+# On NixOS this section is needed to bring the non-Haskell dependencies
+# into scope.
+nix:
+  add-gc-roots: true
+  packages:
+    - zlib
+    - libffi
+    - haskellPackages.libffi
+  path:
+    - "nixpkgs=../nix/nixpkgs.nix"
