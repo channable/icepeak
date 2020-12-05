@@ -43,6 +43,7 @@ import Control.Retry (RetryPolicyM, recovering)
 import Data.Aeson (ToJSON)
 import Data.ByteString (ByteString)
 import Data.Foldable (toList)
+import Data.Semigroup ((<>))
 import Data.Text (Text)
 import Data.Word (Word16)
 
