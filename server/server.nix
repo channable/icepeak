@@ -15,6 +15,7 @@
 , mtl
 , network
 , optparse-applicative
+, pkgs
 , prometheus-client
 , prometheus-metrics-ghc
 , QuickCheck
@@ -142,5 +143,5 @@ mkDerivation {
     quickcheck-instances
   ];
 
-  license = stdenv.lib.licenses.bsd3;
+  license = pkgs.lib.licenses.bsd3;
 }
