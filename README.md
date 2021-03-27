@@ -61,6 +61,13 @@ Install with `stack install`.
 Integration tests are in `/server/integration-tests`.
 They are stand-alone scripts that can be executed directly, e.g. `./read_after_write_test.py`.
 
+### Running with the new low-latency garbage collector for GHC 8.10
+
+If you compiled icepeak with GHC 8.10 (or newer) then you can use the new low-latency
+garbage collector by passing the following runtime flags to icepeak:
+
+`icepeak +RTS -xn`
+
 ## Building the Haskell client library
 
 Cd into `/client-haskell`.
