@@ -4,6 +4,7 @@
 , bytestring
 , http-client
 , http-types
+, pkgs
 , text
 , retry
 , exceptions
@@ -39,5 +40,5 @@ mkDerivation {
       aeson base binary bytestring http-client http-types text retry exceptions
   ];
 
-  license = stdenv.lib.licenses.bsd3;
+  license = pkgs.lib.licenses.bsd3;
 }

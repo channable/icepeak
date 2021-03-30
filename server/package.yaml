@@ -9,7 +9,7 @@ author: Channable
 maintainer: rkrzr
 description: Icepeak is a fast JSON document store with push notification support.
 synopsis: A fast JSON document store with push notification support.
-copyright: (c) 2020, Channable
+copyright: (c) 2021, Channable
 ghc-options:
 - -Wall
 
