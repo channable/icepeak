@@ -9,6 +9,8 @@ agent:
 
 blocks:
   - name: "Run checks"
+    dependencies: []
+
     task:
       prologue:
         commands:
@@ -48,6 +50,8 @@ blocks:
             - "cache store stack-$(date -u -Idate) ~/.stack"
 
   - name: "Build"
+    dependencies: []
+
     task:
       prologue:
         commands:
