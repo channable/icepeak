@@ -2,10 +2,7 @@
   <a href="https://github.com/channable/icepeak"><img src="docs/icepeak.png" alt="Icepeak" width="256"></a>
 </h1>
 
-<p align="center">
-  <a href="https://travis-ci.org/channable/icepeak"><img src="https://travis-ci.org/channable/icepeak.svg?branch=master" alt="Build Status"></a>
-  <img src="https://img.shields.io/badge/license-BSD3-blue.svg" alt="BSD3 Licensed">
-</p>
+[![Build Status](https://channable.semaphoreci.com/badges/icepeak/branches/master.svg?style=shields&key=a0e7e842-7ce9-4c10-aea6-3c7dce768470)](https://channable.semaphoreci.com/projects/icepeak)
 
 Icepeak is a fast JSON document store with push notification support.
 
