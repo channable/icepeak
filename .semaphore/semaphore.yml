@@ -1,6 +1,6 @@
 ---
 version: "v1.0"
-name: "Vaultenv CI Pipeline"
+name: "Icepeak CI Pipeline"
 
 agent:
   machine:
