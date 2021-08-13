@@ -36,7 +36,7 @@ comment = """
 
     Recommended action: update raven-haskell
 """
-#issue_url = "TODO"
+issue_url = "https://github.com/channable/icepeak/issues/70"
 
 ["flex"]
 cve = ["CVE-2019-6293"]
@@ -66,7 +66,7 @@ comment = """
 
     Recommended action: verify if these CVE's are applicable
 """
-#issue_url = "TODO"
+issue_url = "https://github.com/channable/icepeak/issues/71"
 
 ["network"]
 cve = ["CVE-2021-35047", "CVE-2021-35048", "CVE-2021-35049", "CVE-2021-35050"]
@@ -88,7 +88,7 @@ comment = """
 
     Recommended action: update raven-haskell
 """
-#issue_url = "TODO"
+issue_url = "https://github.com/channable/icepeak/issues/70"
 
 ["patch-2.7.6"]
 cve = ["CVE-2019-20633"]
