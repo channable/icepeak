@@ -7,11 +7,9 @@ agent:
     type: "e1-standard-2"
     os_image: "ubuntu2004"
 
-# global_job_config:
-  # TODO: create HC item
-  # env_vars:
-  #   - name: "CRONJOB_HEALTHCHECK_URL"
-  #     value: "https://hc-ping.com/39f74a9c-4dad-46ca-a200-d2cdee5b8533"
+global_job_config:
+  secrets:
+    - name: "icepeak-ci-nightly-healthcheck-url"
 
 blocks:
   - name: "Run Vulnix"
@@ -44,8 +42,9 @@ blocks:
       jobs:
         - name: "Run Vulnix on the server build derivation"
           commands:
+            - ".semaphore/report-cronjob-start.sh"
             - "nix-build --no-out-link ./server/default.nix"
-            - "cd server && nix-shell --run 'vulnix -w vulnix-ignorelist.toml $(nix path-info)'"
+            - "(cd server && nix-shell --run 'vulnix -w vulnix-ignorelist.toml $(nix path-info)')"
 
       epilogue:
         always:
