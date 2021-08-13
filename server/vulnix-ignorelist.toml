@@ -16,10 +16,9 @@ cve = ["CVE-2019-18276"]
 comment = "This CVE applies only to Bash 5"
 # Note that Vulnix cannot handle wildcards (like bash-4.*)
 
-["binutils-2.35.1"]
+["binutils"]
 cve = ["CVE-2021-20284", "CVE-2021-20294", "CVE-2021-3487", "CVE-2020-35448"]
-comment = "These CVE's are fixed in binutils 2.36, which is not in nixpkgs yet"
-#issue_url = "TODO"
+comment = "binutils is not called at runtime"
 
 ["cereal"]
 cve = ["CVE-2020-11104", "CVE-2020-11105"]
@@ -31,22 +30,21 @@ comment = "This CVE applies to the Rust cookie crate, not to the Haskell package
 
 ["curl-7.74.0"]
 cve = ["CVE-2021-22897", "CVE-2021-22898", "CVE-2021-22901"]
-comment = "These are fixed in curl 7.77, which has not ended up in nixpkgs yet"
-#issue_url = "TODO"
+comment = """
+    These are fixed in curl 7.77, which has not ended up in nixpkgs yet.
+    Curl is a dependency of raven-haskell.
 
-["curl-7.76.1"]
-cve = ["CVE-2021-22897", "CVE-2021-22898", "CVE-2021-22901"]
-comment = "These are fixed in curl 7.77, which has not ended up in nixpkgs yet"
+    Recommended action: update raven-haskell
+"""
 #issue_url = "TODO"
 
 ["flex"]
 cve = ["CVE-2019-6293"]
 comment = "This CVE describes a bug. As far as we know this library (a parser) is not called at runtime, which should prevent any issues"
 
-["glibc-2.32-35"]
+["glibc"]
 cve = ["CVE-2021-27645", "CVE-2021-33574", "CVE-2021-35942"]
-comment = "fixed in 2.34, which is not yet available in nipxkgs"
-#issue_url = "TODO"
+comment = "glibc is not a runtime dependency"
 
 ["http-client"]
 cve = ["CVE-2016-6287", "CVE-2020-11021"]
@@ -58,15 +56,15 @@ comment = "CVE not applicable to the Haskell jwt package"
 
 ["libarchive-3.5.1"]
 cve = ["CVE-2021-36976"]
-comment = "Fix has not been released yet"
-#issue_url = "TODO"
+comment = "libarchive is not a runtime dependency"
 
 ["libxml2-2.9.10"]
 cve = ["CVE-2021-3517", "CVE-2021-3518", "CVE-2021-3537", "CVE-2021-3541"]
 comment = """
-    CVE's are fixed in 2.9.11. 2.9.12 is available in nixpkgs 21.05.
+    CVE's are fixed in 2.9.11.
+    libxml2 is a dependency of GHC and Raven, and might be used at runtime.
 
-    Recommended action: update to 2.9.12
+    Recommended action: verify if these CVE's are applicable
 """
 #issue_url = "TODO"
 
@@ -86,7 +84,9 @@ comment = """
 
     1.1.1k is in nixpkgs 20.09
 
-    Recommended action: update to 1.1.1k
+    This package is a dependency of raven-haskell
+
+    Recommended action: update raven-haskell
 """
 #issue_url = "TODO"
 
