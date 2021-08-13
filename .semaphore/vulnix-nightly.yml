@@ -7,7 +7,7 @@ agent:
     type: "e1-standard-2"
     os_image: "ubuntu2004"
 
-global_job_config:
+# global_job_config:
   # TODO: create HC item
   # env_vars:
   #   - name: "CRONJOB_HEALTHCHECK_URL"
