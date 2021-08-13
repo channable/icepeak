@@ -7,6 +7,11 @@ agent:
     type: "e1-standard-2"
     os_image: "ubuntu2004"
 
+# Temporary thing, but semaphore doesn't allow me to run the vulnix pipeline otherwise
+promotions:
+  - name: "Run Vulnix"
+    pipeline_file: "vulnix-nightly.yml"
+
 blocks:
   - name: "Run checks"
     dependencies: []
