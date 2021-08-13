@@ -9,6 +9,8 @@ let
   pkgs = getPkgs { };
   vulnix = pkgs.vulnix;
 in
-  {
-    inherit vulnix;
+  pkgs.mkShell {
+    buildInputs = [
+      vulnix
+    ];
   }
