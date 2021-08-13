@@ -44,9 +44,8 @@ blocks:
       jobs:
         - name: "Run Vulnix on the server build derivation"
           commands:
-            - "cd server"
-            - "derivation=$(nix-store -qd $(nix path-info))"
-            - "nix-shell --run 'vulnix -w vulnix-ignorelist.toml $(derivation)'"
+            - "nix-build --no-out-link ./server/default.nix"
+            - "cd server && nix-shell --run 'vulnix -w vulnix-ignorelist.toml $(nix path-info)'"
 
       epilogue:
         always:
