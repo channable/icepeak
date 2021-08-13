@@ -7,11 +7,10 @@ agent:
     type: "e1-standard-2"
     os_image: "ubuntu2004"
 
-# global_job_config:
-  # TODO: create HC item
-  # env_vars:
-  #   - name: "CRONJOB_HEALTHCHECK_URL"
-  #     value: "https://hc-ping.com/39f74a9c-4dad-46ca-a200-d2cdee5b8533"
+global_job_config:
+  env_vars:
+    - name: "CRONJOB_HEALTHCHECK_URL"
+      value: "https://hc-ping.com/d80327c2-4cbc-4986-b4bb-c43002938f00"
 
 blocks:
   - name: "Run Vulnix"
@@ -44,8 +43,9 @@ blocks:
       jobs:
         - name: "Run Vulnix on the server build derivation"
           commands:
+            - ".semaphore/report-cronjob-start.sh"
             - "nix-build --no-out-link ./server/default.nix"
-            - "cd server && nix-shell --run 'vulnix -w vulnix-ignorelist.toml $(nix path-info)'"
+            - "(cd server && nix-shell --run 'vulnix -w vulnix-ignorelist.toml $(nix path-info)')"
 
       epilogue:
         always:
@@ -53,3 +53,13 @@ blocks:
             # Store a copy of the nix store. This will be refreshed daily, which
             # is more than sufficient for this repo.
             - "cache store nix-store-vulnix$(date -u -Idate) /nix"
+
+        on_pass:
+          commands:
+            # Report success to Healthchecks.io
+            - ".semaphore/report-cronjob-success.sh"
+
+        on_fail:
+          commands:
+            # Report failure to Healthchecks.io
+            - ".semaphore/report-cronjob-failure.sh"
