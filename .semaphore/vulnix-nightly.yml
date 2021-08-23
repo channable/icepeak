@@ -31,7 +31,7 @@ blocks:
           # This cache should only contain Vulnix and its dependencies
           - "sudo mkdir /nix"
           - "sudo chown -R semaphore:semaphore /nix"
-          - "cache restore nix-store-vulnix"
+          - "cache restore nix-store-"
 
           # For some reason, Semaphore CI sets this variable, but it causes the nix installation to fail
           - unset LD_LIBRARY_PATH
