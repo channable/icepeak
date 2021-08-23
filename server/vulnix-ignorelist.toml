@@ -29,9 +29,10 @@ cve = ["CVE-2017-18589"]
 comment = "This CVE applies to the Rust cookie crate, not to the Haskell package with the same name"
 
 ["curl-7.74.0"]
-cve = ["CVE-2021-22897", "CVE-2021-22898", "CVE-2021-22901"]
+cve = ["CVE-2021-22897", "CVE-2021-22898", "CVE-2021-22901", "CVE-2021-22922", "CVE-2021-22926", "CVE-2021-22923", "CVE-2021-22925"]
 comment = """
-    These are fixed in curl 7.77, which has not ended up in nixpkgs yet.
+    CVE-2021-22897, CVE-2021-22898, CVE-2021-22901, CVE-2021-22922 are fixed in curl 7.77
+    CVE-2021-22926, CVE-2021-22923, CVE-2021-22925 are fixed in curl 7.78
     Curl is a dependency of raven-haskell.
 
     Recommended action: update raven-haskell
@@ -42,9 +43,10 @@ issue_url = "https://github.com/channable/icepeak/issues/70"
 cve = ["CVE-2019-6293"]
 comment = "This CVE describes a bug. As far as we know this library (a parser) is not called at runtime, which should prevent any issues"
 
-["glibc"]
+["glibc-2.32-35"]
 cve = ["CVE-2021-27645", "CVE-2021-33574", "CVE-2021-35942"]
-comment = "glibc is not a runtime dependency"
+comment = "These are fixed in 2.34"
+issue_url = "https://github.com/channable/icepeak/issues/73"
 
 ["http-client"]
 cve = ["CVE-2016-6287", "CVE-2020-11021"]
@@ -95,8 +97,8 @@ cve = ["CVE-2019-20633"]
 comment = "Package is not called at runtime"
 
 ["safe"]
-cve = ["CVE-2019-11644", "CVE-2021-33596"]
-comment = "Not applicable to Haskell package (but to F-Secure SAFE)"
+cve = ["CVE-2019-11644", "CVE-2021-33596", "CVE-2021-33594", "CVE-2021-33595"]
+comment = "Not applicable to the Haskell package"
 
 ["util-linux-2.36.1"]
 cve = ["CVE-2021-37600"]
