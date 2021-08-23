@@ -1,0 +1,64 @@
+---
+version: "v1.0"
+name: "Icepeak CI Pipeline"
+
+agent:
+  machine:
+    type: "e1-standard-2"
+    os_image: "ubuntu2004"
+
+global_job_config:
+  secrets:
+    - name: "icepeak-ci-nightly-healthcheck-url"
+
+blocks:
+  - name: "Run Vulnix"
+    dependencies: []
+
+    task:
+      prologue:
+        commands:
+          - "checkout"
+
+          # Download and verify Nix installation script.
+          - curl -o install-nix-2.3.15 https://releases.nixos.org/nix/nix-2.3.15/install
+          - sha256sum --check .semaphore/install-nix-2.3.15.sha256
+
+          # Restore `/nix` cache. Create the directory first, otherwise we encounter
+          # permission errors. We do this because the Semaphore cache is faster than
+          # both Cachix and cache.nixos.org.
+          # This cache should only contain Vulnix and its dependencies
+          - "sudo mkdir /nix"
+          - "sudo chown -R semaphore:semaphore /nix"
+          - "cache restore nix-store-"
+
+          # For some reason, Semaphore CI sets this variable, but it causes the nix installation to fail
+          - unset LD_LIBRARY_PATH
+
+          # Install Nix and source the shell configuration immediately.
+          - "sh ./install-nix-2.3.15 --no-daemon"
+          - ". $HOME/.nix-profile/etc/profile.d/nix.sh"
+
+      jobs:
+        - name: "Run Vulnix on the server build derivation"
+          commands:
+            - ".semaphore/report-cronjob-start.sh"
+            - "nix-build --no-out-link ./server/default.nix"
+            - "(cd server && nix-shell --run 'vulnix -w vulnix-ignorelist.toml $(nix path-info)')"
+
+      epilogue:
+        always:
+          commands:
+            # Store a copy of the nix store. This will be refreshed daily, which
+            # is more than sufficient for this repo.
+            - "cache store nix-store-vulnix$(date -u -Idate) /nix"
+
+        on_pass:
+          commands:
+            # Report success to Healthchecks.io
+            - ".semaphore/report-cronjob-success.sh"
+
+        on_fail:
+          commands:
+            # Report failure to Healthchecks.io
+            - ".semaphore/report-cronjob-failure.sh"
