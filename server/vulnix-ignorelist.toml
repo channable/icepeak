@@ -1,0 +1,119 @@
+# When editing this file, keep to following guidelines:
+# - Keep the alphabetical order
+# - Only use package names without version when the CVE can NEVER apply to this repository
+#   (For example, when the CVE is for a Windows application with the same name)
+# - Otherwise, be specific about the package version
+# - Make a GitHub issue if a package needs to be updated, and link the issue (with `issue_url`)
+#
+# Useful resources:
+# Vulnix: https://github.com/flyingcircusio/vulnix
+# CVE details: https://nvd.nist.gov/vuln
+# You can find the details of a specific CVE like this:
+# https://nvd.nist.gov/vuln/detail/CVE-2021-12345
+
+["bash-4.4-p23"]
+cve = ["CVE-2019-18276"]
+comment = "This CVE applies only to Bash 5"
+# Note that Vulnix cannot handle wildcards (like bash-4.*)
+
+["binutils"]
+cve = ["CVE-2021-20284", "CVE-2021-20294", "CVE-2021-3487", "CVE-2020-35448"]
+comment = "binutils is not called at runtime"
+
+["cereal"]
+cve = ["CVE-2020-11104", "CVE-2020-11105"]
+comment = "CVE's apply to C package, not to the Haskell package with the same name"
+
+["cookie"]
+cve = ["CVE-2017-18589"]
+comment = "This CVE applies to the Rust cookie crate, not to the Haskell package with the same name"
+
+["curl-7.74.0"]
+cve = ["CVE-2021-22897", "CVE-2021-22898", "CVE-2021-22901", "CVE-2021-22922", "CVE-2021-22926", "CVE-2021-22923", "CVE-2021-22925"]
+comment = """
+    CVE-2021-22897, CVE-2021-22898, CVE-2021-22901, CVE-2021-22922 are fixed in curl 7.77
+    CVE-2021-22926, CVE-2021-22923, CVE-2021-22925 are fixed in curl 7.78
+    Curl is a dependency of raven-haskell.
+
+    Recommended action: update raven-haskell
+"""
+issue_url = "https://github.com/channable/icepeak/issues/70"
+
+["flex"]
+cve = ["CVE-2019-6293"]
+comment = "This CVE describes a bug. As far as we know this library (a parser) is not called at runtime, which should prevent any issues"
+
+["glibc-2.32-35"]
+cve = ["CVE-2021-27645", "CVE-2021-33574", "CVE-2021-35942"]
+comment = "These are fixed in 2.34"
+issue_url = "https://github.com/channable/icepeak/issues/73"
+
+["http-client"]
+cve = ["CVE-2016-6287", "CVE-2020-11021"]
+comment = "CVE's not applicable to the Haskell http-client package"
+
+["jwt"]
+cve = ["CVE-2016-7037"]
+comment = "CVE not applicable to the Haskell jwt package"
+
+["libarchive-3.5.1"]
+cve = ["CVE-2021-36976"]
+comment = "libarchive is not a runtime dependency"
+
+["libxml2-2.9.10"]
+cve = ["CVE-2021-3517", "CVE-2021-3518", "CVE-2021-3537", "CVE-2021-3541"]
+comment = """
+    CVE's are fixed in 2.9.11.
+    libxml2 is a dependency of GHC and Raven, and might be used at runtime.
+
+    Recommended action: verify if these CVE's are applicable
+"""
+issue_url = "https://github.com/channable/icepeak/issues/71"
+
+["network"]
+cve = ["CVE-2021-35047", "CVE-2021-35048", "CVE-2021-35049", "CVE-2021-35050"]
+comment = "Not applicable to Haskell network package"
+
+["openssl"]
+cve = ["CVE-2016-7798", "CVE-2018-16395"]
+comment = "These are in the Ruby openssl library, not applicable here"
+
+["openssl-1.1.1i"]
+cve = ["CVE-2021-23840", "CVE-2021-23841", "CVE-2021-3449", "CVE-2021-3450"]
+comment = """
+    CVE-2021-23840, CVE-2021-23841: Fixed in 1.1.1j
+    CVE-2021-3450, CVE-2021-3449: Fixed in 1.1.1k
+
+    1.1.1k is in nixpkgs 20.09
+
+    This package is a dependency of raven-haskell
+
+    Recommended action: update raven-haskell
+"""
+issue_url = "https://github.com/channable/icepeak/issues/70"
+
+["patch-2.7.6"]
+cve = ["CVE-2019-20633"]
+comment = "Package is not called at runtime"
+
+["safe"]
+cve = ["CVE-2019-11644", "CVE-2021-33596", "CVE-2021-33594", "CVE-2021-33595"]
+comment = "Not applicable to the Haskell package"
+
+["util-linux-2.36.1"]
+cve = ["CVE-2021-37600"]
+comment = "Package is not called at runtime"
+
+["vault"]
+cve = [
+    "CVE-2018-19786",
+    "CVE-2020-13223",
+    "CVE-2020-25594",
+    "CVE-2021-27400",
+    "CVE-2021-3024",
+]
+comment = "These are applicable to Hashicorp Vault, not to the Haskell package with the same name"
+
+["websockets"]
+cve = ["CVE-2021-33880"]
+comment = "Not applicable to Haskell websockets packages (but to the Python package with the same name)"
