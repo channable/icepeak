@@ -8,9 +8,8 @@ agent:
     os_image: "ubuntu2004"
 
 global_job_config:
-  env_vars:
-    - name: "CRONJOB_HEALTHCHECK_URL"
-      value: "https://hc-ping.com/d80327c2-4cbc-4986-b4bb-c43002938f00"
+  secrets:
+    - name: "icepeak-ci-nightly-healthcheck-url"
 
 blocks:
   - name: "Run Vulnix"
