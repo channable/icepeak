@@ -51,7 +51,7 @@ blocks:
           commands:
             # Store a copy of the nix store. This will be refreshed daily, which
             # is more than sufficient for this repo.
-            - "cache store nix-store-vulnix$(date -u -Idate) /nix"
+            - "cache store nix-store-$(date -u -Idate) /nix"
 
         on_pass:
           commands:
