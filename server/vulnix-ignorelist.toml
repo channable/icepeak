@@ -44,8 +44,11 @@ cve = ["CVE-2019-6293"]
 comment = "This CVE describes a bug. As far as we know this library (a parser) is not called at runtime, which should prevent any issues"
 
 ["glibc-2.32-35"]
-cve = ["CVE-2021-27645", "CVE-2021-33574", "CVE-2021-35942"]
-comment = "These are fixed in 2.34"
+cve = ["CVE-2021-27645", "CVE-2021-33574", "CVE-2021-35942", "CVE-2021-38604"]
+comment = """
+    CVE-2021-27645, CVE-2021-33574 and CVE-2021-35942 are fixed in 2.34
+    CVE-2021-38604 has no fix yet.
+"""
 issue_url = "https://github.com/channable/icepeak/issues/73"
 
 ["http-client"]
