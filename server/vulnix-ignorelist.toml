@@ -114,6 +114,7 @@ cve = [
     "CVE-2020-25594",
     "CVE-2021-27400",
     "CVE-2021-3024",
+    "CVE-2021-38554",
 ]
 comment = "These are applicable to Hashicorp Vault, not to the Haskell package with the same name"
 
