@@ -83,6 +83,7 @@ blocks:
         - name: "Build server"
           commands:
             - "nix-build --no-out-link ./server/default.nix"
+            - "nix-build --no-out-link ./server/binaries-only.nix"
 
       epilogue:
         always:
