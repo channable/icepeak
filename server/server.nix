@@ -101,6 +101,12 @@ mkDerivation {
   isLibrary = false;
   isExecutable = true;
 
+  postInstall = ''
+    # Remove output's lib/: This is only needed when building a library.
+    # Doing this drastically reduces the output's closure size.
+    rm --recursive --verbose $out/lib
+  '';
+
   executableHaskellDepends = [
     aeson
     async
