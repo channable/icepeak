@@ -11,4 +11,5 @@ let
 in
   {
     icepeak-server = icepeak-server;
+    stack = pkgs.haskellPackages.stack;
   }
