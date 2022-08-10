@@ -13,7 +13,7 @@ import           AccessControl
 import           JwtAuth
 
 data Config = Config
-  { configJwtSecret      :: Maybe JWT.Signer
+  { configJwtSecret      :: Maybe JWT.EncodeSigner
   , configExpiresSeconds :: Maybe Integer
   , configWhitelist      :: [AuthPath]
   }
