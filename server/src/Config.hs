@@ -30,7 +30,7 @@ data Config = Config
   -- | The secret used for verifying the JWT signatures. If no secret is
   -- specified even though JWT authorization is enabled, tokens will still be
   -- used, but not be verified.
-  , configJwtSecret :: Maybe JWT.Signer
+  , configJwtSecret :: Maybe JWT.VerifySigner
   , configMetricsEndpoint :: Maybe MetricsConfig
   , configQueueCapacity :: Word
   , configSyncIntervalMicroSeconds :: Maybe Int
@@ -108,7 +108,9 @@ configParser environment = Config
     readFromEnvironment :: Read a => String -> Maybe a
     readFromEnvironment var = lookup var environment >>= Read.readMaybe
 
-    secretOption m = JWT.hmacSecret . Text.pack <$> strOption m
+    -- Note: We need a VerifySigner here (and not an EncodeSigner) since the Icepeak
+    -- server only verifies tokens
+    secretOption m = JWT.toVerify . JWT.hmacSecret . Text.pack <$> strOption m
 
 configInfo :: EnvironmentConfig -> ParserInfo Config
 configInfo environment = info parser description

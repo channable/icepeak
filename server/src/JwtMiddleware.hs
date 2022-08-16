@@ -39,7 +39,7 @@ data AuthResult
 -- | Check whether accessing the given path with the given mode is authorized by
 -- the token supplied in the request headers or query string (which may not be
 -- present, then failing the check).
-isRequestAuthorized :: Http.RequestHeaders -> Http.Query -> POSIXTime -> Maybe JWT.Signer -> Path -> AccessMode -> AuthResult
+isRequestAuthorized :: Http.RequestHeaders -> Http.Query -> POSIXTime -> Maybe JWT.VerifySigner -> Path -> AccessMode -> AuthResult
 isRequestAuthorized headers query now maybeSecret path mode =
   case getRequestClaim headers query now maybeSecret of
     Left err -> AuthRejected (TokenError err)
@@ -49,7 +49,7 @@ isRequestAuthorized headers query now maybeSecret path mode =
                   -> AuthRejected OperationNotAllowed
 
 -- | Extract the JWT claim from the request.
-getRequestClaim :: Http.RequestHeaders -> Http.Query -> POSIXTime -> Maybe JWT.Signer -> Either TokenError IcepeakClaim
+getRequestClaim :: Http.RequestHeaders -> Http.Query -> POSIXTime -> Maybe JWT.VerifySigner -> Either TokenError IcepeakClaim
 getRequestClaim headers query now maybeSecret =
   let getTokenBytes = maybe (Left $ VerificationError TokenNotFound) Right (findTokenBytes headers query)
   in case maybeSecret of
@@ -90,7 +90,7 @@ errorResponseBody = Aeson.encode
 
 -- * Middleware
 
-jwtMiddleware :: Maybe JWT.Signer -> Wai.Application -> Wai.Application
+jwtMiddleware :: Maybe JWT.VerifySigner -> Wai.Application -> Wai.Application
 jwtMiddleware secret app req respond = do
     now <- Clock.getPOSIXTime
     case getRequestClaim headers query now secret of

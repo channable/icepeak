@@ -36,7 +36,9 @@ spec = do
 
     let testClaims = addIcepeakClaim testAccess emptyClaim
 
-    let testSecret = JWT.HMACSecret "2o8357cEuc2o835cmsoei"
+    -- create an EncodeSigner for encoding secrets
+    let testSecret = JWT.hmacSecret "2o8357cEuc2o835cmsoei"
+        verifySigner = JWT.toVerify testSecret
 
     let now = 12512 :: NominalDiffTime
 
@@ -49,28 +51,28 @@ spec = do
 
     it "should accept a valid token" $ do
       let token = Text.encodeUtf8 $ JWT.encodeSigned testSecret joseHeader testClaims
-      extractClaim now testSecret token `shouldBe` Right testAccess
+      extractClaim now verifySigner token `shouldBe` Right testAccess
 
     it "should reject an expired token" $ do
       let Just expDate = JWT.numericDate $ now - 10
           claims = testClaims { JWT.exp = Just expDate }
           expiredToken = Text.encodeUtf8 $ JWT.encodeSigned testSecret joseHeader claims
-      extractClaim now testSecret expiredToken `shouldBe` Left (VerificationError TokenExpired)
+      extractClaim now verifySigner expiredToken `shouldBe` Left (VerificationError TokenExpired)
 
     it "should reject a token before its 'not before' date" $ do
       let Just nbfDate = JWT.numericDate $ now + 10
           claims = testClaims { JWT.nbf = Just nbfDate }
           nbfToken = Text.encodeUtf8 $ JWT.encodeSigned testSecret joseHeader claims
-      extractClaim now testSecret nbfToken `shouldBe` Left (VerificationError TokenUsedTooEarly)
+      extractClaim now verifySigner nbfToken `shouldBe` Left (VerificationError TokenUsedTooEarly)
 
     it "should reject a token with wrong secret" $ do
       let claims = testClaims
           nbfToken = Text.encodeUtf8 $ JWT.encodeSigned testSecret joseHeader claims
-          otherSecret = JWT.HMACSecret "dfhwcmo845cm8e5"
+          otherSecret = JWT.toVerify $ JWT.hmacSecret "dfhwcmo845cm8e5"
       extractClaim now otherSecret nbfToken `shouldBe` Left (VerificationError TokenSignatureInvalid)
 
     prop "should correctly encode and decode token" $ \icepeakClaim ->
       let claims = addIcepeakClaim icepeakClaim emptyClaim
           encoded = Text.encodeUtf8 $ JWT.encodeSigned testSecret joseHeader claims
-          decoded = extractClaim now testSecret encoded
+          decoded = extractClaim now verifySigner encoded
       in decoded == Right icepeakClaim
