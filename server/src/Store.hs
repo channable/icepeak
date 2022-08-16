@@ -4,6 +4,8 @@ module Store
   Modification (..),
   Path,
   Value,
+  adjust,
+  alter,
   modificationPath,
   applyModification,
   delete,
@@ -14,13 +16,15 @@ module Store
 where
 
 import Data.Aeson (Value (..), (.=), (.:))
+import Data.Functor.Identity (runIdentity)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Prelude hiding (lookup)
 
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
-import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Aeson.KeyMap as KeyMap
+import qualified Data.Aeson.Key as Key
 
 type Path = [Text]
 
@@ -60,7 +64,7 @@ lookup path value =
   case path of
     [] -> Just value
     key : pathTail -> case value of
-      Object dict -> HashMap.lookup key dict >>= lookup pathTail
+      Object dict -> KeyMap.lookup (Key.fromText key) dict >>= lookup pathTail
       _notObject -> Nothing
 
 -- Look up a value, returning null if the path does not exist.
@@ -72,15 +76,15 @@ applyModification :: Modification -> Value -> Value
 applyModification (Delete path) value = Store.delete path value
 applyModification (Put path newValue) value = Store.insert path newValue value
 
--- Overwrite a value at the given path, and create the path leading up to it if
+-- Insert or overwrite a value at the given path, and create the path leading up to it if
 -- it did not exist.
 insert :: Path -> Value -> Value -> Value
 insert path newValue value =
   case path of
     [] -> newValue
     key : pathTail -> Object $ case value of
-      Object dict -> HashMap.alter (Just . (insert pathTail newValue) . fromMaybe Null) key dict
-      _notObject  -> HashMap.singleton key $ insert pathTail newValue Null
+      Object dict -> alter (Just . (insert pathTail newValue) . fromMaybe Null) (Key.fromText key) dict
+      _notObject  -> KeyMap.singleton (Key.fromText key) $ insert pathTail newValue Null
 
 -- Delete key at the given path. If the path is empty, return null.
 delete :: Path -> Value -> Value
@@ -88,8 +92,25 @@ delete path value =
   case path of
     [] -> Null
     key : [] -> case value of
-      Object dict -> Object $ HashMap.delete key dict
+      Object dict -> Object $ KeyMap.delete (Key.fromText key) dict
       notObject   -> notObject
     key : pathTail -> case value of
-      Object dict -> Object $ HashMap.adjust (delete pathTail) key dict
+      Object dict -> Object $ adjust (delete pathTail) (Key.fromText key) dict
       notObject   -> notObject
+
+
+-- Note: We add two helper functions below, since Aeson does not implement them for the KeyMap type
+
+-- Adjust a value at a specific key. When the key is not
+-- a member of the KeyMap, the original KeyMap is returned.
+adjust :: (v -> v) -> Key.Key -> KeyMap.KeyMap v -> KeyMap.KeyMap v
+adjust f key keymap = runIdentity (KeyMap.alterF fMaybe key keymap)
+  where
+    fMaybe Nothing = pure Nothing
+    fMaybe (Just v) = pure (Just (f v))
+
+-- When the key is not a member of the KeyMap, then the key is inserted into the KeyMap.
+-- When the 'f' function returns Nothing for a given key then the key is deleted from the KeyMap
+-- and the altered KeyMap is returned.
+alter :: (Maybe v -> Maybe v) -> Key.Key -> KeyMap.KeyMap v -> KeyMap.KeyMap v
+alter f key keymap = runIdentity (KeyMap.alterF (pure . f) key keymap)

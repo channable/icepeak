@@ -22,12 +22,3 @@ instance Arbitrary Modification where
     [ Put <$> arbitrary <*> arbitrary
     , Delete <$> arbitrary
     ]
-
-instance Arbitrary Value where
-  arbitrary = Gen.oneof
-    [ Object <$> Gen.scale (`div` 2) arbitrary
-    , Array  <$> Gen.scale (`div` 2) arbitrary
-    , String <$> arbitrary
-    , Bool   <$> arbitrary
-    , pure Null
-    ]
