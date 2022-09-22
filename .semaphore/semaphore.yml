@@ -19,7 +19,6 @@ blocks:
           # Haskell requires libgmp for big integers.
           - "sudo apt install libgmp-dev"
 
-          # TODO: verify installation script
           # Install Stack from source
           - "mkdir -p ~/.local/bin"
           - "export PATH=$HOME/.local/bin:$PATH"
@@ -78,6 +77,10 @@ blocks:
           - "echo 'experimental-features = nix-command' | sudo tee -a /etc/nix/nix.conf"
 
           - ". $HOME/.nix-profile/etc/profile.d/nix.sh"
+
+          # Build as many derivations simultaneously as there are cores.
+          - mkdir -p ~/.config/nix
+          - echo "max-jobs = auto" >> ~/.confix/nix/nix.conf
 
       jobs:
         - name: "Build client"
