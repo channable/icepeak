@@ -80,7 +80,7 @@ blocks:
 
           # Build as many derivations simultaneously as there are cores.
           - mkdir -p ~/.config/nix
-          - echo "max-jobs = auto" >> ~/.confix/nix/nix.conf
+          - echo "max-jobs = auto" >> ~/.config/nix/nix.conf
 
       jobs:
         - name: "Build client"
