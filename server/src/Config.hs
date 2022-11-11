@@ -6,9 +6,9 @@ module Config (
   configInfo,
 ) where
 
-import Control.Applicative (optional)
-import Data.Semigroup ((<>))
-import Options.Applicative
+import Options.Applicative ((<|>), auto, eitherReader, flag, flag', fullDesc, header, help, helper,
+                            info, long, metavar, option, optional, strOption, switch, value,
+                            Parser, ParserInfo, ReadM)
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Text.Read as Read
 import qualified Data.Char as Char
