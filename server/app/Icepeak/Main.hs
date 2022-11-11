@@ -5,7 +5,6 @@ module Main (main) where
 import Control.Exception (fromException, catch, handle, AsyncException, SomeException)
 import Control.Monad (forM, void, when)
 import Data.Foldable (forM_)
-import Data.Semigroup ((<>))
 import Options.Applicative (execParser)
 import System.Environment (getEnvironment)
 import System.IO (BufferMode (..), hSetBuffering, stdout)
