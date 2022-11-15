@@ -5,7 +5,6 @@ module Server
 )
 where
 
-import Data.Semigroup ((<>))
 import Data.Text (pack)
 
 import Network.Wai (Application)

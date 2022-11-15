@@ -2,7 +2,6 @@
 module MetricsServer where
 
 import           Data.Function                     ((&))
-import           Data.Monoid                       ((<>))
 import qualified Data.Text                         as Text
 import qualified Network.Wai.Handler.Warp          as Warp
 import qualified Network.Wai.Middleware.Prometheus as PrometheusWai
