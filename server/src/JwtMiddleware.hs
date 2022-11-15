@@ -18,7 +18,6 @@ import qualified Web.JWT               as JWT
 
 import           AccessControl
 import           JwtAuth
-import           Store                 (Path)
 
 -- | Defines the kinds of errors that cause authorization to fail.
 data AuthError

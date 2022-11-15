@@ -19,7 +19,6 @@ import Data.Foldable (for_, traverse_)
 import Data.HashMap.Strict (HashMap)
 import Data.Hashable (Hashable)
 import Data.Maybe (fromMaybe)
-import Data.Monoid ((<>))
 import Data.Text (Text)
 
 import qualified Control.Concurrent.Async as Async
