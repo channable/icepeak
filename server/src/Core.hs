@@ -166,7 +166,8 @@ runCommandLoop core = go
           mapM_ (`putMVar` ()) maybeNotifyVar
           go
         Sync -> do
-          Persistence.syncToBackend storageBackend currentValue
+          maybe id Metrics.measureSyncDuration (coreMetrics core) $
+            Persistence.syncToBackend storageBackend currentValue
           go
         Stop -> Persistence.syncToBackend storageBackend currentValue
 

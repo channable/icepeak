@@ -2,6 +2,7 @@
 
 module HttpServer (new) where
 
+import Control.Applicative (liftA2)
 import Control.Concurrent.MVar (newEmptyMVar, takeMVar)
 import Control.Monad
 import Control.Monad.IO.Class
@@ -24,6 +25,22 @@ import Logger (postLog, LogLevel(LogError))
 import qualified Store
 import qualified Core
 import qualified Metrics
+
+import qualified Prometheus
+
+newtype Action e m a = Action { runAction :: Scotty.ActionT e m a }
+
+instance (Scotty.ScottyError e, MonadIO m) => Functor (Action e m) where
+  fmap f = Action . fmap f . runAction
+instance (Scotty.ScottyError e, MonadIO m) => Applicative (Action e m) where
+  pure = Action . return
+  liftA2 f a b = Action $ liftA2 f (runAction a) (runAction b)
+instance (Scotty.ScottyError e, MonadIO m) => Monad (Action e m) where
+  m >>= f = Action $ runAction m >>= runAction . f
+instance (Scotty.ScottyError e, MonadIO m) => MonadIO (Action e m) where
+  liftIO = Action . Scotty.liftAndCatchIO
+instance (Scotty.ScottyError e, MonadIO m) => Prometheus.MonadMonitor (Action e m) where
+  doIO = liftIO
 
 new :: Core -> IO Application
 new core =
@@ -49,22 +66,25 @@ new core =
     when (configEnableJwtAuth $ coreConfig core) $
       middleware $ jwtMiddleware $ configJwtSecret $ coreConfig core
 
-    get (regex "^") $ do
+    get (regex "^") $ measureRequestDuration core $ do
       path <- Wai.pathInfo <$> request
       maybeValue <- Scotty.liftAndCatchIO $ Core.getCurrentValue core path
       maybe (status status404) json maybeValue
 
-    put (regex "^") $ do
+    put (regex "^") $ measureRequestDuration core $ do
       path <- Wai.pathInfo <$> request
       value <- jsonData
       result <- postModification core (Store.Put path value)
       buildResponse result
 
-    delete (regex "^") $ do
+    delete (regex "^") $ measureRequestDuration core $ do
       path <- Wai.pathInfo <$> request
       result <- postModification core (Store.Delete path)
       buildResponse result
 
+measureRequestDuration :: (Scotty.ScottyError e, MonadIO m) => Core -> Scotty.ActionT e m a -> Scotty.ActionT e m a
+measureRequestDuration core =
+  runAction .  maybe id Metrics.measureHttpReqDuration (coreMetrics core) . Action
 
 -- | Enqueue modification and wait for it to be processed, if desired by the client.
 postModification :: (Scotty.ScottyError e, MonadIO m) => Core -> Store.Modification -> Scotty.ActionT e m EnqueueResult

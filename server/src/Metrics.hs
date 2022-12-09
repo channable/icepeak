@@ -1,12 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Metrics where
 
+import Control.Monad.IO.Class
 import Data.Text (Text, pack)
 import Data.Text.Encoding (decodeUtf8With)
 import Data.Text.Encoding.Error (lenientDecode)
-import Prometheus (Counter, Gauge, Info (..), MonadMonitor, Vector, addCounter, counter, decGauge,
-                   gauge, incCounter, incGauge, register, setGauge, vector, withLabel)
-
+import Prometheus (Counter, Gauge, Histogram, Info (..), MonadMonitor, Vector, addCounter, counter, exponentialBuckets, decGauge,
+                   gauge, histogram, incCounter, incGauge, observeDuration, register, setGauge, vector, withLabel)
 import qualified Network.HTTP.Types as Http
 
 
@@ -35,6 +35,8 @@ data IcepeakMetrics = IcepeakMetrics
   , icepeakMetricsJournalWritten    :: Counter
   , icepeakMetricsSubscriberCount   :: Gauge
   , icepeakMetricsQueueLength       :: Gauge
+  , icepeakMetricsSyncDuration      :: Histogram
+  , icepeakMetricsHttpReqDuration   :: Histogram
   }
 
 createAndRegisterIcepeakMetrics :: IO IcepeakMetrics
@@ -52,10 +54,17 @@ createAndRegisterIcepeakMetrics = IcepeakMetrics
                               "Total number of bytes written to the journal so far."))
   <*> register (gauge
     (Info "icepeak_subscriber_count" "Number of websocket subscriber connections."))
-  <*> register (gauge (Info "icepeak_internal_queue_length" "Length of ths internal queue"))
+  <*> register (gauge (Info "icepeak_internal_queue_length" "Length of the internal queue."))
+  <*> register (histogram (Info "icepeak_sync_duration" "Duration of a Sync command.")
+                          syncBuckets)
+  <*> register (histogram (Info "icepeak_http_req_handling_duration"
+                                "Duration of the handling of an HTTP request.")
+                          httpBuckets)
   where
     requestCounter = counter (Info "icepeak_http_requests"
                                    "Total number of HTTP requests since starting Icepeak.")
+    syncBuckets = exponentialBuckets 0.0000008 1.2 20
+    httpBuckets = exponentialBuckets 0.000005 1.5 20
 
 notifyRequest :: Http.Method -> Http.Status -> IcepeakMetrics -> IO ()
 notifyRequest method status = countHttpRequest method status . icepeakMetricsRequestCounter
@@ -92,3 +101,9 @@ decrementSubscribers = decGauge . icepeakMetricsSubscriberCount
 
 setQueueLength :: (MonadMonitor m, Real a) => a -> IcepeakMetrics -> m ()
 setQueueLength val metrics = setGauge (icepeakMetricsQueueLength metrics) (realToFrac val)
+
+measureSyncDuration :: (MonadIO m, MonadMonitor m) => IcepeakMetrics -> m a -> m a
+measureSyncDuration = observeDuration . icepeakMetricsSyncDuration
+
+measureHttpReqDuration :: (MonadIO m, MonadMonitor m) => IcepeakMetrics -> m a -> m a
+measureHttpReqDuration = observeDuration . icepeakMetricsHttpReqDuration
