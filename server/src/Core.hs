@@ -21,12 +21,12 @@ where
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.MVar (MVar, newMVar, putMVar)
 import Control.Concurrent.STM (atomically)
-import Control.Concurrent.STM.TBQueue (TBQueue, newTBQueueIO, readTBQueue, writeTBQueue, isFullTBQueue)
+import Control.Concurrent.STM.TBQueue (TBQueue, newTBQueueIO, readTBQueue, writeTBQueue, isFullTBQueue, lengthTBQueue)
 import Control.Concurrent.STM.TVar (TVar, newTVarIO)
 import Control.Monad (forever, unless)
 import Control.Monad.IO.Class
 import Data.Aeson (Value (..))
-import Data.Foldable (forM_)
+import Data.Foldable (forM_, for_)
 import Data.Traversable (for)
 import Data.UUID (UUID)
 import Prelude hiding (log, writeFile)
@@ -109,22 +109,28 @@ postQuit core = do
   atomically $ do
     writeTBQueue (coreQueue core) Stop
     writeTBQueue (coreUpdates core) Nothing
+  updateQueueMetric core
 
 -- | Try to enqueue a command. It succeeds if the queue is not full, otherwise,
 -- nothing is changed. This should be used for non-critical commands that can
 -- also be retried later.
 tryEnqueueCommand :: Command -> Core -> IO EnqueueResult
-tryEnqueueCommand cmd core = atomically $ do
-  isFull <- isFullTBQueue (coreQueue core)
-  unless isFull $ writeTBQueue (coreQueue core) cmd
-  pure $ if isFull then Dropped else Enqueued
+tryEnqueueCommand cmd core = do
+  res <- atomically $ do
+    isFull <- isFullTBQueue (coreQueue core)
+    unless isFull $ writeTBQueue (coreQueue core) cmd
+    pure $ if isFull then Dropped else Enqueued
+  updateQueueMetric core
+  return res
 
 -- | Enqueue a command. Blocks if the queue is full. This is used by the sync
 -- timer to make sure the sync commands are actually enqueued. In general,
 -- whenever it is critical that a command is executed eventually (when reaching
 -- the front of the queue), this function should be used.
 enqueueCommand :: Command -> Core -> IO ()
-enqueueCommand cmd core = atomically $ writeTBQueue (coreQueue core) cmd
+enqueueCommand cmd core = do
+  atomically $ writeTBQueue (coreQueue core) cmd
+  updateQueueMetric core
 
 getCurrentValue :: Core -> Path -> IO (Maybe Value)
 getCurrentValue core path =
@@ -132,6 +138,11 @@ getCurrentValue core path =
 
 withCoreMetrics :: MonadIO m => Core -> (Metrics.IcepeakMetrics -> IO ()) -> m ()
 withCoreMetrics core act = liftIO $ forM_ (coreMetrics core) act
+
+updateQueueMetric :: Core -> IO ()
+updateQueueMetric core = do
+  queueLength <- atomically $ lengthTBQueue (coreQueue core)
+  for_ (coreMetrics core) $ \metrics -> Metrics.setQueueLength queueLength metrics
 
 -- | Drain the command queue and execute them. Changes are published to all
 -- subscribers. This function returns when executing the 'Stop' command from the
@@ -144,6 +155,7 @@ runCommandLoop core = go
     storageBackend = configStorageBackend config
     go = do
       command <- atomically $ readTBQueue (coreQueue core)
+      updateQueueMetric core
       case command of
         Modify op maybeNotifyVar -> do
           Persistence.apply op currentValue
@@ -154,7 +166,8 @@ runCommandLoop core = go
           mapM_ (`putMVar` ()) maybeNotifyVar
           go
         Sync -> do
-          Persistence.syncToBackend storageBackend currentValue
+          maybe id Metrics.measureSyncDuration (coreMetrics core) $
+            Persistence.syncToBackend storageBackend currentValue
           go
         Stop -> Persistence.syncToBackend storageBackend currentValue
 
@@ -172,3 +185,4 @@ runSyncTimer core = mapM_ go (configSyncIntervalMicroSeconds $ coreConfig core)
     go interval = forever $ do
       enqueueCommand Sync core
       threadDelay interval
+
