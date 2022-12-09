@@ -64,7 +64,7 @@ createAndRegisterIcepeakMetrics = IcepeakMetrics
     requestCounter = counter (Info "icepeak_http_requests"
                                    "Total number of HTTP requests since starting Icepeak.")
     syncBuckets = exponentialBuckets 0.0000008 1.2 20
-    httpBuckets = exponentialBuckets 0.000005 1.5 20
+    httpBuckets = exponentialBuckets 0.00001 1.5 20
 
 notifyRequest :: Http.Method -> Http.Status -> IcepeakMetrics -> IO ()
 notifyRequest method status = countHttpRequest method status . icepeakMetricsRequestCounter
