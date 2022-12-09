@@ -34,6 +34,7 @@ data IcepeakMetrics = IcepeakMetrics
   , icepeakMetricsDataWrittenTotal  :: Counter
   , icepeakMetricsJournalWritten    :: Counter
   , icepeakMetricsSubscriberCount   :: Gauge
+  , icepeakMetricsQueueLength       :: Gauge
   }
 
 createAndRegisterIcepeakMetrics :: IO IcepeakMetrics
@@ -51,6 +52,7 @@ createAndRegisterIcepeakMetrics = IcepeakMetrics
                               "Total number of bytes written to the journal so far."))
   <*> register (gauge
     (Info "icepeak_subscriber_count" "Number of websocket subscriber connections."))
+  <*> register (gauge (Info "icepeak_internal_queue_length" "Length of ths internal queue"))
   where
     requestCounter = counter (Info "icepeak_http_requests"
                                    "Total number of HTTP requests since starting Icepeak.")
@@ -87,3 +89,6 @@ incrementSubscribers = incGauge . icepeakMetricsSubscriberCount
 
 decrementSubscribers :: MonadMonitor m => IcepeakMetrics -> m ()
 decrementSubscribers = decGauge . icepeakMetricsSubscriberCount
+
+setQueueLength :: (MonadMonitor m, Real a) => a -> IcepeakMetrics -> m ()
+setQueueLength val metrics = setGauge (icepeakMetricsQueueLength metrics) (realToFrac val)
