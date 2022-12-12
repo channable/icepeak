@@ -21,9 +21,9 @@ where
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.MVar (MVar, newMVar, putMVar)
 import Control.Concurrent.STM (atomically)
-import Control.Concurrent.STM.TBQueue (TBQueue, newTBQueueIO, readTBQueue, writeTBQueue, isFullTBQueue, lengthTBQueue)
+import Control.Concurrent.STM.TBQueue (TBQueue, newTBQueueIO, readTBQueue, writeTBQueue, isFullTBQueue)
 import Control.Concurrent.STM.TVar (TVar, newTVarIO)
-import Control.Monad (forever, unless)
+import Control.Monad (forever, unless, replicateM_, when)
 import Control.Monad.IO.Class
 import Data.Aeson (Value (..))
 import Data.Foldable (forM_, for_)
@@ -109,7 +109,7 @@ postQuit core = do
   atomically $ do
     writeTBQueue (coreQueue core) Stop
     writeTBQueue (coreUpdates core) Nothing
-  updateQueueMetric core
+  replicateM_ 2 $ for_ (coreMetrics core) Metrics.incrementQueueAdded
 
 -- | Try to enqueue a command. It succeeds if the queue is not full, otherwise,
 -- nothing is changed. This should be used for non-critical commands that can
@@ -120,7 +120,7 @@ tryEnqueueCommand cmd core = do
     isFull <- isFullTBQueue (coreQueue core)
     unless isFull $ writeTBQueue (coreQueue core) cmd
     pure $ if isFull then Dropped else Enqueued
-  updateQueueMetric core
+  when (res == Enqueued) $ for_ (coreMetrics core) Metrics.incrementQueueAdded
   return res
 
 -- | Enqueue a command. Blocks if the queue is full. This is used by the sync
@@ -130,7 +130,7 @@ tryEnqueueCommand cmd core = do
 enqueueCommand :: Command -> Core -> IO ()
 enqueueCommand cmd core = do
   atomically $ writeTBQueue (coreQueue core) cmd
-  updateQueueMetric core
+  for_ (coreMetrics core) Metrics.incrementQueueAdded
 
 getCurrentValue :: Core -> Path -> IO (Maybe Value)
 getCurrentValue core path =
@@ -138,11 +138,6 @@ getCurrentValue core path =
 
 withCoreMetrics :: MonadIO m => Core -> (Metrics.IcepeakMetrics -> IO ()) -> m ()
 withCoreMetrics core act = liftIO $ forM_ (coreMetrics core) act
-
-updateQueueMetric :: Core -> IO ()
-updateQueueMetric core = do
-  queueLength <- atomically $ lengthTBQueue (coreQueue core)
-  for_ (coreMetrics core) $ \metrics -> Metrics.setQueueLength queueLength metrics
 
 -- | Drain the command queue and execute them. Changes are published to all
 -- subscribers. This function returns when executing the 'Stop' command from the
@@ -155,7 +150,7 @@ runCommandLoop core = go
     storageBackend = configStorageBackend config
     go = do
       command <- atomically $ readTBQueue (coreQueue core)
-      updateQueueMetric core
+      for_ (coreMetrics core) Metrics.incrementQueueRemoved
       case command of
         Modify op maybeNotifyVar -> do
           Persistence.apply op currentValue

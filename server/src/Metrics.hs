@@ -34,7 +34,8 @@ data IcepeakMetrics = IcepeakMetrics
   , icepeakMetricsDataWrittenTotal  :: Counter
   , icepeakMetricsJournalWritten    :: Counter
   , icepeakMetricsSubscriberCount   :: Gauge
-  , icepeakMetricsQueueLength       :: Gauge
+  , icepeakMetricsQueueAdded        :: Counter
+  , icepeakMetricsQueueRemoved      :: Counter
   , icepeakMetricsSyncDuration      :: Histogram
   , icepeakMetricsHttpReqDuration   :: Histogram
   }
@@ -54,7 +55,10 @@ createAndRegisterIcepeakMetrics = IcepeakMetrics
                               "Total number of bytes written to the journal so far."))
   <*> register (gauge
     (Info "icepeak_subscriber_count" "Number of websocket subscriber connections."))
-  <*> register (gauge (Info "icepeak_internal_queue_length" "Length of the internal queue."))
+  <*> register (counter (Info "icepeak_internal_queue_items_added"
+                              "Total number of items added to the queue."))
+  <*> register (counter (Info "icepeak_internal_queue_items_removed"
+                              "Total number of items removed from the queue.."))
   <*> register (histogram (Info "icepeak_sync_duration" "Duration of a Sync command.")
                           syncBuckets)
   <*> register (histogram (Info "icepeak_http_req_handling_duration"
@@ -99,11 +103,15 @@ incrementSubscribers = incGauge . icepeakMetricsSubscriberCount
 decrementSubscribers :: MonadMonitor m => IcepeakMetrics -> m ()
 decrementSubscribers = decGauge . icepeakMetricsSubscriberCount
 
-setQueueLength :: (MonadMonitor m, Real a) => a -> IcepeakMetrics -> m ()
-setQueueLength val metrics = setGauge (icepeakMetricsQueueLength metrics) (realToFrac val)
+incrementQueueAdded :: MonadMonitor m => IcepeakMetrics -> m ()
+incrementQueueAdded = incCounter . icepeakMetricsQueueAdded
+
+incrementQueueRemoved :: MonadMonitor m => IcepeakMetrics -> m ()
+incrementQueueRemoved = incCounter . icepeakMetricsQueueRemoved
 
 measureSyncDuration :: (MonadIO m, MonadMonitor m) => IcepeakMetrics -> m a -> m a
 measureSyncDuration = observeDuration . icepeakMetricsSyncDuration
 
 measureHttpReqDuration :: (MonadIO m, MonadMonitor m) => IcepeakMetrics -> m a -> m a
 measureHttpReqDuration = observeDuration . icepeakMetricsHttpReqDuration
+
