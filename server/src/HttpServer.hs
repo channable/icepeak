@@ -2,7 +2,6 @@
 
 module HttpServer (new) where
 
-import Control.Applicative (liftA2)
 import Control.Concurrent.MVar (newEmptyMVar, takeMVar)
 import Control.Monad
 import Control.Monad.IO.Class
@@ -26,30 +25,17 @@ import qualified Store
 import qualified Core
 import qualified Metrics
 
-import qualified Prometheus
-
-newtype Action e m a = Action { runAction :: Scotty.ActionT e m a }
-
-instance (Scotty.ScottyError e, MonadIO m) => Functor (Action e m) where
-  fmap f = Action . fmap f . runAction
-instance (Scotty.ScottyError e, MonadIO m) => Applicative (Action e m) where
-  pure = Action . return
-  liftA2 f a b = Action $ liftA2 f (runAction a) (runAction b)
-instance (Scotty.ScottyError e, MonadIO m) => Monad (Action e m) where
-  m >>= f = Action $ runAction m >>= runAction . f
-instance (Scotty.ScottyError e, MonadIO m) => MonadIO (Action e m) where
-  liftIO = Action . Scotty.liftAndCatchIO
-instance (Scotty.ScottyError e, MonadIO m) => Prometheus.MonadMonitor (Action e m) where
-  doIO = liftIO
-
 new :: Core -> IO Application
 new core =
   scottyApp $ do
-    -- First we check whether the request HTTP method is a recognised HTTP method.
+    -- First middleware logs the time Icepeak takes to handle a request as a
+    -- Prometheus metric.
+    middleware $ measureRequestDuration core
+    -- Then we check whether the request HTTP method is a recognised HTTP method.
     -- Any arbitrary ByteString is accepted as a request method and we store those 
     -- in the exposed metrics, this is a DoS vector.
     middleware canonicalizeHTTPMethods
-    -- Second middleware is the metrics middleware in order to intercept
+    -- Third middleware is the metrics middleware in order to intercept
     -- all requests and their corresponding responses
     forM_ (coreMetrics core) $ middleware . metricsMiddleware
     -- Exit on unknown HTTP verb after the request has been stored in the metrics.
@@ -66,25 +52,25 @@ new core =
     when (configEnableJwtAuth $ coreConfig core) $
       middleware $ jwtMiddleware $ configJwtSecret $ coreConfig core
 
-    get (regex "^") $ measureRequestDuration core $ do
+    get (regex "^") $ do
       path <- Wai.pathInfo <$> request
       maybeValue <- Scotty.liftAndCatchIO $ Core.getCurrentValue core path
       maybe (status status404) json maybeValue
 
-    put (regex "^") $ measureRequestDuration core $ do
+    put (regex "^") $ do
       path <- Wai.pathInfo <$> request
       value <- jsonData
       result <- postModification core (Store.Put path value)
       buildResponse result
 
-    delete (regex "^") $ measureRequestDuration core $ do
+    delete (regex "^") $ do
       path <- Wai.pathInfo <$> request
       result <- postModification core (Store.Delete path)
       buildResponse result
 
-measureRequestDuration :: (Scotty.ScottyError e, MonadIO m) => Core -> Scotty.ActionT e m a -> Scotty.ActionT e m a
-measureRequestDuration core =
-  runAction .  maybe id Metrics.measureHttpReqDuration (coreMetrics core) . Action
+measureRequestDuration :: Core -> Wai.Middleware
+measureRequestDuration core app req respond =
+  app req (maybe id Metrics.measureHttpReqDuration (coreMetrics core) . respond)
 
 -- | Enqueue modification and wait for it to be processed, if desired by the client.
 postModification :: (Scotty.ScottyError e, MonadIO m) => Core -> Store.Modification -> Scotty.ActionT e m EnqueueResult

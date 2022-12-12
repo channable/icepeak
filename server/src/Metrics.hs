@@ -113,4 +113,3 @@ measureSyncDuration = observeDuration . icepeakMetricsSyncDuration
 
 measureHttpReqDuration :: (MonadIO m, MonadMonitor m) => IcepeakMetrics -> m a -> m a
 measureHttpReqDuration = observeDuration . icepeakMetricsHttpReqDuration
-
