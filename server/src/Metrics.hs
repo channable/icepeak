@@ -5,7 +5,7 @@ import Control.Monad.IO.Class
 import Data.Text (Text, pack)
 import Data.Text.Encoding (decodeUtf8With)
 import Data.Text.Encoding.Error (lenientDecode)
-import Prometheus (Counter, Gauge, Histogram, Info (..), MonadMonitor, Vector, addCounter, counter, exponentialBuckets, decGauge,
+import Prometheus (Counter, Gauge, Histogram, Info (..), MonadMonitor, Vector, addCounter, counter, defaultBuckets, exponentialBuckets, decGauge,
                    gauge, histogram, incCounter, incGauge, observeDuration, register, setGauge, vector, withLabel)
 import qualified Network.HTTP.Types as Http
 
@@ -63,12 +63,11 @@ createAndRegisterIcepeakMetrics = IcepeakMetrics
                           syncBuckets)
   <*> register (histogram (Info "icepeak_http_req_handling_duration"
                                 "Duration of the handling of an HTTP request.")
-                          httpBuckets)
+                          defaultBuckets)
   where
     requestCounter = counter (Info "icepeak_http_requests"
                                    "Total number of HTTP requests since starting Icepeak.")
-    syncBuckets = exponentialBuckets 0.0000008 1.2 20
-    httpBuckets = exponentialBuckets 0.00001 1.5 20
+    syncBuckets = exponentialBuckets 0.001 2 12
 
 notifyRequest :: Http.Method -> Http.Status -> IcepeakMetrics -> IO ()
 notifyRequest method status = countHttpRequest method status . icepeakMetricsRequestCounter
