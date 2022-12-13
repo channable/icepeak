@@ -37,7 +37,9 @@ data IcepeakMetrics = IcepeakMetrics
   , icepeakMetricsQueueAdded        :: Counter
   , icepeakMetricsQueueRemoved      :: Counter
   , icepeakMetricsSyncDuration      :: Histogram
-  , icepeakMetricsHttpReqDuration   :: Histogram
+  , icepeakMetricsHttpGetDuration   :: Histogram
+  , icepeakMetricsHttpPutDuration   :: Histogram
+  , icepeakMetricsHttpDelDuration   :: Histogram
   }
 
 createAndRegisterIcepeakMetrics :: IO IcepeakMetrics
@@ -61,8 +63,14 @@ createAndRegisterIcepeakMetrics = IcepeakMetrics
                               "Total number of items removed from the queue.."))
   <*> register (histogram (Info "icepeak_sync_duration" "Duration of a Sync command.")
                           syncBuckets)
-  <*> register (histogram (Info "icepeak_http_req_handling_duration"
-                                "Duration of the handling of an HTTP request.")
+  <*> register (histogram (Info "icepeak_http_req_handling_duration_get"
+                                "Duration of the handling of a GET HTTP request.")
+                          defaultBuckets)
+  <*> register (histogram (Info "icepeak_http_req_handling_duration_put"
+                                "Duration of the handling of a PUT HTTP request.")
+                          defaultBuckets)
+  <*> register (histogram (Info "icepeak_http_req_handling_duration_delete"
+                                "Duration of the handling of a DELETE HTTP request.")
                           defaultBuckets)
   where
     requestCounter = counter (Info "icepeak_http_requests"
@@ -111,5 +119,11 @@ incrementQueueRemoved = incCounter . icepeakMetricsQueueRemoved
 measureSyncDuration :: (MonadIO m, MonadMonitor m) => IcepeakMetrics -> m a -> m a
 measureSyncDuration = observeDuration . icepeakMetricsSyncDuration
 
-measureHttpReqDuration :: (MonadIO m, MonadMonitor m) => IcepeakMetrics -> m a -> m a
-measureHttpReqDuration = observeDuration . icepeakMetricsHttpReqDuration
+measureHttpGetDuration :: (MonadIO m, MonadMonitor m) => IcepeakMetrics -> m a -> m a
+measureHttpGetDuration = observeDuration . icepeakMetricsHttpGetDuration
+
+measureHttpPutDuration :: (MonadIO m, MonadMonitor m) => IcepeakMetrics -> m a -> m a
+measureHttpPutDuration = observeDuration . icepeakMetricsHttpPutDuration
+
+measureHttpDelDuration :: (MonadIO m, MonadMonitor m) => IcepeakMetrics -> m a -> m a
+measureHttpDelDuration = observeDuration . icepeakMetricsHttpDelDuration

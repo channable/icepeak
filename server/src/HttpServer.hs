@@ -9,7 +9,7 @@ import Data.Foldable (for_)
 import Data.Traversable (for)
 import Data.Text (pack)
 import Network.HTTP.Types
-import Network.Wai (Application)
+import Network.Wai (Application, requestMethod)
 import Web.Scotty (delete, get, json, jsonData, put, regex, middleware, request, scottyApp, status, ActionM)
 
 import qualified Data.Text.Lazy as LText
@@ -70,7 +70,13 @@ new core =
 
 measureRequestDuration :: Core -> Wai.Middleware
 measureRequestDuration core app req respond =
-  app req (maybe id Metrics.measureHttpReqDuration (coreMetrics core) . respond)
+  app req (maybe id measure (coreMetrics core) . respond)
+  where method           = parseMethod $ requestMethod req
+        measure          = either (const . const id) useMethod method
+        useMethod GET    = Metrics.measureHttpGetDuration
+        useMethod PUT    = Metrics.measureHttpPutDuration
+        useMethod DELETE = Metrics.measureHttpDelDuration
+        useMethod _      = const id
 
 -- | Enqueue modification and wait for it to be processed, if desired by the client.
 postModification :: (Scotty.ScottyError e, MonadIO m) => Core -> Store.Modification -> Scotty.ActionT e m EnqueueResult
