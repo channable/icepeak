@@ -1,12 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Metrics where
 
+import Control.Monad.IO.Class
 import Data.Text (Text, pack)
 import Data.Text.Encoding (decodeUtf8With)
 import Data.Text.Encoding.Error (lenientDecode)
-import Prometheus (Counter, Gauge, Info (..), MonadMonitor, Vector, addCounter, counter, decGauge,
-                   gauge, incCounter, incGauge, register, setGauge, vector, withLabel)
-
+import Prometheus (Counter, Gauge, Histogram, Info (..), MonadMonitor, Vector, addCounter, counter, defaultBuckets, exponentialBuckets, decGauge,
+                   gauge, histogram, incCounter, incGauge, observeDuration, register, setGauge, vector, withLabel)
 import qualified Network.HTTP.Types as Http
 
 
@@ -34,6 +34,12 @@ data IcepeakMetrics = IcepeakMetrics
   , icepeakMetricsDataWrittenTotal  :: Counter
   , icepeakMetricsJournalWritten    :: Counter
   , icepeakMetricsSubscriberCount   :: Gauge
+  , icepeakMetricsQueueAdded        :: Counter
+  , icepeakMetricsQueueRemoved      :: Counter
+  , icepeakMetricsSyncDuration      :: Histogram
+  , icepeakMetricsHttpGetDuration   :: Histogram
+  , icepeakMetricsHttpPutDuration   :: Histogram
+  , icepeakMetricsHttpDelDuration   :: Histogram
   }
 
 createAndRegisterIcepeakMetrics :: IO IcepeakMetrics
@@ -51,9 +57,25 @@ createAndRegisterIcepeakMetrics = IcepeakMetrics
                               "Total number of bytes written to the journal so far."))
   <*> register (gauge
     (Info "icepeak_subscriber_count" "Number of websocket subscriber connections."))
+  <*> register (counter (Info "icepeak_internal_queue_items_added"
+                              "Total number of items added to the queue."))
+  <*> register (counter (Info "icepeak_internal_queue_items_removed"
+                              "Total number of items removed from the queue.."))
+  <*> register (histogram (Info "icepeak_sync_duration" "Duration of a Sync command.")
+                          syncBuckets)
+  <*> register (histogram (Info "icepeak_http_req_handling_duration_get"
+                                "Duration of the handling of a GET HTTP request.")
+                          defaultBuckets)
+  <*> register (histogram (Info "icepeak_http_req_handling_duration_put"
+                                "Duration of the handling of a PUT HTTP request.")
+                          defaultBuckets)
+  <*> register (histogram (Info "icepeak_http_req_handling_duration_delete"
+                                "Duration of the handling of a DELETE HTTP request.")
+                          defaultBuckets)
   where
     requestCounter = counter (Info "icepeak_http_requests"
                                    "Total number of HTTP requests since starting Icepeak.")
+    syncBuckets = exponentialBuckets 0.001 2 12
 
 notifyRequest :: Http.Method -> Http.Status -> IcepeakMetrics -> IO ()
 notifyRequest method status = countHttpRequest method status . icepeakMetricsRequestCounter
@@ -87,3 +109,21 @@ incrementSubscribers = incGauge . icepeakMetricsSubscriberCount
 
 decrementSubscribers :: MonadMonitor m => IcepeakMetrics -> m ()
 decrementSubscribers = decGauge . icepeakMetricsSubscriberCount
+
+incrementQueueAdded :: MonadMonitor m => IcepeakMetrics -> m ()
+incrementQueueAdded = incCounter . icepeakMetricsQueueAdded
+
+incrementQueueRemoved :: MonadMonitor m => IcepeakMetrics -> m ()
+incrementQueueRemoved = incCounter . icepeakMetricsQueueRemoved
+
+measureSyncDuration :: (MonadIO m, MonadMonitor m) => IcepeakMetrics -> m a -> m a
+measureSyncDuration = observeDuration . icepeakMetricsSyncDuration
+
+measureHttpGetDuration :: (MonadIO m, MonadMonitor m) => IcepeakMetrics -> m a -> m a
+measureHttpGetDuration = observeDuration . icepeakMetricsHttpGetDuration
+
+measureHttpPutDuration :: (MonadIO m, MonadMonitor m) => IcepeakMetrics -> m a -> m a
+measureHttpPutDuration = observeDuration . icepeakMetricsHttpPutDuration
+
+measureHttpDelDuration :: (MonadIO m, MonadMonitor m) => IcepeakMetrics -> m a -> m a
+measureHttpDelDuration = observeDuration . icepeakMetricsHttpDelDuration

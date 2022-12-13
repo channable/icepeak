@@ -9,7 +9,7 @@ import Data.Foldable (for_)
 import Data.Traversable (for)
 import Data.Text (pack)
 import Network.HTTP.Types
-import Network.Wai (Application)
+import Network.Wai (Application, requestMethod)
 import Web.Scotty (delete, get, json, jsonData, put, regex, middleware, request, scottyApp, status, ActionM)
 
 import qualified Data.Text.Lazy as LText
@@ -28,11 +28,14 @@ import qualified Metrics
 new :: Core -> IO Application
 new core =
   scottyApp $ do
-    -- First we check whether the request HTTP method is a recognised HTTP method.
+    -- First middleware logs the time Icepeak takes to handle a request as a
+    -- Prometheus metric.
+    middleware $ measureRequestDuration core
+    -- Then we check whether the request HTTP method is a recognised HTTP method.
     -- Any arbitrary ByteString is accepted as a request method and we store those 
     -- in the exposed metrics, this is a DoS vector.
     middleware canonicalizeHTTPMethods
-    -- Second middleware is the metrics middleware in order to intercept
+    -- Third middleware is the metrics middleware in order to intercept
     -- all requests and their corresponding responses
     forM_ (coreMetrics core) $ middleware . metricsMiddleware
     -- Exit on unknown HTTP verb after the request has been stored in the metrics.
@@ -65,6 +68,15 @@ new core =
       result <- postModification core (Store.Delete path)
       buildResponse result
 
+measureRequestDuration :: Core -> Wai.Middleware
+measureRequestDuration core app req respond =
+  app req (maybe id measure (coreMetrics core) . respond)
+  where method           = parseMethod $ requestMethod req
+        measure          = either (const . const id) useMethod method
+        useMethod GET    = Metrics.measureHttpGetDuration
+        useMethod PUT    = Metrics.measureHttpPutDuration
+        useMethod DELETE = Metrics.measureHttpDelDuration
+        useMethod _      = const id
 
 -- | Enqueue modification and wait for it to be processed, if desired by the client.
 postModification :: (Scotty.ScottyError e, MonadIO m) => Core -> Store.Modification -> Scotty.ActionT e m EnqueueResult
