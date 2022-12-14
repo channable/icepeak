@@ -3,10 +3,11 @@ module Metrics where
 
 import Control.Monad.IO.Class
 import Data.Text (Text, pack)
-import Data.Text.Encoding (decodeUtf8With)
-import Data.Text.Encoding.Error (lenientDecode)
+import Data.Text.Encoding (decodeUtf8)
+import Data.Ratio ((%))
+import System.Clock (TimeSpec, diffTimeSpec, toNanoSecs)
 import Prometheus (Counter, Gauge, Histogram, Info (..), MonadMonitor, Vector, addCounter, counter, defaultBuckets, exponentialBuckets, decGauge,
-                   gauge, histogram, incCounter, incGauge, observeDuration, register, setGauge, vector, withLabel)
+                   gauge, histogram, incCounter, incGauge, observe, observeDuration, register, setGauge, vector, withLabel)
 import qualified Network.HTTP.Types as Http
 
 
@@ -14,18 +15,11 @@ type HttpMethodLabel = Text
 type HttpStatusCode = Text
 
 -- We want to store for each (HTTP method, HTTP status code) pair how many times it has been called
-type HttpRequestCounter = Vector (HttpMethodLabel, HttpStatusCode) Counter
-
-countHttpRequest :: MonadMonitor m => Http.Method -> Http.Status -> HttpRequestCounter -> m ()
-countHttpRequest method status httpRequestCounter = withLabel httpRequestCounter label incCounter
-  where
-    label = (textMethod, textStatusCode)
-    textMethod = decodeUtf8With lenientDecode method
-    textStatusCode = pack $ show $ Http.statusCode status
-
+-- as well as the duration of each reaquest.
+type HttpRequestHistogram = Vector (HttpMethodLabel, HttpStatusCode) Histogram
 
 data IcepeakMetrics = IcepeakMetrics
-  { icepeakMetricsRequestCounter    :: HttpRequestCounter
+  { icepeakMetricsRequestCounter    :: HttpRequestHistogram
   -- TODO: the following line can be removed after dashboard has been updated to use icepeak_data_size_bytes
   , icepeakMetricsDataSize          :: Gauge
   , icepeakMetricsDataSizeBytes     :: Gauge
@@ -37,14 +31,11 @@ data IcepeakMetrics = IcepeakMetrics
   , icepeakMetricsQueueAdded        :: Counter
   , icepeakMetricsQueueRemoved      :: Counter
   , icepeakMetricsSyncDuration      :: Histogram
-  , icepeakMetricsHttpGetDuration   :: Histogram
-  , icepeakMetricsHttpPutDuration   :: Histogram
-  , icepeakMetricsHttpDelDuration   :: Histogram
   }
 
 createAndRegisterIcepeakMetrics :: IO IcepeakMetrics
 createAndRegisterIcepeakMetrics = IcepeakMetrics
-  <$> register (vector ("method", "status") requestCounter)
+  <$> register (vector ("method", "status") requestHistogram)
   -- TODO: the following line can be removed after dashboard has been updated to use icepeak_data_size_bytes
   <*> register (gauge (Info "icepeak_data_size" "Size of data file in bytes."))
   <*> register (gauge (Info "icepeak_data_size_bytes" "Size of data file in bytes."))
@@ -63,22 +54,19 @@ createAndRegisterIcepeakMetrics = IcepeakMetrics
                               "Total number of items removed from the queue.."))
   <*> register (histogram (Info "icepeak_sync_duration" "Duration of a Sync command.")
                           syncBuckets)
-  <*> register (histogram (Info "icepeak_http_req_handling_duration_get"
-                                "Duration of the handling of a GET HTTP request.")
-                          defaultBuckets)
-  <*> register (histogram (Info "icepeak_http_req_handling_duration_put"
-                                "Duration of the handling of a PUT HTTP request.")
-                          defaultBuckets)
-  <*> register (histogram (Info "icepeak_http_req_handling_duration_delete"
-                                "Duration of the handling of a DELETE HTTP request.")
-                          defaultBuckets)
   where
-    requestCounter = counter (Info "icepeak_http_requests"
-                                   "Total number of HTTP requests since starting Icepeak.")
-    syncBuckets = exponentialBuckets 0.001 2 12
+    requestHistogram = histogram (Info "icepeak_http_requests"
+                                     "Duration of HTTP requests since starting Icepeak.")
+                               defaultBuckets
+    syncBuckets      = exponentialBuckets 0.001 2 12
 
-notifyRequest :: Http.Method -> Http.Status -> IcepeakMetrics -> IO ()
-notifyRequest method status = countHttpRequest method status . icepeakMetricsRequestCounter
+countHttpRequest :: IcepeakMetrics -> Http.Method -> Http.Status -> TimeSpec -> TimeSpec -> IO ()
+countHttpRequest metrics method status start end = withLabel (icepeakMetricsRequestCounter metrics) label (flip observe latency)
+  where
+    label = (textMethod, textStatus)
+    textMethod = decodeUtf8 method
+    textStatus = pack $ show (Http.statusCode status)
+    latency = fromRational $ toRational (toNanoSecs (end `diffTimeSpec` start) % 1000000000)
 
 setDataSize :: (MonadMonitor m, Real a) => a -> IcepeakMetrics -> m ()
 setDataSize val metrics = do
@@ -118,12 +106,3 @@ incrementQueueRemoved = incCounter . icepeakMetricsQueueRemoved
 
 measureSyncDuration :: (MonadIO m, MonadMonitor m) => IcepeakMetrics -> m a -> m a
 measureSyncDuration = observeDuration . icepeakMetricsSyncDuration
-
-measureHttpGetDuration :: (MonadIO m, MonadMonitor m) => IcepeakMetrics -> m a -> m a
-measureHttpGetDuration = observeDuration . icepeakMetricsHttpGetDuration
-
-measureHttpPutDuration :: (MonadIO m, MonadMonitor m) => IcepeakMetrics -> m a -> m a
-measureHttpPutDuration = observeDuration . icepeakMetricsHttpPutDuration
-
-measureHttpDelDuration :: (MonadIO m, MonadMonitor m) => IcepeakMetrics -> m a -> m a
-measureHttpDelDuration = observeDuration . icepeakMetricsHttpDelDuration
