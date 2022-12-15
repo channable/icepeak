@@ -2,6 +2,7 @@
 , async
 , base
 , bytestring
+, clock
 , containers
 , directory
 , hashable
@@ -112,6 +113,7 @@ mkDerivation {
     async
     base
     bytestring
+    clock
     containers
     directory
     hashable

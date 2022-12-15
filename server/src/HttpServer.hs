@@ -10,6 +10,7 @@ import Data.Traversable (for)
 import Data.Text (pack)
 import Network.HTTP.Types
 import Network.Wai (Application)
+import System.Clock (Clock (..), getTime)
 import Web.Scotty (delete, get, json, jsonData, put, regex, middleware, request, scottyApp, status, ActionM)
 
 import qualified Data.Text.Lazy as LText
@@ -32,9 +33,9 @@ new core =
     -- Any arbitrary ByteString is accepted as a request method and we store those 
     -- in the exposed metrics, this is a DoS vector.
     middleware canonicalizeHTTPMethods
-    -- Second middleware is the metrics middleware in order to intercept
-    -- all requests and their corresponding responses
-    forM_ (coreMetrics core) $ middleware . metricsMiddleware
+    -- The second middleware is the metrics middleware in order to intercept
+    -- all requests and their corresponding responses.
+    forM_ (coreMetrics core) $ middleware . durationMeasureMiddleware
     -- Exit on unknown HTTP verb after the request has been stored in the metrics.
     middleware limitHTTPMethods
     -- Use the Sentry logger if available
@@ -65,6 +66,15 @@ new core =
       result <- postModification core (Store.Delete path)
       buildResponse result
 
+durationMeasureMiddleware :: Metrics.IcepeakMetrics -> Wai.Middleware
+durationMeasureMiddleware metrics app req respond = do
+  start <- getTime Monotonic
+  app req $ \res -> do
+    end <- getTime Monotonic
+    let httpMethod  = Wai.requestMethod req
+    let httpStatus = Wai.responseStatus res
+    Metrics.countHttpRequest metrics httpMethod httpStatus start end
+    respond res
 
 -- | Enqueue modification and wait for it to be processed, if desired by the client.
 postModification :: (Scotty.ScottyError e, MonadIO m) => Core -> Store.Modification -> Scotty.ActionT e m EnqueueResult
@@ -80,13 +90,6 @@ postModification core op = do
 buildResponse :: EnqueueResult -> ActionM ()
 buildResponse Enqueued = status accepted202
 buildResponse Dropped  = status serviceUnavailable503
-
-metricsMiddleware :: Metrics.IcepeakMetrics -> Wai.Middleware
-metricsMiddleware metrics app req sendResponse = app req sendWithMetrics
-  where
-    sendWithMetrics resp = do
-      Metrics.notifyRequest (Wai.requestMethod req) (Wai.responseStatus resp) metrics
-      sendResponse resp
 
 maybeParam :: (Scotty.Parsable a, Scotty.ScottyError e, Monad m) => LText.Text -> Scotty.ActionT e m (Maybe a)
 maybeParam name = fmap (parseMaybe <=< lookup name) Scotty.params where
