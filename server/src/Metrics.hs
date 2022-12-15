@@ -55,7 +55,7 @@ createAndRegisterIcepeakMetrics = IcepeakMetrics
   <*> register (histogram (Info "icepeak_sync_duration" "Duration of a Sync command.")
                           syncBuckets)
   where
-    requestHistogram = histogram (Info "icepeak_http_requests"
+    requestHistogram = histogram (Info "http_request_duration_seconds"
                                      "Duration of HTTP requests since starting Icepeak.")
                                defaultBuckets
     syncBuckets      = exponentialBuckets 0.001 2 12
