@@ -30,6 +30,7 @@ import qualified Data.Text                  as Text
 import           Data.Traversable
 import           Database.SQLite.Simple     (FromRow (..), NamedParam (..), Only (..), execute,
                                              execute_, executeNamed, field, open, query_)
+import qualified System.Clock               as Clock
 import           System.Directory           (getFileSize, renameFile)
 import           System.Exit                (die)
 import           System.IO
@@ -155,7 +156,12 @@ loadFromBackend backend config = runExceptT $ do
   return val
 
 syncToBackend :: StorageBackend -> PersistentValue -> IO ()
-syncToBackend File pv = syncFile pv
+syncToBackend File pv = do
+    start <- Clock.getTime Clock.Monotonic
+    syncFile pv
+    end <- Clock.getTime Clock.Monotonic
+    let time = Clock.toNanoSecs (Clock.diffTimeSpec end start) `div` 1000000
+    logMessage pv $ Text.concat ["It took ", Text.pack $ show time, " ms to synchronize Icepeak on disk."]
 syncToBackend Sqlite pv = syncSqliteFile pv
 
 -- * SQLite loading and syncing
