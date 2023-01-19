@@ -160,7 +160,7 @@ syncToBackend File pv = do
     start <- Clock.getTime Clock.Monotonic
     syncFile pv
     end <- Clock.getTime Clock.Monotonic
-    let time = Clock.toNanoSecs $ (Clock.diffTimeSpec end start) `div` 1000000
+    let time = Clock.toNanoSecs (Clock.diffTimeSpec end start) `div` 1000000
     logMessage pv $ Text.concat ["It took ", Text.pack $ show time, " ms to synchronize Icepeak on disk."]
 syncToBackend Sqlite pv = syncSqliteFile pv
 
