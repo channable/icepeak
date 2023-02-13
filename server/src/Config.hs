@@ -43,6 +43,8 @@ data Config = Config
   -- Just indicates that a key is given.
   , configSentryDSN :: Maybe String
   , configStorageBackend :: StorageBackend
+  -- | Enable logging of Sync duration
+  , configSyncLogging :: Bool
   }
 
 data MetricsConfig = MetricsConfig
@@ -101,6 +103,8 @@ configParser environment = Config
               environ "SENTRY_DSN" <>
               help "Sentry DSN used for Sentry logging, defaults to the value of the SENTRY_DSN environment variable if present. If no secret is passed, Sentry logging will be disabled."))
   <*> storageBackend
+  <*> switch (long "sync-log" <>
+             help "Enable logging the duration of Sync operations.")
 
   where
     environ var = foldMap value (lookup var environment)
