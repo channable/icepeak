@@ -94,6 +94,7 @@ newCore config logger metrics = do
     , pcJournalFile = journalFile
     , pcLogger = logger
     , pcMetrics = metrics
+    , pcLogSync = configSyncLogging config
     }
   for eitherValue $ \value -> do
     -- create synchronization channels

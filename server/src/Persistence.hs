@@ -56,6 +56,7 @@ data PersistenceConfig = PersistenceConfig
   , pcJournalFile :: Maybe FilePath
   , pcLogger      :: Logger
   , pcMetrics     :: Maybe Metrics.IcepeakMetrics
+  , pcLogSync     :: Bool
   }
 
 -- | Get the actual value
@@ -161,7 +162,9 @@ syncToBackend File pv = do
     syncFile pv
     end <- Clock.getTime Clock.Monotonic
     let time = Clock.toNanoSecs (Clock.diffTimeSpec end start) `div` 1000000
-    logMessage pv $ Text.concat ["It took ", Text.pack $ show time, " ms to synchronize Icepeak on disk."]
+    if pcLogSync $ pvConfig pv then
+      logMessage pv $ Text.concat ["It took ", Text.pack $ show time, " ms to synchronize Icepeak on disk."]
+    else return ()
 syncToBackend Sqlite pv = syncSqliteFile pv
 
 -- * SQLite loading and syncing
