@@ -24,5 +24,6 @@ in
         icepeak-server
         pythonEnv
       ] ++ libs;
+      passthru = { icepeak-server = icepeak-server; stack = stack; };
     };
   }
