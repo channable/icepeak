@@ -77,7 +77,7 @@ emptyJournalStatistics = JournalStatistics
   { journalCount = 0
   , journalTime  = 0
   , journalMax   = 0
-  , journalMin   = 0
+  , journalMin   = maxBound
   }
 
 -- | Get the actual value
@@ -94,10 +94,13 @@ apply op val = do
     LBS8.hPutStrLn journalHandle entry
     end <- Clock.getTime Clock.Monotonic
     let time = fromInteger $ Clock.toNanoSecs (Clock.diffTimeSpec end start) `div` 1000
+    -- Update the structure containing the statistics on journaling.
     atomically $ do
       modifyTVar' (pvJournalStats val) $
         \s -> s { journalCount = journalCount s + 1
-                , journalTime  = journalTime s + time }
+                , journalTime  = journalTime s + time
+                , journalMax   = if journalMax s > time then journalMax s else time
+                , journalMin   = if journalMin s < time then journalMin s else time }
     for_ (pcMetrics . pvConfig $ val) $ \metrics -> do
       journalPos <- hTell journalHandle
       _ <- Metrics.incrementJournalWritten (LBS8.length entry) metrics
@@ -192,18 +195,18 @@ syncToBackend File pv = do
     syncFile pv
     end <- Clock.getTime Clock.Monotonic
     let time = Clock.toNanoSecs (Clock.diffTimeSpec end start) `div` 1000000
-    if pcLogSync $ pvConfig pv then do
+    when (pcLogSync $ pvConfig pv) $ do
       logMessage pv $ Text.concat ["It took ", Text.pack $ show time, " ms to synchronize Icepeak on disk."] 
-      if isJust $ pcJournalFile $ pvConfig pv then do
+      when (isJust $ pcJournalFile $ pvConfig pv) $ do
         jStats <- atomically $ do
           stats <- readTVar (pvJournalStats pv)
           writeTVar (pvJournalStats pv) emptyJournalStatistics
           return stats
-        let count = journalCount jStats
-            timeAvg = if count == 0 then 0 else (journalTime jStats) `div` count
-        logMessage pv $ Text.concat ["It took ", Text.pack $ show $ timeAvg, " us on average to journal Icepeak on disk."]
-        else return ()
-    else return ()
+        let jCount = journalCount jStats
+            jAvg = if jCount == 0 then 0 else (journalTime jStats) `div` jCount
+            jMin = journalMin jStats
+            jMax = journalMax jStats
+        when (jCount /= 0) $ logMessage pv $ Text.concat ["Journaling duration (avg/min/max/count) in microseconds since last Sync: ", Text.intercalate "/" $ map (Text.pack . show) [jAvg, jMin, jMax, jCount]]
 syncToBackend Sqlite pv = syncSqliteFile pv
 
 -- * SQLite loading and syncing
