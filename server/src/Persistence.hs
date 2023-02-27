@@ -25,6 +25,7 @@ import qualified Data.ByteString.Char8      as SBS8
 import qualified Data.ByteString.Lazy       as LBS
 import qualified Data.ByteString.Lazy.Char8 as LBS8
 import           Data.Foldable
+import           Data.Maybe                 (isJust)
 import           Data.Text                  (Text)
 import qualified Data.Text                  as Text
 import           Data.Traversable
@@ -43,12 +44,24 @@ import qualified Store
 import Config (StorageBackend (..))
 
 data PersistentValue = PersistentValue
-  { pvConfig  :: PersistenceConfig
-  , pvValue   :: TVar Store.Value
+  { pvConfig       :: PersistenceConfig
+  , pvValue        :: TVar Store.Value
     -- ^ contains the state of the whole database
-  , pvIsDirty :: TVar Bool
+  , pvIsDirty      :: TVar Bool
     -- ^ flag indicating whether the current value of 'pvValue' has not yet been persisted to disk
-  , pvJournal :: Maybe Handle
+  , pvJournal      :: Maybe Handle
+  , pvJournalStats :: TVar JournalStatistics
+    -- ^ Structure keeping track of the duration of journaling operations.
+  }
+
+data JournalStatistics = JournalStatistics
+  { journalCount :: !Int
+    -- ^ The number of times a command has been journaled.
+  , journalTime  :: !Int
+    -- ^ The total (sum) time journaling took.
+  , journalMax   :: !Int
+  , journalMin   :: !Int
+    -- ^ The maximum and minimum times a journaling operation took.
   }
 
 data PersistenceConfig = PersistenceConfig
@@ -57,6 +70,14 @@ data PersistenceConfig = PersistenceConfig
   , pcLogger      :: Logger
   , pcMetrics     :: Maybe Metrics.IcepeakMetrics
   , pcLogSync     :: Bool
+  }
+
+emptyJournalStatistics :: JournalStatistics
+emptyJournalStatistics = JournalStatistics
+  { journalCount = 0
+  , journalTime  = 0
+  , journalMax   = 0
+  , journalMin   = maxBound
   }
 
 -- | Get the actual value
@@ -68,8 +89,18 @@ apply :: Store.Modification -> PersistentValue -> IO ()
 apply op val = do
   -- append to journal if enabled
   for_ (pvJournal val) $ \journalHandle -> do
+    start <- Clock.getTime Clock.Monotonic
     let entry = Aeson.encode op
     LBS8.hPutStrLn journalHandle entry
+    end <- Clock.getTime Clock.Monotonic
+    let time = fromInteger $ Clock.toNanoSecs (Clock.diffTimeSpec end start) `div` 1000
+    -- Update the structure containing the statistics on journaling.
+    atomically $ do
+      modifyTVar' (pvJournalStats val) $
+        \s -> s { journalCount = journalCount s + 1
+                , journalTime  = journalTime s + time
+                , journalMax   = if journalMax s > time then journalMax s else time
+                , journalMin   = if journalMin s < time then journalMin s else time }
     for_ (pcMetrics . pvConfig $ val) $ \metrics -> do
       journalPos <- hTell journalHandle
       _ <- Metrics.incrementJournalWritten (LBS8.length entry) metrics
@@ -143,15 +174,17 @@ loadFromBackend backend config = runExceptT $ do
     File -> readData dataFilePath
     Sqlite -> readSqliteData dataFilePath
 
-  valueVar <- lift $ newTVarIO value
-  dirtyVar <- lift $ newTVarIO False
-  journal <- for (pcJournalFile config) openJournal
+  valueVar     <- lift $ newTVarIO value
+  dirtyVar     <- lift $ newTVarIO False
+  journalStats <- lift $ newTVarIO emptyJournalStatistics
+  journal      <- for (pcJournalFile config) openJournal
 
   let val = PersistentValue
-        { pvConfig  = config
-        , pvValue   = valueVar
-        , pvIsDirty = dirtyVar
-        , pvJournal = journal
+        { pvConfig       = config
+        , pvValue        = valueVar
+        , pvIsDirty      = dirtyVar
+        , pvJournal      = journal
+        , pvJournalStats = journalStats
         }
   recoverJournal val
   return val
@@ -162,9 +195,18 @@ syncToBackend File pv = do
     syncFile pv
     end <- Clock.getTime Clock.Monotonic
     let time = Clock.toNanoSecs (Clock.diffTimeSpec end start) `div` 1000000
-    if pcLogSync $ pvConfig pv then
-      logMessage pv $ Text.concat ["It took ", Text.pack $ show time, " ms to synchronize Icepeak on disk."]
-    else return ()
+    when (pcLogSync $ pvConfig pv) $ do
+      logMessage pv $ Text.concat ["It took ", Text.pack $ show time, " ms to synchronize Icepeak on disk."] 
+      when (isJust $ pcJournalFile $ pvConfig pv) $ do
+        jStats <- atomically $ do
+          stats <- readTVar (pvJournalStats pv)
+          writeTVar (pvJournalStats pv) emptyJournalStatistics
+          return stats
+        let jCount = journalCount jStats
+            jAvg = if jCount == 0 then 0 else (journalTime jStats) `div` jCount
+            jMin = journalMin jStats
+            jMax = journalMax jStats
+        when (jCount /= 0) $ logMessage pv $ Text.concat ["Journaling duration (avg/min/max/count) in microseconds since last Sync: ", Text.intercalate "/" $ map (Text.pack . show) [jAvg, jMin, jMax, jCount]]
 syncToBackend Sqlite pv = syncSqliteFile pv
 
 -- * SQLite loading and syncing
