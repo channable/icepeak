@@ -51,7 +51,7 @@ data PersistentValue = PersistentValue
     -- ^ flag indicating whether the current value of 'pvValue' has not yet been persisted to disk
   , pvJournal      :: Maybe Handle
   , pvJournalStats :: TVar JournalStatistics
-    -- ^ Structure keeping track of the duration of journaling operations
+    -- ^ Structure keeping track of the duration of journaling operations.
   }
 
 data JournalStatistics = JournalStatistics
