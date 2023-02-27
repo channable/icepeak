@@ -44,15 +44,24 @@ import qualified Store
 import Config (StorageBackend (..))
 
 data PersistentValue = PersistentValue
-  { pvConfig  :: PersistenceConfig
-  , pvValue   :: TVar Store.Value
+  { pvConfig       :: PersistenceConfig
+  , pvValue        :: TVar Store.Value
     -- ^ contains the state of the whole database
-  , pvIsDirty :: TVar Bool
+  , pvIsDirty      :: TVar Bool
     -- ^ flag indicating whether the current value of 'pvValue' has not yet been persisted to disk
-  , pvJournal :: Maybe Handle
-    -- | Values keeping track of the duration of journaling operations
-  , pvJournalCount :: TVar Int
-  , pvJournalTime  :: TVar Int
+  , pvJournal      :: Maybe Handle
+  , pvJournalStats :: TVar JournalStatistics
+    -- ^ Structure keeping track of the duration of journaling operations
+  }
+
+data JournalStatistics = JournalStatistics
+  { journalCount :: !Int
+    -- ^ The number of times a command has been journaled.
+  , journalTime  :: !Int
+    -- ^ The total (sum) time journaling took.
+  , journalMax   :: !Int
+  , journalMin   :: !Int
+    -- ^ The maximum and minimum times a journaling operation took.
   }
 
 data PersistenceConfig = PersistenceConfig
@@ -61,6 +70,14 @@ data PersistenceConfig = PersistenceConfig
   , pcLogger      :: Logger
   , pcMetrics     :: Maybe Metrics.IcepeakMetrics
   , pcLogSync     :: Bool
+  }
+
+emptyJournalStatistics :: JournalStatistics
+emptyJournalStatistics = JournalStatistics
+  { journalCount = 0
+  , journalTime  = 0
+  , journalMax   = 0
+  , journalMin   = 0
   }
 
 -- | Get the actual value
@@ -78,8 +95,9 @@ apply op val = do
     end <- Clock.getTime Clock.Monotonic
     let time = fromInteger $ Clock.toNanoSecs (Clock.diffTimeSpec end start) `div` 1000
     atomically $ do
-      modifyTVar' (pvJournalCount val) (+1)
-      modifyTVar' (pvJournalTime val) (+time)
+      modifyTVar' (pvJournalStats val) $
+        \s -> s { journalCount = journalCount s + 1
+                , journalTime  = journalTime s + time }
     for_ (pcMetrics . pvConfig $ val) $ \metrics -> do
       journalPos <- hTell journalHandle
       _ <- Metrics.incrementJournalWritten (LBS8.length entry) metrics
@@ -155,8 +173,7 @@ loadFromBackend backend config = runExceptT $ do
 
   valueVar     <- lift $ newTVarIO value
   dirtyVar     <- lift $ newTVarIO False
-  journalTime  <- lift $ newTVarIO 0
-  journalCount <- lift $ newTVarIO 0
+  journalStats <- lift $ newTVarIO emptyJournalStatistics
   journal      <- for (pcJournalFile config) openJournal
 
   let val = PersistentValue
@@ -164,8 +181,7 @@ loadFromBackend backend config = runExceptT $ do
         , pvValue        = valueVar
         , pvIsDirty      = dirtyVar
         , pvJournal      = journal
-        , pvJournalTime  = journalTime
-        , pvJournalCount = journalCount
+        , pvJournalStats = journalStats
         }
   recoverJournal val
   return val
@@ -179,13 +195,12 @@ syncToBackend File pv = do
     if pcLogSync $ pvConfig pv then do
       logMessage pv $ Text.concat ["It took ", Text.pack $ show time, " ms to synchronize Icepeak on disk."] 
       if isJust $ pcJournalFile $ pvConfig pv then do
-        (timeTotal, count) <- atomically $ do
-          jTime  <- readTVar (pvJournalTime pv)
-          jCount <- readTVar (pvJournalCount pv)
-          writeTVar (pvJournalTime pv) 0
-          writeTVar (pvJournalCount pv) 0
-          return (jTime, jCount)
-        let timeAvg = if count == 0 then 0 else timeTotal `div` count
+        jStats <- atomically $ do
+          stats <- readTVar (pvJournalStats pv)
+          writeTVar (pvJournalStats pv) emptyJournalStatistics
+          return stats
+        let count = journalCount jStats
+            timeAvg = if count == 0 then 0 else (journalTime jStats) `div` count
         logMessage pv $ Text.concat ["It took ", Text.pack $ show $ timeAvg, " us on average to journal Icepeak on disk."]
         else return ()
     else return ()
