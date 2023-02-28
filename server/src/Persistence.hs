@@ -75,8 +75,8 @@ data PersistenceConfig = PersistenceConfig
 
 emptyJournalStatistics :: JournalStatistics
 emptyJournalStatistics = JournalStatistics
-  { journalCount = 0
-  , journalTimeTotalMicros  = 0
+  { journalCount           = 0
+  , journalTimeTotalMicros = 0
   , journalTimeMaxMicros   = 0
   , journalTimeMinMicros   = maxBound
   }
@@ -191,6 +191,21 @@ loadFromBackend backend config = runExceptT $ do
   recoverJournal val
   return val
 
+logJournalStats :: PersistentValue -> IO ()
+logJournalStats pv = do
+  jStats <- atomically $ do
+    stats <- readTVar (pvJournalStats pv)
+    writeTVar (pvJournalStats pv) emptyJournalStatistics
+    return stats
+  let jCount = journalCount jStats
+  when (jCount /= 0) $ do
+    let jAvg   = journalTimeTotalMicros jStats `div` jCount
+        jMin   = journalTimeMinMicros jStats
+        jMax   = journalTimeMaxMicros jStats
+        jLog   = Text.concat ["Journaling duration (avg/min/max/count) in microseconds since last Sync: "
+                             , Text.intercalate "/" $ map (Text.pack . show) [jAvg, jMin, jMax, jCount]]
+    logMessage pv jLog
+
 syncToBackend :: StorageBackend -> PersistentValue -> IO ()
 syncToBackend File pv = do
     start <- Clock.getTime Clock.Monotonic
@@ -199,16 +214,7 @@ syncToBackend File pv = do
     let time = Clock.toNanoSecs (Clock.diffTimeSpec end start) `div` 1000000
     when (pcLogSync $ pvConfig pv) $ do
       logMessage pv $ Text.concat ["It took ", Text.pack $ show time, " ms to synchronize Icepeak on disk."] 
-      when (isJust $ pcJournalFile $ pvConfig pv) $ do
-        jStats <- atomically $ do
-          stats <- readTVar (pvJournalStats pv)
-          writeTVar (pvJournalStats pv) emptyJournalStatistics
-          return stats
-        let jCount = journalCount jStats
-            jAvg = journalTimeTotalMicros jStats `div` jCount
-            jMin = journalTimeMinMicros jStats
-            jMax = journalTimeMaxMicros jStats
-        when (jCount /= 0) $ logMessage pv $ Text.concat ["Journaling duration (avg/min/max/count) in microseconds since last Sync: ", Text.intercalate "/" $ map (Text.pack . show) [jAvg, jMin, jMax, jCount]]
+      when (isJust $ pcJournalFile $ pvConfig pv) $ logJournalStats pv
 syncToBackend Sqlite pv = syncSqliteFile pv
 
 -- * SQLite loading and syncing
