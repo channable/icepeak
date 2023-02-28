@@ -57,11 +57,12 @@ data PersistentValue = PersistentValue
 data JournalStatistics = JournalStatistics
   { journalCount :: !Int
     -- ^ The number of times a command has been journaled.
-  , journalTime  :: !Int
+  , journalTimeTotalMicros  :: !Int
     -- ^ The total (sum) time journaling took.
-  , journalMax   :: !Int
-  , journalMin   :: !Int
-    -- ^ The maximum and minimum times a journaling operation took.
+  , journalTimeMaxMicros   :: !Int
+    -- ^ The maximum time a journaling operation took.
+  , journalTimeMinMicros   :: !Int
+    -- ^ The minimum time a journaling operation took.
   }
 
 data PersistenceConfig = PersistenceConfig
@@ -75,9 +76,9 @@ data PersistenceConfig = PersistenceConfig
 emptyJournalStatistics :: JournalStatistics
 emptyJournalStatistics = JournalStatistics
   { journalCount = 0
-  , journalTime  = 0
-  , journalMax   = 0
-  , journalMin   = maxBound
+  , journalTimeTotalMicros  = 0
+  , journalTimeMaxMicros   = 0
+  , journalTimeMinMicros   = maxBound
   }
 
 -- | Get the actual value
@@ -97,10 +98,11 @@ apply op val = do
     -- Update the structure containing the statistics on journaling.
     atomically $ do
       modifyTVar' (pvJournalStats val) $
-        \s -> s { journalCount = journalCount s + 1
-                , journalTime  = journalTime s + time
-                , journalMax   = if journalMax s > time then journalMax s else time
-                , journalMin   = if journalMin s < time then journalMin s else time }
+        \s -> s { journalCount           = journalCount s + 1
+                , journalTimeTotalMicros = journalTimeTotalMicros s + time
+                , journalTimeMaxMicros   = max (journalTimeMaxMicros s) time
+                , journalTimeMinMicros   = min (journalTimeMinMicros s) time
+                }
     for_ (pcMetrics . pvConfig $ val) $ \metrics -> do
       journalPos <- hTell journalHandle
       _ <- Metrics.incrementJournalWritten (LBS8.length entry) metrics
@@ -203,9 +205,9 @@ syncToBackend File pv = do
           writeTVar (pvJournalStats pv) emptyJournalStatistics
           return stats
         let jCount = journalCount jStats
-            jAvg = if jCount == 0 then 0 else (journalTime jStats) `div` jCount
-            jMin = journalMin jStats
-            jMax = journalMax jStats
+            jAvg = journalTimeTotalMicros jStats `div` jCount
+            jMin = journalTimeMinMicros jStats
+            jMax = journalTimeMaxMicros jStats
         when (jCount /= 0) $ logMessage pv $ Text.concat ["Journaling duration (avg/min/max/count) in microseconds since last Sync: ", Text.intercalate "/" $ map (Text.pack . show) [jAvg, jMin, jMax, jCount]]
 syncToBackend Sqlite pv = syncSqliteFile pv
 
