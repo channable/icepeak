@@ -12,6 +12,7 @@ import Control.Concurrent.STM.TBQueue (readTBQueue)
 import Control.Exception (SomeAsyncException, SomeException, finally, fromException, catch, throwIO)
 import Control.Monad (forever)
 import Data.Aeson (Value)
+import Data.Foldable (for_)
 import Data.Text (Text)
 import Data.UUID
 import System.Random (randomIO)
@@ -135,6 +136,7 @@ processUpdates core = go
   where
     go = do
       maybeUpdate <- atomically $ readTBQueue (coreUpdates core)
+      for_ (coreMetrics core) Metrics.incrementWsQueueRemoved
       case maybeUpdate of
         Just (Updated path value) -> do
           clients <- readMVar (coreClients core)
