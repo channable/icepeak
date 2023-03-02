@@ -177,9 +177,12 @@ postUpdate path core = do
     full <- isFullTBQueue (coreUpdates core)
     -- In order not to block the reader thread, and subsequently stop processing coreQueue,
     -- we don't send new updates to subscribers if coreUpdates is full.
-    when (not full) $ writeTBQueue (coreUpdates core) (Just $ Updated path value)
+    unless full $ writeTBQueue (coreUpdates core) (Just $ Updated path value)
     return full
-  when (not isWsQueueFull) $ for_ (coreMetrics core) Metrics.incrementWsQueueAdded
+  for_ (coreMetrics core) $
+    if isWsQueueFull
+    then Metrics.incrementWsSkippedUpdates
+    else Metrics.incrementWsQueueAdded
 
 -- | Periodically send a 'Sync' command to the 'Core' if enabled in the core
 -- configuration.
