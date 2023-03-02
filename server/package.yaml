@@ -1,6 +1,6 @@
 name: icepeak
 # Note: We follow the PVP here, required by Hackage
-version: '1.3.0.0'
+version: '1.4.0.0'
 license: BSD3
 homepage: https://github.com/channable/icepeak
 bug-reports: https://github.com/channable/icepeak/issues
