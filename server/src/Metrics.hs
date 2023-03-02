@@ -31,6 +31,8 @@ data IcepeakMetrics = IcepeakMetrics
   , icepeakMetricsQueueAdded        :: Counter
   , icepeakMetricsQueueRemoved      :: Counter
   , icepeakMetricsSyncDuration      :: Histogram
+  , icepeakMetricsWsQueueAdded      :: Counter
+  , icepeakMetricsWsQueueRemoved    :: Counter
   }
 
 createAndRegisterIcepeakMetrics :: IO IcepeakMetrics
@@ -54,6 +56,10 @@ createAndRegisterIcepeakMetrics = IcepeakMetrics
                               "Total number of items removed from the queue.."))
   <*> register (histogram (Info "icepeak_sync_duration" "Duration of a Sync command.")
                           syncBuckets)
+  <*> register (counter (Info "icepeak_internal_ws_queue_items_added"
+                              "Total number of items added to the WebSocket queue."))
+  <*> register (counter (Info "icepeak_internal_ws_queue_items_removed"
+                              "Total number of items removed from the WebSocket queue.."))
   where
     requestHistogram = histogram (Info "http_request_duration_seconds"
                                      "Duration of HTTP requests since starting Icepeak.")
@@ -106,3 +112,9 @@ incrementQueueRemoved = incCounter . icepeakMetricsQueueRemoved
 
 measureSyncDuration :: (MonadIO m, MonadMonitor m) => IcepeakMetrics -> m a -> m a
 measureSyncDuration = observeDuration . icepeakMetricsSyncDuration
+
+incrementWsQueueAdded :: MonadMonitor m => IcepeakMetrics -> m ()
+incrementWsQueueAdded = incCounter . icepeakMetricsWsQueueAdded
+
+incrementWsQueueRemoved :: MonadMonitor m => IcepeakMetrics -> m ()
+incrementWsQueueRemoved = incCounter . icepeakMetricsWsQueueRemoved
