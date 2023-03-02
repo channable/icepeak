@@ -23,7 +23,7 @@ import Control.Concurrent.MVar (MVar, newMVar, putMVar)
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TBQueue (TBQueue, newTBQueueIO, readTBQueue, writeTBQueue, isFullTBQueue)
 import Control.Concurrent.STM.TVar (TVar, newTVarIO)
-import Control.Monad (forever, unless, replicateM_, when)
+import Control.Monad (forever, unless, when)
 import Control.Monad.IO.Class
 import Data.Aeson (Value (..))
 import Data.Foldable (forM_, for_)
@@ -110,7 +110,9 @@ postQuit core = do
   atomically $ do
     writeTBQueue (coreQueue core) Stop
     writeTBQueue (coreUpdates core) Nothing
-  replicateM_ 2 $ for_ (coreMetrics core) Metrics.incrementQueueAdded
+  for_ (coreMetrics core) $ \metrics -> do
+    Metrics.incrementQueueAdded metrics
+    Metrics.incrementWsQueueAdded metrics
 
 -- | Try to enqueue a command. It succeeds if the queue is not full, otherwise,
 -- nothing is changed. This should be used for non-critical commands that can
@@ -169,14 +171,18 @@ runCommandLoop core = go
 
 -- | Post an update to the core's update queue (read by the websocket subscribers)
 postUpdate :: Path -> Core -> IO ()
-postUpdate path core = atomically $ do
-  value <- Persistence.getValue (coreCurrentValue core)
-  full <- isFullTBQueue (coreUpdates core)
-  -- In order not to block the reader thread, and subsequently stop processing coreQueue,
-  -- we don't send new updates to subscribers if coreUpdates is full.
-  if full then
-    return ()
-    else writeTBQueue (coreUpdates core) (Just $ Updated path value)
+postUpdate path core = do
+  isWsQueueFull <- atomically $ do
+    value <- Persistence.getValue (coreCurrentValue core)
+    full <- isFullTBQueue (coreUpdates core)
+    -- In order not to block the reader thread, and subsequently stop processing coreQueue,
+    -- we don't send new updates to subscribers if coreUpdates is full.
+    unless full $ writeTBQueue (coreUpdates core) (Just $ Updated path value)
+    return full
+  for_ (coreMetrics core) $
+    if isWsQueueFull
+    then Metrics.incrementWsSkippedUpdates
+    else Metrics.incrementWsQueueAdded
 
 -- | Periodically send a 'Sync' command to the 'Core' if enabled in the core
 -- configuration.
