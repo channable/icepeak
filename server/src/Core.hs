@@ -110,8 +110,9 @@ postQuit core = do
   atomically $ do
     writeTBQueue (coreQueue core) Stop
     writeTBQueue (coreUpdates core) Nothing
-  for_ (coreMetrics core) Metrics.incrementQueueAdded
-  for_ (coreMetrics core) Metrics.incrementWsQueueAdded
+  for_ (coreMetrics core) $ \metrics -> do
+    Metrics.incrementQueueAdded metrics
+    Metrics.incrementWsQueueAdded metrics
 
 -- | Try to enqueue a command. It succeeds if the queue is not full, otherwise,
 -- nothing is changed. This should be used for non-critical commands that can
