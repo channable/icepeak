@@ -171,7 +171,12 @@ runCommandLoop core = go
 postUpdate :: Path -> Core -> IO ()
 postUpdate path core = atomically $ do
   value <- Persistence.getValue (coreCurrentValue core)
-  writeTBQueue (coreUpdates core) (Just $ Updated path value)
+  full <- isFullTBQueue (coreUpdates core)
+  -- In order not to block the reader thread, and subsequently stop processing coreQueue,
+  -- we don't send new updates to subscribers if coreUpdates is full.
+  if full then
+    return ()
+    else writeTBQueue (coreUpdates core) (Just $ Updated path value)
 
 -- | Periodically send a 'Sync' command to the 'Core' if enabled in the core
 -- configuration.
