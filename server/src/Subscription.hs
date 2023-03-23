@@ -21,7 +21,6 @@ import Data.Hashable (Hashable)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 
-import qualified Control.Concurrent.Async as Async
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as Text
 
