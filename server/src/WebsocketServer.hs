@@ -25,7 +25,7 @@ import qualified Network.HTTP.Types.Header as HttpHeader
 import qualified Network.HTTP.Types.URI as Uri
 
 import Config (Config (..))
-import Core (Core (..), ServerState, Updated (..), getCurrentValue, withCoreMetrics)
+import Core (Core (..), ServerState, SubscriberState (..), Updated (..), getCurrentValue, withCoreMetrics, newSubscriberState)
 import Store (Path)
 import AccessControl (AccessMode(..))
 import JwtMiddleware (AuthResult (..), isRequestAuthorized, errorResponseBody)
@@ -55,7 +55,7 @@ broadcast =
       -- bubbling up and disrupting the broadcasts to other clients.
       | otherwise = pure ()
   in
-    Subscription.broadcast send
+    Subscription.broadcast (send . subscriberConnection)
 
 -- Called for each new client that connects.
 acceptConnection :: Core -> WS.PendingConnection -> IO ()
@@ -96,10 +96,11 @@ authorizePendingConnection core conn
 handleClient :: WS.Connection -> Path -> Core -> IO ()
 handleClient conn path core = do
   uuid <- newUUID
+  subscriberState <- newSubscriberState conn
   let
     state = coreClients core
     onConnect = do
-      modifyMVar_ state (pure . Subscription.subscribe path uuid conn)
+      modifyMVar_ state (pure . Subscription.subscribe path uuid subscriberState)
       withCoreMetrics core Metrics.incrementSubscribers
     onDisconnect = do
       modifyMVar_ state (pure . Subscription.unsubscribe path uuid)
