@@ -1,6 +1,5 @@
 module OrphanInstances where
 
-import Data.Aeson (Value (..))
 import Test.QuickCheck.Instances ()
 import Test.QuickCheck.Arbitrary (Arbitrary (..))
 import qualified Test.QuickCheck.Gen as Gen
