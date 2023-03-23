@@ -110,11 +110,11 @@ showTree tree =
     withPrefix prefix (SubscriptionTree here inner) =
       let
         strHere :: String
-        strHere = concatMap (\cid -> " * " <> (show cid) <> "\n") (HashMap.keys here)
+        strHere = concatMap (\cid -> " * " <> show cid <> "\n") (HashMap.keys here)
         showInner iPrefix t = iPrefix <> "\n" <> withPrefix iPrefix t
         strInner :: String
         strInner = concat $ HashMap.mapWithKey (\key -> showInner (prefix <> "/" <> Text.unpack key)) inner
       in
         strHere <> strInner
   in
-    "/\n" <> (withPrefix "" tree)
+    "/\n" <> withPrefix "" tree
