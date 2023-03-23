@@ -24,7 +24,6 @@ in
         haskell.stack
         icepeak-server
         pythonEnv
-        pkgs.gmp
         haskell.haskell-language-server
         haskell.ghcide
         haskell.implicit-hie
