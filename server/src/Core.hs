@@ -5,6 +5,7 @@ module Core
   EnqueueResult (..),
   Command (..),
   ServerState,
+  SubscriberState (..),
   Updated (..),
   enqueueCommand,
   tryEnqueueCommand,
@@ -12,6 +13,7 @@ module Core
   withCoreMetrics,
   lookup,
   newCore,
+  newSubscriberState,
   postQuit,
   runCommandLoop,
   runSyncTimer
@@ -66,18 +68,29 @@ data Core = Core
   -- the "dirty" flag is set to True whenever the core value has been modified
   -- and is reset to False when it is persisted.
   , coreValueIsDirty :: TVar Bool
-  , coreQueue :: TBQueue Command
-  , coreUpdates :: TBQueue (Maybe Updated)
-  , coreClients :: MVar ServerState
-  , coreLogger  :: Logger
-  , coreConfig  :: Config
-  , coreMetrics :: Maybe Metrics.IcepeakMetrics
+  , coreQueue        :: TBQueue Command
+  , coreUpdates      :: TBQueue (Maybe Updated)
+  , coreClients      :: MVar ServerState
+  , coreLogger       :: Logger
+  , coreConfig       :: Config
+  , coreMetrics      :: Maybe Metrics.IcepeakMetrics
   }
 
-type ServerState = SubscriptionTree UUID WS.Connection
+data SubscriberState = SubscriberState
+  { subscriberConnection :: WS.Connection
+  , subscriberQueue      :: TBQueue Value
+  }
+
+type ServerState = SubscriptionTree UUID SubscriberState
 
 newServerState :: ServerState
 newServerState = empty
+
+newSubscriberState :: WS.Connection -> IO SubscriberState
+newSubscriberState conn = do
+  -- TODO: Add configurable length on the subscriber queue.
+  queue <- newTBQueueIO 1000
+  return $ SubscriberState conn queue
 
 -- | Try to initialize the core. This loads the database and sets up the internal data structures.
 newCore :: Config -> Logger -> Maybe Metrics.IcepeakMetrics -> IO (Either String Core)

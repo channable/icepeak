@@ -7,10 +7,11 @@ module WebsocketServer (
 ) where
 
 import Control.Concurrent (modifyMVar_, readMVar)
+import Control.Concurrent.Async (withAsync)
 import Control.Concurrent.STM (atomically)
-import Control.Concurrent.STM.TBQueue (readTBQueue)
+import Control.Concurrent.STM.TBQueue (readTBQueue, TBQueue, writeTBQueue, isFullTBQueue)
 import Control.Exception (SomeAsyncException, SomeException, finally, fromException, catch, throwIO)
-import Control.Monad (forever)
+import Control.Monad (forever, unless)
 import Data.Aeson (Value)
 import Data.Foldable (for_)
 import Data.Text (Text)
@@ -25,7 +26,7 @@ import qualified Network.HTTP.Types.Header as HttpHeader
 import qualified Network.HTTP.Types.URI as Uri
 
 import Config (Config (..))
-import Core (Core (..), ServerState, Updated (..), getCurrentValue, withCoreMetrics)
+import Core (Core (..), ServerState, SubscriberState (..), Updated (..), getCurrentValue, withCoreMetrics, newSubscriberState)
 import Store (Path)
 import AccessControl (AccessMode(..))
 import JwtMiddleware (AuthResult (..), isRequestAuthorized, errorResponseBody)
@@ -40,22 +41,12 @@ newUUID = randomIO
 broadcast :: [Text] -> Value -> ServerState -> IO ()
 broadcast =
   let
-    send :: WS.Connection -> Value -> IO ()
-    send conn value =
-      WS.sendTextData conn (Aeson.encode value)
-      `catch`
-      sendFailed
-
-    sendFailed :: SomeException -> IO ()
-    sendFailed exc
-      -- Rethrow async exceptions, they are meant for inter-thread communication
-      -- (e.g. ThreadKilled) and we don't expect them at this point.
-      | Just asyncExc <- fromException exc = throwIO (asyncExc :: SomeAsyncException)
-      -- We want to catch all other errors in order to prevent them from
-      -- bubbling up and disrupting the broadcasts to other clients.
-      | otherwise = pure ()
+    writeToSubQueue :: TBQueue Value -> Value -> IO ()
+    writeToSubQueue queue val = atomically $ do
+      isFull <- isFullTBQueue queue
+      unless isFull $ writeTBQueue queue val
   in
-    Subscription.broadcast send
+    Subscription.broadcast (writeToSubQueue . subscriberQueue)
 
 -- Called for each new client that connects.
 acceptConnection :: Core -> WS.PendingConnection -> IO ()
@@ -96,10 +87,11 @@ authorizePendingConnection core conn
 handleClient :: WS.Connection -> Path -> Core -> IO ()
 handleClient conn path core = do
   uuid <- newUUID
+  subscriberState <- newSubscriberState conn
   let
     state = coreClients core
     onConnect = do
-      modifyMVar_ state (pure . Subscription.subscribe path uuid conn)
+      modifyMVar_ state (pure . Subscription.subscribe path uuid subscriberState)
       withCoreMetrics core Metrics.incrementSubscribers
     onDisconnect = do
       modifyMVar_ state (pure . Subscription.unsubscribe path uuid)
@@ -107,6 +99,10 @@ handleClient conn path core = do
     sendInitialValue = do
       currentValue <- getCurrentValue core path
       WS.sendTextData conn (Aeson.encode currentValue)
+    -- For each connection, we want to spawn a client thread with an associated
+    -- queue, in order to manage subscribers.
+    manageConnection = withAsync (updateThread subscriberState)
+                       (\_ -> keepTalking conn)
 
     -- simply ignore connection errors, otherwise, warp handles the exception
     -- and sends a 500 response in the middle of a websocket connection, and
@@ -116,8 +112,30 @@ handleClient conn path core = do
     handleConnectionError _ = pure ()
   -- Put the client in the subscription tree and keep the connection open.
   -- Remove it when the connection is closed.
-  finally (onConnect >> sendInitialValue >> keepTalking conn) onDisconnect
+  finally (onConnect >> sendInitialValue >> manageConnection) onDisconnect
     `catch` handleConnectionError
+
+-- This function handles sending the updates to subscribers.
+updateThread :: SubscriberState -> IO ()
+updateThread state = 
+  let
+    send :: WS.Connection -> Value -> IO ()
+    send conn value =
+      WS.sendTextData conn (Aeson.encode value)
+      `catch`
+      sendFailed
+
+    sendFailed :: SomeException -> IO ()
+    sendFailed exc
+      -- Rethrow async exceptions, they are meant for inter-thread communication
+      -- (e.g. ThreadKilled) and we don't expect them at this point.
+      | Just asyncExc <- fromException exc = throwIO (asyncExc :: SomeAsyncException)
+      -- We want to catch all other errors in order to prevent them from
+      -- bubbling up and disrupting the broadcasts to other clients.
+      | otherwise = pure ()
+  in forever $ do
+      value <- atomically $ readTBQueue $ subscriberQueue state
+      send (subscriberConnection state) value
 
 -- We don't send any messages here; sending is done by the update
 -- loop; it finds the client in the set of subscriptions. But we do

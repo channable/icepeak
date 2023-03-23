@@ -1,4 +1,4 @@
-resolver: lts-19.32
+resolver: lts-20.15
 
 extra-deps:
   - raven-haskell-0.1.4.1
