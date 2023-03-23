@@ -77,18 +77,16 @@ unsubscribe path subid (SubscriptionTree here inner) =
 
 -- Invoke f for all subscribers to the path. The subscribers get passed the
 -- subvalue at the path that they are subscribed to.
-broadcast :: (conn -> Value -> IO ()) -> [Text] -> Value -> SubscriptionTree id conn -> IO ()
-broadcast f path value tree =
-  -- We broadcast concurrently since all updates are independent of each other
-  Async.mapConcurrently_ (uncurry f) notifications
+broadcast :: (state -> Value -> IO ()) -> [Text] -> Value -> SubscriptionTree id state -> IO ()
+broadcast f path value tree = mapM_ (uncurry f) notifications
   where notifications = broadcast' path value tree
 
 -- Like broadcast, but return a list of notifications rather than invoking an
 -- effect on each of them.
-broadcast' :: [Text] -> Value -> SubscriptionTree id conn -> [(conn, Value)]
+broadcast' :: [Text] -> Value -> SubscriptionTree id state -> [(state, Value)]
 broadcast' = \path value tree -> execWriter $ loop path value tree
   where
-  loop :: [Text] -> Value -> SubscriptionTree id conn -> Writer [(conn, Value)] ()
+  loop :: [Text] -> Value -> SubscriptionTree id state -> Writer [(state, Value)] ()
   loop path value (SubscriptionTree here inner) = do
     case path of
       [] -> do

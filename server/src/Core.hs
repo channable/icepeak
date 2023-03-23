@@ -78,7 +78,7 @@ data Core = Core
 
 data SubscriberState = SubscriberState
   { subscriberConnection :: WS.Connection
-  , subscriberQueue      :: TBQueue Updated
+  , subscriberQueue      :: TBQueue Value
   }
 
 type ServerState = SubscriptionTree UUID SubscriberState
@@ -88,6 +88,7 @@ newServerState = empty
 
 newSubscriberState :: WS.Connection -> IO SubscriberState
 newSubscriberState conn = do
+  -- TODO: Add configurable length on the subscriber queue.
   queue <- newTBQueueIO 1000
   return $ SubscriberState conn queue
 
