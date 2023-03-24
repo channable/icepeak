@@ -87,7 +87,7 @@ authorizePendingConnection core conn
 handleClient :: WS.Connection -> Path -> Core -> IO ()
 handleClient conn path core = do
   uuid <- newUUID
-  subscriberState <- newSubscriberState conn
+  subscriberState <- newSubscriberState
   let
     state = coreClients core
     onConnect = do
@@ -101,7 +101,7 @@ handleClient conn path core = do
       WS.sendTextData conn (Aeson.encode currentValue)
     -- For each connection, we want to spawn a client thread with an associated
     -- queue, in order to manage subscribers.
-    manageConnection = withAsync (updateThread subscriberState)
+    manageConnection = withAsync (updateThread conn subscriberState)
                        (\_ -> keepTalking conn)
 
     -- simply ignore connection errors, otherwise, warp handles the exception
@@ -116,11 +116,11 @@ handleClient conn path core = do
     `catch` handleConnectionError
 
 -- This function handles sending the updates to subscribers.
-updateThread :: SubscriberState -> IO ()
-updateThread state = 
+updateThread :: WS.Connection -> SubscriberState -> IO ()
+updateThread conn state =
   let
-    send :: WS.Connection -> Value -> IO ()
-    send conn value =
+    send :: Value -> IO ()
+    send value =
       WS.sendTextData conn (Aeson.encode value)
       `catch`
       sendFailed
@@ -135,7 +135,7 @@ updateThread state =
       | otherwise = pure ()
   in forever $ do
       value <- atomically $ readTBQueue $ subscriberQueue state
-      send (subscriberConnection state) value
+      send value
 
 -- We don't send any messages here; sending is done by the update
 -- loop; it finds the client in the set of subscriptions. But we do

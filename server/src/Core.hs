@@ -33,8 +33,6 @@ import Data.Traversable (for)
 import Data.UUID (UUID)
 import Prelude hiding (log, writeFile)
 
-import qualified Network.WebSockets as WS
-
 import Config (Config (..), periodicSyncingEnabled)
 import Logger (Logger)
 import Store (Path, Modification (..))
@@ -76,21 +74,20 @@ data Core = Core
   , coreMetrics      :: Maybe Metrics.IcepeakMetrics
   }
 
-data SubscriberState = SubscriberState
-  { subscriberConnection :: WS.Connection
-  , subscriberQueue      :: TBQueue Value
-  }
+-- This structure describes the state associated to each subscriber in order to
+-- communicate with them, at the moment, a simple bounded queue. This is a
+-- newtype in order for it to be extensible without rewriting all call sites.
+newtype SubscriberState = SubscriberState { subscriberQueue :: TBQueue Value }
 
+-- This structure keeps track of all subscribers.
 type ServerState = SubscriptionTree UUID SubscriberState
 
 newServerState :: ServerState
 newServerState = empty
 
-newSubscriberState :: WS.Connection -> IO SubscriberState
-newSubscriberState conn = do
-  -- TODO: Add configurable length on the subscriber queue.
-  queue <- newTBQueueIO 1000
-  return $ SubscriberState conn queue
+newSubscriberState :: IO SubscriberState
+-- TODO: Add configurable length on the subscriber queue.
+newSubscriberState = SubscriberState <$> newTBQueueIO 1000
 
 -- | Try to initialize the core. This loads the database and sets up the internal data structures.
 newCore :: Config -> Logger -> Maybe Metrics.IcepeakMetrics -> IO (Either String Core)
