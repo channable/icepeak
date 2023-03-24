@@ -5,6 +5,7 @@ module Core
   EnqueueResult (..),
   Command (..),
   ServerState,
+  SubscriberState (..),
   Updated (..),
   enqueueCommand,
   tryEnqueueCommand,
@@ -12,6 +13,7 @@ module Core
   withCoreMetrics,
   lookup,
   newCore,
+  newSubscriberState,
   postQuit,
   runCommandLoop,
   runSyncTimer
@@ -31,8 +33,6 @@ import Data.Traversable (for)
 import Data.UUID (UUID)
 import Prelude hiding (log, writeFile)
 
-import qualified Network.WebSockets as WS
-
 import Config (Config (..), periodicSyncingEnabled)
 import Logger (Logger)
 import Store (Path, Modification (..))
@@ -42,6 +42,7 @@ import Persistence (PersistentValue, PersistenceConfig (..))
 import qualified Store
 import qualified Persistence
 import qualified Metrics
+import GHC.Natural (Natural)
 
 -- | Defines the kinds of commands that are handled by the event loop of the Core.
 data Command
@@ -66,18 +67,32 @@ data Core = Core
   -- the "dirty" flag is set to True whenever the core value has been modified
   -- and is reset to False when it is persisted.
   , coreValueIsDirty :: TVar Bool
-  , coreQueue :: TBQueue Command
-  , coreUpdates :: TBQueue (Maybe Updated)
-  , coreClients :: MVar ServerState
-  , coreLogger  :: Logger
-  , coreConfig  :: Config
-  , coreMetrics :: Maybe Metrics.IcepeakMetrics
+  , coreQueue        :: TBQueue Command
+  , coreUpdates      :: TBQueue (Maybe Updated)
+  , coreClients      :: MVar ServerState
+  , coreLogger       :: Logger
+  , coreConfig       :: Config
+  , coreMetrics      :: Maybe Metrics.IcepeakMetrics
   }
 
-type ServerState = SubscriptionTree UUID WS.Connection
+-- This structure describes the state associated to each subscriber in order to
+-- communicate with them, at the moment, a simple bounded queue. This is a
+-- newtype in order for it to be extensible without rewriting all call sites.
+newtype SubscriberState = SubscriberState
+  -- Bounded queues are more secure than unbounded ones, since we depend on
+  -- external behaviour. All writes to this queue should be non-blocking, hence
+  -- discarding data if the subscriber times out.
+  { subscriberQueue :: TBQueue Value }
+
+-- This structure keeps track of all subscribers. We use one SubscriberState per
+-- subscriber.
+type ServerState = SubscriptionTree UUID SubscriberState
 
 newServerState :: ServerState
 newServerState = empty
+
+newSubscriberState :: Natural -> IO SubscriberState
+newSubscriberState len = SubscriberState <$> newTBQueueIO len
 
 -- | Try to initialize the core. This loads the database and sets up the internal data structures.
 newCore :: Config -> Logger -> Maybe Metrics.IcepeakMetrics -> IO (Either String Core)
