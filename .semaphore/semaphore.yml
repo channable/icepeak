@@ -60,11 +60,11 @@ blocks:
           - curl -o install-nix-2.10.3 https://releases.nixos.org/nix/nix-2.10.3/install
           - sha256sum --check .semaphore/install-nix-2.10.3.sha256
 
+          # This prologue contains commands aimed at preparing the Nix environment.
+          - .semaphore/prologue.sh 
           # Restore `/nix` cache. Create the directory first, otherwise we encounter
           # permission errors. We do this because the Semaphore cache is faster than
           # both Cachix and cache.nixos.org.
-          - "sudo mkdir /nix"
-          - "sudo chown -R semaphore:semaphore /nix"
           - "cache restore nix-store-"
 
           # For some reason, Semaphore CI sets this variable, but it causes the nix installation to fail
