@@ -13,16 +13,20 @@ let
     p.requests
   ]);
   libs = with pkgs; [ ];
+  haskell = pkgs.haskellPackages;
 in
   rec {
-    icepeak-server = pkgs.haskellPackages.callPackage ./server.nix { };
-    stack = pkgs.haskellPackages.stack;
+    icepeak-server = haskell.callPackage ./server.nix { };
+    stack = pkgs.stack;
     icepeak-server-env = pkgs.buildEnv {
       name = "icepeak-server-env";
       paths = [
         stack
         icepeak-server
         pythonEnv
+        haskell.haskell-language-server
+        haskell.implicit-hie
+        haskell.ghc
       ] ++ libs;
       passthru = { icepeak-server = icepeak-server; stack = stack; };
     };
