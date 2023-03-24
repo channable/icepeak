@@ -21,11 +21,10 @@ in
     icepeak-server-env = pkgs.buildEnv {
       name = "icepeak-server-env";
       paths = [
-        haskell.stack
+        stack
         icepeak-server
         pythonEnv
         haskell.haskell-language-server
-        haskell.ghcide
         haskell.implicit-hie
         haskell.ghc
       ] ++ libs;
