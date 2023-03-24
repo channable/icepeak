@@ -87,7 +87,8 @@ authorizePendingConnection core conn
 handleClient :: WS.Connection -> Path -> Core -> IO ()
 handleClient conn path core = do
   uuid <- newUUID
-  subscriberState <- newSubscriberState
+  -- TODO: Add a config field to retrieve the length for this queue.
+  subscriberState <- newSubscriberState 100
   let
     state = coreClients core
     onConnect = do
@@ -100,14 +101,15 @@ handleClient conn path core = do
       currentValue <- getCurrentValue core path
       WS.sendTextData conn (Aeson.encode currentValue)
     -- For each connection, we want to spawn a client thread with an associated
-    -- queue, in order to manage subscribers.
+    -- queue, in order to manage subscribers. `withAsync` acts as `forkIO` in this
+    -- context, with the assurance the child thread is killed when the parent is.
     manageConnection = withAsync (updateThread conn subscriberState)
-                       (\_ -> keepTalking conn)
+                                 (const $ keepTalking conn)
 
-    -- simply ignore connection errors, otherwise, warp handles the exception
-    -- and sends a 500 response in the middle of a websocket connection, and
-    -- that violates the websocket protocol.
-    -- Note that subscribers are still properly removed by the finally below
+    -- Simply ignore connection errors, otherwise, Warp handles the exception
+    -- and sends a 500 response in the middle of a WebSocket connection, and
+    -- that violates the WebSocket protocol.
+    -- Note that subscribers are still properly removed by the finally below.
     handleConnectionError :: WS.ConnectionException -> IO ()
     handleConnectionError _ = pure ()
   -- Put the client in the subscription tree and keep the connection open.

@@ -42,6 +42,7 @@ import Persistence (PersistentValue, PersistenceConfig (..))
 import qualified Store
 import qualified Persistence
 import qualified Metrics
+import GHC.Natural (Natural)
 
 -- | Defines the kinds of commands that are handled by the event loop of the Core.
 data Command
@@ -77,17 +78,21 @@ data Core = Core
 -- This structure describes the state associated to each subscriber in order to
 -- communicate with them, at the moment, a simple bounded queue. This is a
 -- newtype in order for it to be extensible without rewriting all call sites.
-newtype SubscriberState = SubscriberState { subscriberQueue :: TBQueue Value }
+newtype SubscriberState = SubscriberState
+  -- Bounded queues are more secure than unbounded ones, since we depend on
+  -- external behaviour. All writes to this queue should be non-blocking, hence
+  -- discarding data if the subscriber times out.
+  { subscriberQueue :: TBQueue Value }
 
--- This structure keeps track of all subscribers.
+-- This structure keeps track of all subscribers. We use one SubscriberState per
+-- subscriber.
 type ServerState = SubscriptionTree UUID SubscriberState
 
 newServerState :: ServerState
 newServerState = empty
 
-newSubscriberState :: IO SubscriberState
--- TODO: Add configurable length on the subscriber queue.
-newSubscriberState = SubscriberState <$> newTBQueueIO 1000
+newSubscriberState :: Natural -> IO SubscriberState
+newSubscriberState len = SubscriberState <$> newTBQueueIO len
 
 -- | Try to initialize the core. This loads the database and sets up the internal data structures.
 newCore :: Config -> Logger -> Maybe Metrics.IcepeakMetrics -> IO (Either String Core)
