@@ -69,11 +69,12 @@ acceptConnection core pending = do
         }
     AuthAccepted -> do
       let path = fst $ Uri.decodePath $ WS.requestPath $ WS.pendingRequest pending
+          pingInterval = configWebSocketPingInterval $ coreConfig core
       connection <- WS.acceptRequest pending
       -- Fork a pinging thread, for each client, to keep idle connections open and to detect
       -- closed connections. Sends a ping message every 30 seconds.
       -- Note: The thread dies silently if the connection crashes or is closed.
-      WS.withPingThread connection 30 (pure ()) $ handleClient connection path core
+      WS.withPingThread connection pingInterval (pure ()) $ handleClient connection path core
 
 -- * Authorization
 
