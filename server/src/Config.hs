@@ -111,7 +111,7 @@ configParser environment = Config
        (long "subscriber-timeout" <>
         metavar "TIMEOUT" <>
         value 30 <>
-        help "The maximum duration Icepeak waits for a subscriber before closing the connection.")
+        help "The maximum duration in seconds Icepeak waits for a subscriber before closing the connection.")
 
   where
     environ var = foldMap value (lookup var environment)
