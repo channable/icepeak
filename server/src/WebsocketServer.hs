@@ -8,10 +8,11 @@ module WebsocketServer (
 
 import Control.Concurrent (modifyMVar_, readMVar)
 import Control.Concurrent.Async (withAsync)
+import Control.Concurrent.MVar (MVar, tryTakeMVar, putMVar, takeMVar)
 import Control.Concurrent.STM (atomically)
-import Control.Concurrent.STM.TBQueue (readTBQueue, TBQueue, writeTBQueue, isFullTBQueue)
+import Control.Concurrent.STM.TBQueue (readTBQueue)
 import Control.Exception (SomeAsyncException, SomeException, finally, fromException, catch, throwIO)
-import Control.Monad (forever, unless)
+import Control.Monad (forever)
 import Data.Aeson (Value)
 import Data.Foldable (for_)
 import Data.Text (Text)
@@ -41,12 +42,16 @@ newUUID = randomIO
 broadcast :: [Text] -> Value -> ServerState -> IO ()
 broadcast =
   let
-    writeToSubQueue :: TBQueue Value -> Value -> IO ()
-    writeToSubQueue queue val = atomically $ do
-      isFull <- isFullTBQueue queue
-      unless isFull $ writeTBQueue queue val
+    writeToSub :: MVar Value -> Value -> IO ()
+    writeToSub queue val = do
+      -- We are the only producer, so either the subscriber already
+      -- read the value or we can discard it to replace it with the
+      -- new one. We don't need atomicity for this operation.
+      -- `tryTakeMVar` basically empties the MVar, from this perspective.
+      _ <- tryTakeMVar queue
+      putMVar queue val
   in
-    Subscription.broadcast (writeToSubQueue . subscriberQueue)
+    Subscription.broadcast (writeToSub . subscriberData)
 
 -- Called for each new client that connects.
 acceptConnection :: Core -> WS.PendingConnection -> IO ()
@@ -87,8 +92,7 @@ authorizePendingConnection core conn
 handleClient :: WS.Connection -> Path -> Core -> IO ()
 handleClient conn path core = do
   uuid <- newUUID
-  -- TODO: Add a config field to retrieve the length for this queue.
-  subscriberState <- newSubscriberState 100
+  subscriberState <- newSubscriberState
   let
     state = coreClients core
     onConnect = do
@@ -136,7 +140,7 @@ updateThread conn state =
       -- bubbling up and disrupting the broadcasts to other clients.
       | otherwise = pure ()
   in forever $ do
-      value <- atomically $ readTBQueue $ subscriberQueue state
+      value <- takeMVar $ subscriberData state
       send value
 
 -- We don't send any messages here; sending is done by the update

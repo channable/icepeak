@@ -21,7 +21,7 @@ module Core
 where
 
 import Control.Concurrent (threadDelay)
-import Control.Concurrent.MVar (MVar, newMVar, putMVar)
+import Control.Concurrent.MVar (MVar, newEmptyMVar, newMVar, putMVar)
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TBQueue (TBQueue, newTBQueueIO, readTBQueue, writeTBQueue, isFullTBQueue)
 import Control.Concurrent.STM.TVar (TVar, newTVarIO)
@@ -42,7 +42,6 @@ import Persistence (PersistentValue, PersistenceConfig (..))
 import qualified Store
 import qualified Persistence
 import qualified Metrics
-import GHC.Natural (Natural)
 
 -- | Defines the kinds of commands that are handled by the event loop of the Core.
 data Command
@@ -75,14 +74,17 @@ data Core = Core
   , coreMetrics      :: Maybe Metrics.IcepeakMetrics
   }
 
--- This structure describes the state associated to each subscriber in order to
--- communicate with them, at the moment, a simple bounded queue. This is a
--- newtype in order for it to be extensible without rewriting all call sites.
+-- This structure describes the state associated to each subscriber in order
+-- to communicate with them, at the moment, a simple `MVar` as a communication
+-- channel. This is a newtype in order for it to be extensible without
+-- rewriting all call sites.
 newtype SubscriberState = SubscriberState
-  -- Bounded queues are more secure than unbounded ones, since we depend on
-  -- external behaviour. All writes to this queue should be non-blocking, hence
-  -- discarding data if the subscriber times out.
-  { subscriberQueue :: TBQueue Value }
+  -- We don't need actual queues for subscribers because the only relevant value
+  -- for them is the last one. Since we have one producer and one reader, we can
+  -- rely on MVar as a simpler mechanism.
+  -- We can expect from the subscribers to receive all the updates in the 
+  -- absence of timeouts.
+  { subscriberData :: MVar Value }
 
 -- This structure keeps track of all subscribers. We use one SubscriberState per
 -- subscriber.
@@ -91,8 +93,8 @@ type ServerState = SubscriptionTree UUID SubscriberState
 newServerState :: ServerState
 newServerState = empty
 
-newSubscriberState :: Natural -> IO SubscriberState
-newSubscriberState len = SubscriberState <$> newTBQueueIO len
+newSubscriberState :: IO SubscriberState
+newSubscriberState = SubscriberState <$> newEmptyMVar
 
 -- | Try to initialize the core. This loads the database and sets up the internal data structures.
 newCore :: Config -> Logger -> Maybe Metrics.IcepeakMetrics -> IO (Either String Core)
