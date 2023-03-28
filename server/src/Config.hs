@@ -45,6 +45,8 @@ data Config = Config
   , configStorageBackend :: StorageBackend
   -- | Enable logging of Sync duration
   , configSyncLogging :: Bool
+  -- | Delay before subscriber timeout
+  , configSubscriberTimeout :: Int
   }
 
 data MetricsConfig = MetricsConfig
@@ -105,6 +107,11 @@ configParser environment = Config
   <*> storageBackend
   <*> switch (long "sync-log" <>
              help "Enable logging the duration of Sync operations.")
+  <*> option auto
+       (long "subscriber-timeout" <>
+        metavar "TIMEOUT" <>
+        value 30 <>
+        help "The maximum duration in seconds Icepeak waits for a subscriber before closing the connection.")
 
   where
     environ var = foldMap value (lookup var environment)
