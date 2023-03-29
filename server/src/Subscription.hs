@@ -13,7 +13,7 @@ module Subscription
 where
 
 import Control.Monad (void)
-import Control.Monad.Writer (Writer, tell, execWriter)
+import Control.Monad.Writer.CPS (Writer, tell, execWriter)
 import Data.Aeson (Value)
 import Data.Foldable (for_, traverse_)
 import Data.HashMap.Strict (HashMap)

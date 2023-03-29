@@ -25,7 +25,7 @@ dependencies:
 - http-types                        >= 0.12.3 && < 0.13
 - jwt                               >= 0.10.0 && < 0.12
 - monad-logger                      >= 0.3.31 && < 0.4
-- mtl                               >= 2.2.2 && < 2.3
+- mtl                               >= 2.3.1 && < 2.4
 - network                           >= 2.8.0 && < 3.2
 - optparse-applicative              >= 0.16.0 && <= 0.17.0.0
 - prometheus-client                 >= 1.0.0 && < 1.2

@@ -42,6 +42,9 @@ import qualified Metrics
 import qualified Store
 
 import Config (StorageBackend (..))
+import Control.Monad (when)
+import Control.Monad.IO.Class (liftIO)
+import Control.Monad.Trans (lift)
 
 data PersistentValue = PersistentValue
   { pvConfig       :: PersistenceConfig
@@ -155,11 +158,11 @@ setupStorageBackend Sqlite filePath = do
   conn <- liftIO $ open filePath
   liftIO $ execute_ conn "CREATE TABLE IF NOT EXISTS icepeak (value BLOB)"
 
-  jsonRows <- liftIO $ (query_ conn "SELECT * from icepeak" :: IO [JsonRow])
+  jsonRows <- liftIO (query_ conn "SELECT * from icepeak" :: IO [JsonRow])
   case jsonRows of
     -- ensure that there is one row in the table, so that we can UPDATE it later
     [] -> liftIO $ execute conn "INSERT INTO icepeak (value) VALUES (?)" (Only $ Aeson.encode Aeson.emptyObject)
-    _ -> pure()
+    _ -> pure ()
 
 loadFromBackend :: StorageBackend -> PersistenceConfig -> IO (Either String PersistentValue)
 loadFromBackend backend config = runExceptT $ do
@@ -213,7 +216,7 @@ syncToBackend File pv = do
     end <- Clock.getTime Clock.Monotonic
     let time = Clock.toNanoSecs (Clock.diffTimeSpec end start) `div` 1000000
     when (pcLogSync $ pvConfig pv) $ do
-      logMessage pv $ Text.concat ["It took ", Text.pack $ show time, " ms to synchronize Icepeak on disk."] 
+      logMessage pv $ Text.concat ["It took ", Text.pack $ show time, " ms to synchronize Icepeak on disk."]
       when (isJust $ pcJournalFile $ pvConfig pv) $ logJournalStats pv
 syncToBackend Sqlite pv = syncSqliteFile pv
 
@@ -221,7 +224,7 @@ syncToBackend Sqlite pv = syncSqliteFile pv
 
 -- | There is currently just one row and it contains only one column of type SBS.ByteString.
 -- This single field holds the whole JSON value for now.
-data JsonRow = JsonRow {jsonByteString :: SBS.ByteString} deriving (Show)
+newtype JsonRow = JsonRow {jsonByteString :: SBS.ByteString} deriving (Show)
 
 instance FromRow JsonRow where
   fromRow = JsonRow <$> field
@@ -231,12 +234,12 @@ readSqliteData :: FilePath -> ExceptT String IO Store.Value
 readSqliteData filePath = ExceptT $ do
   -- read the data from SQLite
   conn <- liftIO $ open filePath
-  jsonRows <- liftIO $ (query_ conn "SELECT * from icepeak" :: IO [JsonRow])
+  jsonRows <- liftIO (query_ conn "SELECT * from icepeak" :: IO [JsonRow])
 
   case jsonRows of
     -- the 'setupStorageBackend' function verifies that we can read the database and that at least one row exists
     [] -> pure $ Right Aeson.emptyObject
-    _  -> case Aeson.eitherDecodeStrict (jsonByteString $ head $ jsonRows) of
+    _  -> case Aeson.eitherDecodeStrict (jsonByteString $ head jsonRows) of
             Left msg  -> pure $ Left $ "Failed to decode the initial data: " ++ show msg
             Right value -> pure $ Right (value :: Store.Value)
 
@@ -333,7 +336,7 @@ openJournal journalFile = ExceptT $ do
 -- This should be done when loading the database from disk.
 recoverJournal :: PersistentValue -> ExceptT String IO ()
 recoverJournal pval = for_ (pvJournal pval) $ \journalHandle -> ExceptT $ fmap formatErr $ try $ do
-  initialValue <- atomically $ readTVar (pvValue pval)
+  initialValue <- readTVarIO (pvValue pval)
   (finalValue, successful, total) <- runRecovery journalHandle initialValue
 
   when (successful > 0) $ do
@@ -346,7 +349,7 @@ recoverJournal pval = for_ (pvJournal pval) $ \journalHandle -> ExceptT $ fmap f
   when (total > 0) $ do
     logMessage pval "Journal replayed"
     logMessage pval $ "  failed:     " <> Text.pack (show $ total - successful)
-    logMessage pval $ "  successful: " <> Text.pack (show $ successful)
+    logMessage pval $ "  successful: " <> Text.pack (show successful)
 
   where
     formatErr :: Either SomeException a -> Either String a
@@ -384,7 +387,7 @@ readData filePath = ExceptT $ do
 
 -- | Log a message in the context of a PersistentValue.
 logMessage :: PersistentValue -> Text -> IO ()
-logMessage pval msg = Logger.postLogBlocking (pcLogger $ pvConfig pval) LogInfo msg
+logMessage pval = Logger.postLogBlocking (pcLogger $ pvConfig pval) LogInfo
 
 -- | Left fold over all journal entries.
 foldJournalM :: Handle -> (SBS8.ByteString -> a -> IO a) -> a -> IO a
