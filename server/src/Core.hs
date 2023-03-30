@@ -198,7 +198,7 @@ postUpdate path core = do
     return full
   for_ (coreMetrics core) $
     if isWsQueueFull
-    then Metrics.incrementWsSkippedUpdates
+    then Metrics.incrementWsQueueSkippedUpdates
     else Metrics.incrementWsQueueAdded
 
 -- | Periodically send a 'Sync' command to the 'Core' if enabled in the core
