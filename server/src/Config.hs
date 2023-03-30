@@ -109,7 +109,7 @@ configParser environment = Config
              help "Enable logging the duration of Sync operations.")
   <*> option auto
        (long "websocket-ping-interval" <>
-        metavar "TIMEOUT" <>
+        metavar "WS-PING-INTERVAL" <>
         value 30 <>
         help "The interval of time between two pings to the WebSocket clients. It is instrumental in keeping connexions alive.")
 
