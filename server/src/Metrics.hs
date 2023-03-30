@@ -64,7 +64,7 @@ createAndRegisterIcepeakMetrics = IcepeakMetrics
                               "Total number of items removed from the WebSocket queue."))
   <*> register (counter (Info "icepeak_internal_ws_queue_skipped_updates"
                               "Total number of updates discarded from the WebSocket queue."))
-  <*> register (counter (Info "icepeak_internal_ws_skipped_updates_total"
+  <*> register (counter (Info "icepeak_subscribers_skipped_updates_total"
                               "Total number of updates that have not been sent to subscribers."))
   where
     requestHistogram = histogram (Info "http_request_duration_seconds"
