@@ -12,7 +12,7 @@ import Control.Concurrent.MVar (MVar, tryTakeMVar, putMVar, takeMVar)
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TBQueue (readTBQueue)
 import Control.Exception (SomeAsyncException, SomeException, finally, fromException, catch, throwIO)
-import Control.Monad (forever)
+import Control.Monad (forever, when)
 import Data.Aeson (Value)
 import Data.Foldable (for_)
 import Data.Text (Text)
@@ -34,13 +34,14 @@ import JwtMiddleware (AuthResult (..), isRequestAuthorized, errorResponseBody)
 
 import qualified Metrics
 import qualified Subscription
+import Data.Maybe (isJust)
 
 newUUID :: IO UUID
 newUUID = randomIO
 
 -- send the updated data to all subscribers to the path
-broadcast :: [Text] -> Value -> ServerState -> IO ()
-broadcast =
+broadcast :: Core -> [Text] -> Value -> ServerState -> IO ()
+broadcast core =
   let
     writeToSub :: MVar Value -> Value -> IO ()
     writeToSub queue val = do
@@ -48,7 +49,10 @@ broadcast =
       -- read the value or we can discard it to replace it with the
       -- new one. We don't need atomicity for this operation.
       -- `tryTakeMVar` basically empties the MVar, from this perspective.
-      _ <- tryTakeMVar queue
+      mbQueue <- tryTakeMVar queue
+      -- If the MVar has not yet been read by the subscriber thread, it means
+      -- that the update has been skipped.
+      when (isJust mbQueue) $ for_ (coreMetrics core) Metrics.incrementWsSkippedUpdates
       putMVar queue val
   in
     Subscription.broadcast (writeToSub . subscriberData)
@@ -165,7 +169,7 @@ processUpdates core = go
       case maybeUpdate of
         Just (Updated path value) -> do
           clients <- readMVar (coreClients core)
-          broadcast path value clients
+          broadcast core path value clients
           go
         -- Stop the loop when we receive a Nothing.
         Nothing -> pure ()
