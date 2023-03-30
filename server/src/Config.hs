@@ -111,7 +111,7 @@ configParser environment = Config
        (long "websocket-ping-interval" <>
         metavar "WS-PING-INTERVAL" <>
         value 30 <>
-        help "The interval of time between two pings to the WebSocket clients. It is instrumental in keeping connexions alive.")
+        help "The interval of time (in seconds) between two pings to the WebSocket clients. It is instrumental in keeping connections alive.")
 
   where
     environ var = foldMap value (lookup var environment)
