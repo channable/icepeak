@@ -45,6 +45,8 @@ data Config = Config
   , configStorageBackend :: StorageBackend
   -- | Enable logging of Sync duration
   , configSyncLogging :: Bool
+  -- | Delay between two pings to the client (useful in order to keep the connexion alive)
+  , configWebSocketPingInterval:: Int
   }
 
 data MetricsConfig = MetricsConfig
@@ -105,6 +107,11 @@ configParser environment = Config
   <*> storageBackend
   <*> switch (long "sync-log" <>
              help "Enable logging the duration of Sync operations.")
+  <*> option auto
+       (long "websocket-ping-interval" <>
+        metavar "WS-PING-INTERVAL" <>
+        value 30 <>
+        help "The interval of time between two pings to the WebSocket clients. It is instrumental in keeping connexions alive.")
 
   where
     environ var = foldMap value (lookup var environment)

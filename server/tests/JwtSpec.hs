@@ -13,6 +13,7 @@ import qualified Data.Text.Encoding as Text
 import JwtAuth
 import AccessControl
 import OrphanInstances ()
+import Data.Maybe (fromJust)
 
 spec :: Spec
 spec = do
@@ -54,13 +55,13 @@ spec = do
       extractClaim now verifySigner token `shouldBe` Right testAccess
 
     it "should reject an expired token" $ do
-      let Just expDate = JWT.numericDate $ now - 10
+      let expDate = fromJust $ JWT.numericDate $ now - 10
           claims = testClaims { JWT.exp = Just expDate }
           expiredToken = Text.encodeUtf8 $ JWT.encodeSigned testSecret joseHeader claims
       extractClaim now verifySigner expiredToken `shouldBe` Left (VerificationError TokenExpired)
 
     it "should reject a token before its 'not before' date" $ do
-      let Just nbfDate = JWT.numericDate $ now + 10
+      let nbfDate = fromJust $ JWT.numericDate $ now + 10
           claims = testClaims { JWT.nbf = Just nbfDate }
           nbfToken = Text.encodeUtf8 $ JWT.encodeSigned testSecret joseHeader claims
       extractClaim now verifySigner nbfToken `shouldBe` Left (VerificationError TokenUsedTooEarly)

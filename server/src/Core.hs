@@ -5,6 +5,7 @@ module Core
   EnqueueResult (..),
   Command (..),
   ServerState,
+  SubscriberState (..),
   Updated (..),
   enqueueCommand,
   tryEnqueueCommand,
@@ -12,6 +13,7 @@ module Core
   withCoreMetrics,
   lookup,
   newCore,
+  newSubscriberState,
   postQuit,
   runCommandLoop,
   runSyncTimer
@@ -19,7 +21,7 @@ module Core
 where
 
 import Control.Concurrent (threadDelay)
-import Control.Concurrent.MVar (MVar, newMVar, putMVar)
+import Control.Concurrent.MVar (MVar, newEmptyMVar, newMVar, putMVar)
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TBQueue (TBQueue, newTBQueueIO, readTBQueue, writeTBQueue, isFullTBQueue)
 import Control.Concurrent.STM.TVar (TVar, newTVarIO)
@@ -30,8 +32,6 @@ import Data.Foldable (forM_, for_)
 import Data.Traversable (for)
 import Data.UUID (UUID)
 import Prelude hiding (log, writeFile)
-
-import qualified Network.WebSockets as WS
 
 import Config (Config (..), periodicSyncingEnabled)
 import Logger (Logger)
@@ -66,18 +66,35 @@ data Core = Core
   -- the "dirty" flag is set to True whenever the core value has been modified
   -- and is reset to False when it is persisted.
   , coreValueIsDirty :: TVar Bool
-  , coreQueue :: TBQueue Command
-  , coreUpdates :: TBQueue (Maybe Updated)
-  , coreClients :: MVar ServerState
-  , coreLogger  :: Logger
-  , coreConfig  :: Config
-  , coreMetrics :: Maybe Metrics.IcepeakMetrics
+  , coreQueue        :: TBQueue Command
+  , coreUpdates      :: TBQueue (Maybe Updated)
+  , coreClients      :: MVar ServerState
+  , coreLogger       :: Logger
+  , coreConfig       :: Config
+  , coreMetrics      :: Maybe Metrics.IcepeakMetrics
   }
 
-type ServerState = SubscriptionTree UUID WS.Connection
+-- This structure describes the state associated to each subscriber in order
+-- to communicate with them, at the moment, a simple `MVar` as a communication
+-- channel. This is a newtype in order for it to be extensible without
+-- rewriting all call sites.
+newtype SubscriberState = SubscriberState
+  -- We don't need actual queues for subscribers because the only relevant value
+  -- for them is the last one. Since we have one producer and one reader, we can
+  -- rely on MVar as a simpler mechanism.
+  -- We can expect from the subscribers to receive all the updates in the 
+  -- absence of timeouts.
+  { subscriberData :: MVar Value }
+
+-- This structure keeps track of all subscribers. We use one SubscriberState per
+-- subscriber.
+type ServerState = SubscriptionTree UUID SubscriberState
 
 newServerState :: ServerState
 newServerState = empty
+
+newSubscriberState :: IO SubscriberState
+newSubscriberState = SubscriberState <$> newEmptyMVar
 
 -- | Try to initialize the core. This loads the database and sets up the internal data structures.
 newCore :: Config -> Logger -> Maybe Metrics.IcepeakMetrics -> IO (Either String Core)
