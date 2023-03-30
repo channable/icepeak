@@ -45,8 +45,8 @@ data Config = Config
   , configStorageBackend :: StorageBackend
   -- | Enable logging of Sync duration
   , configSyncLogging :: Bool
-  -- | Delay before subscriber timeout
-  , configSubscriberTimeout :: Int
+  -- | Delay between two pings to the client (useful in order to keep the connexion alive)
+  , configWebSocketPingInterval:: Int
   }
 
 data MetricsConfig = MetricsConfig
@@ -108,10 +108,10 @@ configParser environment = Config
   <*> switch (long "sync-log" <>
              help "Enable logging the duration of Sync operations.")
   <*> option auto
-       (long "subscriber-timeout" <>
+       (long "websocket-ping-interval" <>
         metavar "TIMEOUT" <>
         value 30 <>
-        help "The maximum duration in seconds Icepeak waits for a subscriber before closing the connection.")
+        help "The interval of time between two pings to the WebSocket clients. It is instrumental in keeping connexions alive.")
 
   where
     environ var = foldMap value (lookup var environment)
