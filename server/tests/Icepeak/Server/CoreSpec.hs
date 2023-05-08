@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module CoreSpec (spec) where
+module Icepeak.Server.CoreSpec (spec) where
 
 import Test.Hspec
 

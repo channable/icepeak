@@ -1,7 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
-module JwtSpec (spec) where
+module Icepeak.Server.JwtSpec (spec) where
 
 --import qualified Data.Aeson as Aeson
+import Data.Maybe (fromJust)
 import Data.Time.Clock (NominalDiffTime)
 import Test.Hspec -- (Spec, describe, it, shouldBe, expectationFailure)
 import Test.Hspec.QuickCheck (prop)
@@ -10,10 +11,10 @@ import qualified Web.JWT as JWT
 import qualified Data.Map.Strict as Map
 import qualified Data.Text.Encoding as Text
 
-import JwtAuth
-import AccessControl
+import Icepeak.Server.JwtAuth
+import Icepeak.Server.AccessControl
+
 import OrphanInstances ()
-import Data.Maybe (fromJust)
 
 spec :: Spec
 spec = do

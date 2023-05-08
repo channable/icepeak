@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveFunctor #-}
 
-module Subscription
+module Icepeak.Server.Subscription
 (
   SubscriptionTree (..),
   broadcast,
@@ -24,7 +24,7 @@ import Data.Text (Text)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as Text
 
-import qualified Store
+import qualified Icepeak.Server.Store as Store
 
 -- Keeps subscriptions in a tree data structure, so we can efficiently determine
 -- which clients need to be notified for a given update.

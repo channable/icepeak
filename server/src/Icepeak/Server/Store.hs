@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Store
+module Icepeak.Server.Store
 (
   Modification (..),
   Path,
@@ -73,8 +73,9 @@ lookupOrNull path = fromMaybe Null . lookup path
 
 -- | Execute a modification.
 applyModification :: Modification -> Value -> Value
-applyModification (Delete path) value = Store.delete path value
-applyModification (Put path newValue) value = Store.insert path newValue value
+-- applyModification (Delete path) value = Store.delete path value
+applyModification (Delete path) value = delete path value
+applyModification (Put path newValue) value = insert path newValue value
 
 -- Insert or overwrite a value at the given path, and create the path leading up to it if
 -- it did not exist.

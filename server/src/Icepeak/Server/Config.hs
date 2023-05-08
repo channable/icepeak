@@ -1,4 +1,4 @@
-module Config (
+module Icepeak.Server.Config (
   Config (..),
   MetricsConfig (..),
   StorageBackend (..),

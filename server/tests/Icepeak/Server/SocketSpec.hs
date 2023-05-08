@@ -1,4 +1,4 @@
-module SocketSpec (spec) where
+module Icepeak.Server.SocketSpec (spec) where
 
 import Test.Hspec
 

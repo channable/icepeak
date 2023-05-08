@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 -- | This module defines the kinds of permissions used in icepeak and provides
 -- functions checking for sufficient permissions for certain operations.
-module AccessControl
+module Icepeak.Server.AccessControl
        ( AccessMode (..)
        , AuthPath (..)
        , IcepeakClaim (..)
@@ -17,7 +17,7 @@ import qualified Data.Aeson as Aeson
 import qualified Data.List  as List
 import           Data.Text  (Text)
 
-import           Store      (Path)
+import           Icepeak.Server.Store (Path)
 
 -- * Claim datatypes
 
