@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module AccessControlSpec (spec) where
+module Icepeak.Server.AccessControlSpec (spec) where
 
 import Test.Hspec (Spec, describe, it, shouldBe)
 
@@ -7,7 +7,8 @@ import qualified Data.Aeson as Aeson
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck.Instances ()
 
-import AccessControl
+import Icepeak.Server.AccessControl
+
 import OrphanInstances ()
 
 spec :: Spec

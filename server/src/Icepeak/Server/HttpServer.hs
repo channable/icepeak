@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module HttpServer (new) where
+module Icepeak.Server.HttpServer (new) where
 
 import Control.Concurrent.MVar (newEmptyMVar, takeMVar)
 import Control.Monad
@@ -17,14 +17,14 @@ import qualified Data.Text.Lazy as LText
 import qualified Network.Wai as Wai
 import qualified Web.Scotty.Trans as Scotty
 
-import HTTPMethodInvalid (canonicalizeHTTPMethods,limitHTTPMethods)
-import JwtMiddleware (jwtMiddleware)
-import Core (Core (..), EnqueueResult (..))
-import Config (Config (..))
-import Logger (postLog, LogLevel(LogError))
-import qualified Store
-import qualified Core
-import qualified Metrics
+import Icepeak.Server.HTTPMethodInvalid (canonicalizeHTTPMethods,limitHTTPMethods)
+import Icepeak.Server.JwtMiddleware (jwtMiddleware)
+import Icepeak.Server.Core (Core (..), EnqueueResult (..))
+import Icepeak.Server.Config (Config (..))
+import Icepeak.Server.Logger (postLog, LogLevel(LogError))
+import qualified Icepeak.Server.Store as Store
+import qualified Icepeak.Server.Core as Core
+import qualified Icepeak.Server.Metrics as Metrics
 
 new :: Core -> IO Application
 new core =

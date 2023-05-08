@@ -1,5 +1,5 @@
 -- | Module for logging (crash) reports to Sentry
-module SentryLogging(
+module Icepeak.Server.SentryLogging(
   getCrashLogger, logCrashMessage
 ) where
 

@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 -- | This module contains all the web framework independent code for parsing and verifying
 -- JSON Web Tokens.
-module JwtAuth where
+module Icepeak.Server.JwtAuth where
 
 import           Control.Monad         ((<=<))
 import qualified Data.Aeson            as Aeson
@@ -14,7 +14,7 @@ import           Data.Time.Clock.POSIX (POSIXTime)
 import           Web.JWT               (JWT, UnverifiedJWT, VerifiedJWT)
 import qualified Web.JWT               as JWT
 
-import           AccessControl
+import           Icepeak.Server.AccessControl
 
 -- * Token verification
 

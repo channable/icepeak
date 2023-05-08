@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Server
+module Icepeak.Server.Server
 (
   runServer,
 )
@@ -14,7 +14,7 @@ import Network.WebSockets (ServerApp)
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.WebSockets as WebSockets
 
-import Logger (Logger, LogLevel(..), postLog)
+import Icepeak.Server.Logger (Logger, LogLevel(..), postLog)
 
 runServer :: Logger -> ServerApp -> Application -> Int -> IO ()
 runServer logger wsApp httpApp port =

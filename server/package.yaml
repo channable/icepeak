@@ -57,22 +57,22 @@ library:
   - -fno-ignore-asserts
   - -funbox-strict-fields
   exposed-modules:
-  - AccessControl
-  - Config
-  - Core
-  - HTTPMethodInvalid
-  - HttpServer
-  - JwtAuth
-  - JwtMiddleware
-  - Logger
-  - Metrics
-  - MetricsServer
-  - Persistence
-  - SentryLogging
-  - Server
-  - Store
-  - Subscription
-  - WebsocketServer
+  - Icepeak.Server.AccessControl
+  - Icepeak.Server.Config
+  - Icepeak.Server.Core
+  - Icepeak.Server.HTTPMethodInvalid
+  - Icepeak.Server.HttpServer
+  - Icepeak.Server.JwtAuth
+  - Icepeak.Server.JwtMiddleware
+  - Icepeak.Server.Logger
+  - Icepeak.Server.Metrics
+  - Icepeak.Server.MetricsServer
+  - Icepeak.Server.Persistence
+  - Icepeak.Server.SentryLogging
+  - Icepeak.Server.Server
+  - Icepeak.Server.Store
+  - Icepeak.Server.Subscription
+  - Icepeak.Server.WebsocketServer
 
 executables:
   icepeak:

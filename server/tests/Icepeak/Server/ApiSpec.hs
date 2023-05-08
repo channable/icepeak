@@ -1,4 +1,4 @@
-module ApiSpec (spec) where
+module Icepeak.Server.ApiSpec (spec) where
 
 import Test.Hspec
 

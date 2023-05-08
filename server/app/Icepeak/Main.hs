@@ -15,18 +15,18 @@ import qualified Prometheus
 import qualified Prometheus.Metric.GHC
 import qualified System.Posix.Signals as Signals
 
-import Config (Config (..), configInfo)
-import Core (Core (..))
-import Persistence (getDataFile, setupStorageBackend)
-import Logger (Logger, LogLevel(..), postLog)
+import Icepeak.Server.Config (Config (..), configInfo)
+import Icepeak.Server.Core (Core (..))
+import Icepeak.Server.Persistence (getDataFile, setupStorageBackend)
+import Icepeak.Server.Logger (Logger, LogLevel(..), postLog)
 
-import qualified Core
-import qualified HttpServer
-import qualified Server
-import qualified WebsocketServer
-import qualified Logger
-import qualified Metrics
-import qualified MetricsServer
+import qualified Icepeak.Server.Core as Core
+import qualified Icepeak.Server.HttpServer as HttpServer
+import qualified Icepeak.Server.Server as Server
+import qualified Icepeak.Server.WebsocketServer as WebsocketServer
+import qualified Icepeak.Server.Logger as Logger
+import qualified Icepeak.Server.Metrics as Metrics
+import qualified Icepeak.Server.MetricsServer as MetricsServer
 
 -- Install SIGTERM and SIGINT handlers to do a graceful exit.
 installHandlers :: Core -> IO ()
