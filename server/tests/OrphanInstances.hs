@@ -4,8 +4,8 @@ import Test.QuickCheck.Instances ()
 import Test.QuickCheck.Arbitrary (Arbitrary (..))
 import qualified Test.QuickCheck.Gen as Gen
 
-import Store (Modification (..))
-import AccessControl
+import Icepeak.Server.Store (Modification (..))
+import Icepeak.Server.AccessControl
 
 instance Arbitrary AccessMode where
   arbitrary = Gen.elements [minBound..maxBound]

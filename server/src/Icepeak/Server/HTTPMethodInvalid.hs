@@ -1,4 +1,4 @@
-module HTTPMethodInvalid (canonicalizeHTTPMethods, limitHTTPMethods) where
+module Icepeak.Server.HTTPMethodInvalid (canonicalizeHTTPMethods, limitHTTPMethods) where
 
 import qualified Network.Wai as Wai
 import qualified Network.HTTP.Types as HTTP

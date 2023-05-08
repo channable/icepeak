@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module PersistenceSpec (spec) where
+module Icepeak.Server.PersistenceSpec (spec) where
 
 import Data.Foldable
 import Test.Hspec
@@ -9,9 +9,10 @@ import Test.QuickCheck.Instances ()
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy.Char8 as LBS8
 
+import Icepeak.Server.Store (Modification (..))
+import qualified Icepeak.Server.Store as Store
+
 import OrphanInstances ()
-import Store (Modification (..))
-import qualified Store
 
 spec :: Spec
 spec = do

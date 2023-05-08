@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 -- | This module provides functionality for verifying the JSON Web Tokens in a wai setting.
-module JwtMiddleware where
+module Icepeak.Server.JwtMiddleware where
 
 import           Control.Applicative
 import           Control.Monad
@@ -16,8 +16,8 @@ import qualified Network.HTTP.Types    as Http
 import qualified Network.Wai           as Wai
 import qualified Web.JWT               as JWT
 
-import           AccessControl
-import           JwtAuth
+import           Icepeak.Server.AccessControl
+import           Icepeak.Server.JwtAuth
 
 -- | Defines the kinds of errors that cause authorization to fail.
 data AuthError

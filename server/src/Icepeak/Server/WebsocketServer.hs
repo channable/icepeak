@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module WebsocketServer (
+module Icepeak.Server.WebsocketServer (
   ServerState,
   acceptConnection,
   processUpdates
@@ -26,14 +26,14 @@ import qualified Network.WebSockets as WS
 import qualified Network.HTTP.Types.Header as HttpHeader
 import qualified Network.HTTP.Types.URI as Uri
 
-import Config (Config (..))
-import Core (Core (..), ServerState, SubscriberState (..), Updated (..), getCurrentValue, withCoreMetrics, newSubscriberState)
-import Store (Path)
-import AccessControl (AccessMode(..))
-import JwtMiddleware (AuthResult (..), isRequestAuthorized, errorResponseBody)
+import Icepeak.Server.Config (Config (..))
+import Icepeak.Server.Core (Core (..), ServerState, SubscriberState (..), Updated (..), getCurrentValue, withCoreMetrics, newSubscriberState)
+import Icepeak.Server.Store (Path)
+import Icepeak.Server.AccessControl (AccessMode(..))
+import Icepeak.Server.JwtMiddleware (AuthResult (..), isRequestAuthorized, errorResponseBody)
 
-import qualified Metrics
-import qualified Subscription
+import qualified Icepeak.Server.Metrics as Metrics
+import qualified Icepeak.Server.Subscription as Subscription
 import Data.Maybe (isJust)
 
 newUUID :: IO UUID

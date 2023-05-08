@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Core
+module Icepeak.Server.Core
 (
   Core (..), -- TODO: Expose only put for clients.
   EnqueueResult (..),
@@ -33,15 +33,15 @@ import Data.Traversable (for)
 import Data.UUID (UUID)
 import Prelude hiding (log, writeFile)
 
-import Config (Config (..), periodicSyncingEnabled)
-import Logger (Logger)
-import Store (Path, Modification (..))
-import Subscription (SubscriptionTree, empty)
-import Persistence (PersistentValue, PersistenceConfig (..))
+import Icepeak.Server.Config (Config (..), periodicSyncingEnabled)
+import Icepeak.Server.Logger (Logger)
+import Icepeak.Server.Store (Path, Modification (..))
+import Icepeak.Server.Subscription (SubscriptionTree, empty)
+import Icepeak.Server.Persistence (PersistentValue, PersistenceConfig (..))
 
-import qualified Store
-import qualified Persistence
-import qualified Metrics
+import qualified Icepeak.Server.Store as Store
+import qualified Icepeak.Server.Persistence as Persistence
+import qualified Icepeak.Server.Metrics as Metrics
 
 -- | Defines the kinds of commands that are handled by the event loop of the Core.
 data Command

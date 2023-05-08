@@ -4,7 +4,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-| This module abstracts over the details of persisting the value. Journaling is
   also handled here, if enabled. -}
-module Persistence
+module Icepeak.Server.Persistence
   ( PersistentValue
   , PersistenceConfig (..)
   , getDataFile
@@ -36,12 +36,12 @@ import           System.Directory           (getFileSize, renameFile)
 import           System.Exit                (die)
 import           System.IO
 import           System.IO.Error (tryIOError, isDoesNotExistError, isPermissionError)
-import           Logger                     (Logger, LogLevel(..))
-import qualified Logger
-import qualified Metrics
-import qualified Store
+import           Icepeak.Server.Logger      (Logger, LogLevel(..))
+import qualified Icepeak.Server.Logger      as Logger
+import qualified Icepeak.Server.Metrics     as Metrics
+import qualified Icepeak.Server.Store       as Store
 
-import Config (StorageBackend (..))
+import Icepeak.Server.Config (StorageBackend (..))
 
 data PersistentValue = PersistentValue
   { pvConfig       :: PersistenceConfig

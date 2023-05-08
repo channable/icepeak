@@ -1,4 +1,4 @@
-module Logger
+module Icepeak.Server.Logger
 (
   Logger,
   LogRecord,
@@ -13,8 +13,8 @@ module Logger
 )
 where
 
-import SentryLogging (getCrashLogger, logCrashMessage)
-import Config (Config, configSentryDSN, configDisableSentryLogging, configQueueCapacity)
+import Icepeak.Server.SentryLogging (getCrashLogger, logCrashMessage)
+import Icepeak.Server.Config (Config, configSentryDSN, configDisableSentryLogging, configQueueCapacity)
 
 import Control.Monad (unless, when, forM_)
 import Control.Concurrent.STM (atomically)

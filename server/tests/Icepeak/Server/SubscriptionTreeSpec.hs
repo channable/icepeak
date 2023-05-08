@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module SubscriptionTreeSpec (spec) where
+module Icepeak.Server.SubscriptionTreeSpec (spec) where
 
 import Data.List (sortOn)
 import Test.Hspec (Spec, describe, it, shouldBe)
@@ -11,7 +11,7 @@ import Test.QuickCheck.Instances ()
 import qualified Data.Aeson as AE
 import qualified Data.HashMap.Strict as HM
 
-import Subscription (SubscriptionTree (..), broadcast', empty, subscribe, unsubscribe)
+import Icepeak.Server.Subscription (SubscriptionTree (..), broadcast', empty, subscribe, unsubscribe)
 
 spec :: Spec
 spec = do

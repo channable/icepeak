@@ -8,8 +8,8 @@ import           System.Environment  (getEnvironment)
 import qualified Web.JWT             as JWT
 import qualified Data.Time.Clock.POSIX as Clock
 
-import           AccessControl
-import           JwtAuth
+import           Icepeak.Server.AccessControl
+import           Icepeak.Server.JwtAuth
 
 data Config = Config
   { configJwtSecret      :: Maybe JWT.EncodeSigner

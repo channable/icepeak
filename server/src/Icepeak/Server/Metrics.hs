@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Metrics where
+module Icepeak.Server.Metrics where
 
 import Control.Monad.IO.Class
 import Data.Text (Text, pack)
