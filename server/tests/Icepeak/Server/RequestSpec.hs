@@ -1,10 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
-module RequestSpec (spec) where
+module Icepeak.Server.RequestSpec (spec) where
 
 import           Test.Hspec
 import           Test.Hspec.Wai
 
-import           HTTPMethodInvalid (canonicalizeHTTPMethods, limitHTTPMethods)
+import           Icepeak.Server.HTTPMethodInvalid (canonicalizeHTTPMethods, limitHTTPMethods)
 
 import qualified Network.HTTP.Types as HTTP
 import qualified Network.Wai as Wai

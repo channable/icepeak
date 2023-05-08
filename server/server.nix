@@ -58,35 +58,39 @@ mkDerivation {
         ./package.yaml
 
         ./tests
-        ./tests/AccessControlSpec.hs
-        ./tests/ApiSpec.hs
-        ./tests/CoreSpec.hs
-        ./tests/JwtSpec.hs
+        ./tests/Icepeak
+        ./tests/Icepeak/Server
+        ./tests/Icepeak/Server/AccessControlSpec.hs
+        ./tests/Icepeak/Server/ApiSpec.hs
+        ./tests/Icepeak/Server/CoreSpec.hs
+        ./tests/Icepeak/Server/JwtSpec.hs
+        ./tests/Icepeak/Server/PersistenceSpec.hs
+        ./tests/Icepeak/Server/RequestSpec.hs
+        ./tests/Icepeak/Server/SocketSpec.hs
+        ./tests/Icepeak/Server/StoreSpec.hs
+        ./tests/Icepeak/Server/SubscriptionTreeSpec.hs
         ./tests/OrphanInstances.hs
-        ./tests/PersistenceSpec.hs
-        ./tests/RequestSpec.hs
-        ./tests/SocketSpec.hs
         ./tests/Spec.hs
-        ./tests/StoreSpec.hs
-        ./tests/SubscriptionTreeSpec.hs
 
         ./src
-        ./src/AccessControl.hs
-        ./src/Config.hs
-        ./src/Core.hs
-        ./src/HTTPMethodInvalid.hs
-        ./src/HttpServer.hs
-        ./src/JwtAuth.hs
-        ./src/JwtMiddleware.hs
-        ./src/Logger.hs
-        ./src/Metrics.hs
-        ./src/MetricsServer.hs
-        ./src/Persistence.hs
-        ./src/SentryLogging.hs
-        ./src/Server.hs
-        ./src/Store.hs
-        ./src/Subscription.hs
-        ./src/WebsocketServer.hs
+        ./src/Icepeak
+        ./src/Icepeak/Server
+        ./src/Icepeak/Server/AccessControl.hs
+        ./src/Icepeak/Server/Config.hs
+        ./src/Icepeak/Server/Core.hs
+        ./src/Icepeak/Server/HTTPMethodInvalid.hs
+        ./src/Icepeak/Server/HttpServer.hs
+        ./src/Icepeak/Server/JwtAuth.hs
+        ./src/Icepeak/Server/JwtMiddleware.hs
+        ./src/Icepeak/Server/Logger.hs
+        ./src/Icepeak/Server/Metrics.hs
+        ./src/Icepeak/Server/MetricsServer.hs
+        ./src/Icepeak/Server/Persistence.hs
+        ./src/Icepeak/Server/SentryLogging.hs
+        ./src/Icepeak/Server/Server.hs
+        ./src/Icepeak/Server/Store.hs
+        ./src/Icepeak/Server/Subscription.hs
+        ./src/Icepeak/Server/WebsocketServer.hs
 
         ./app
         ./app/Icepeak

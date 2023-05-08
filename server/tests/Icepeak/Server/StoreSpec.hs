@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module StoreSpec (spec) where
+module Icepeak.Server.StoreSpec (spec) where
 
 import Data.Aeson (Value (..))
 import Test.Hspec (Spec, describe, it, shouldBe)
@@ -9,9 +9,10 @@ import Test.QuickCheck.Instances ()
 
 import qualified Data.Aeson.KeyMap as KeyMap
 
+import Icepeak.Server.Store (Modification (..))
+import qualified Icepeak.Server.Store as Store
+
 import OrphanInstances ()
-import Store (Modification (..))
-import qualified Store
 
 spec :: Spec
 spec = do
