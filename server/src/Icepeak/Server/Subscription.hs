@@ -13,7 +13,7 @@ module Icepeak.Server.Subscription
 where
 
 import Control.Monad (void)
-import Control.Monad.Writer (Writer, tell, execWriter)
+import Control.Monad.State.Strict (State, execState, modify')
 import Data.Aeson (Value)
 import Data.Foldable (for_, traverse_)
 import Data.HashMap.Strict (HashMap)
@@ -83,20 +83,24 @@ broadcast f path value tree = mapM_ (uncurry f) notifications
 -- Like broadcast, but return a list of notifications rather than invoking an
 -- effect on each of them.
 broadcast' :: [Text] -> Value -> SubscriptionTree id state -> [(state, Value)]
-broadcast' = \path value tree -> execWriter $ loop path value tree
+broadcast' = \path value tree -> reverse $ execState (loop path value tree) []
   where
-  loop :: [Text] -> Value -> SubscriptionTree id state -> Writer [(state, Value)] ()
+  -- To prevent this from accidentally blowing up to @O(n^2)@ time, this uses
+  -- the strict state monad to cons the connections to a list, which then needs
+  -- to be reversed to get the correct order. This way the operation can be done
+  -- in @O(n)@ list operations where @n@ is the number of subscribers matched
+  -- along the path.
   loop path value (SubscriptionTree here inner) = do
     case path of
       [] -> do
         -- When the path is empty, all subscribers that are "here" or at a deeper
         -- level should receive a notification.
-        traverse_ (\v -> tell [(v, value)]) here
+        traverse_ (\v -> modify' ((v, value) :)) here
         let broadcastInner key = loop [] (Store.lookupOrNull [key] value)
         void $ HashMap.traverseWithKey broadcastInner inner
 
       key : pathTail -> do
-        traverse_ (\v -> tell [(v, value)]) here
+        traverse_ (\v -> modify' ((v, value) :)) here
         for_ (HashMap.lookup key inner) $ \subs ->
           loop pathTail (Store.lookupOrNull [key] value) subs
 
