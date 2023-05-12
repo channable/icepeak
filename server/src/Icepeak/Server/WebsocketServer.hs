@@ -55,7 +55,7 @@ type WSServerApp = WSServerOptions -> WS.ServerApp
 -- Currently this is only used to keep track of the last received pong. This
 -- value is initialized to the current time when starting the application, and
 -- it is updated in a connection-specific @connectionOnPong@ handler. When a
--- ping is sent, the IO action in 'withInteruptablePingThread' checks whether
+-- ping is sent, the IO action in 'withInterruptiblePingThread' checks whether
 -- the client answered our last ping with a pong. If it hasn't, then the server
 -- will terminate the websocket connection as timeouts would otherwise leave
 -- zombie connections.
@@ -126,7 +126,7 @@ acceptConnection core wsOptions pending = do
       -- Fork a pinging thread, for each client, to keep idle connections open and to detect
       -- closed connections. Sends a ping message every 30 seconds.
       -- Note: The thread dies silently if the connection crashes or is closed.
-      withInteruptablePingThread connection pingInterval onPing $ handleClient connection path core
+      withInterruptiblePingThread connection pingInterval onPing $ handleClient connection path core
 
 -- * Authorization
 
@@ -236,10 +236,10 @@ processUpdates core = go
 pongHandler :: WSServerOptions -> IO ()
 pongHandler (WSServerOptions lastPongTime) = getTime Monotonic >>= void . swapMVar lastPongTime
 
--- | An action passed to 'withInteruptablePingThread' that is used together with
--- 'pongHandler' to terminates a websocket connection if the client stops
--- sending timely pongs. This returns @True@ if the connection has timed out and
--- should be terminated.
+-- | An action passed to 'withInterruptiblePingThread' that is used together with
+-- 'pongHandler' to terminate a WebSocket connection if the client stops sending
+-- timely pongs. This returns @True@ if the connection has timed out and should
+-- be terminated.
 pingHandler :: Config -> WSServerOptions -> IO Bool
 pingHandler config (WSServerOptions lastPongTime) = do
   now <- getTime Monotonic
@@ -257,16 +257,16 @@ pingHandler config (WSServerOptions lastPongTime) = do
 --
 -- The @pingAction@ is exected on every ping, and it should return @True@ if the
 -- client has timed out and the connection should be terminated.
-withInteruptablePingThread :: WS.Connection -> Int -> IO Bool -> IO () -> IO ()
-withInteruptablePingThread conn pingInterval pingAction =
-  race_ (interuptablePingThread conn pingInterval pingAction)
+withInterruptiblePingThread :: WS.Connection -> Int -> IO Bool -> IO () -> IO ()
+withInterruptiblePingThread conn pingInterval pingAction =
+  race_ (interruptiblePingThread conn pingInterval pingAction)
 
--- | 'WS.pingTHread', with the only real difference being that it takes an @IO
+-- | 'WS.pingThread', with the only real difference being that it takes an @IO
 -- Bool@ instead of an @IO ()@ action. If that action returns true, then the
--- ping thread will return early causing 'withInteruptablePingThread' to
+-- ping thread will return early causing 'withInterruptiblePingThread' to
 -- terminate as well.
-interuptablePingThread :: WS.Connection -> Int -> IO Bool -> IO ()
-interuptablePingThread conn pingInterval pingAction
+interruptiblePingThread :: WS.Connection -> Int -> IO Bool -> IO ()
+interruptiblePingThread conn pingInterval pingAction
   | pingInterval <= 0 = return ()
   | otherwise = ignore `handle` go 1
   where
@@ -274,7 +274,7 @@ interuptablePingThread conn pingInterval pingAction
     go i = do
       threadDelay (pingInterval * 1000 * 1000)
       WS.sendPing conn (T.pack $ show i)
-      -- The difference with the original 'pingTHread' is that this action now
+      -- The difference with the original 'pingThread' is that this action now
       -- returns a boolean, and we'll terminate this thread when that action
       -- returns true
       hasTimedOut <- pingAction
