@@ -45,6 +45,7 @@ import Icepeak.Server.JwtMiddleware (AuthResult (..), isRequestAuthorized, error
 import qualified Icepeak.Server.Metrics as Metrics
 import qualified Icepeak.Server.Subscription as Subscription
 import Data.Maybe (isJust)
+import System.Timeout (timeout)
 
 -- | 'WS.ServerApp' parameterized over the last received pong timestamp. See
 -- 'WSServerOptions'.
@@ -263,17 +264,29 @@ withInterruptiblePingThread conn pingInterval pingAction
   | pingInterval <= 0 = id
   | otherwise = race_ (interruptiblePingThread conn pingInterval pingAction)
 
--- | 'WS.pingThread', with the only real difference being that it takes an @IO
--- Bool@ instead of an @IO ()@ action. If that action returns true, then the
--- ping thread will return early causing 'withInterruptiblePingThread' to
--- terminate as well.
+-- | This is based on 'WS.pingThread', with the following differences:
+--
+--   * Instead of running an `IO ()` action after a ping is sent, this uses an
+--     `IO Bool` action. If that action returns true then the connection is to
+--     be considered timed out and this function will return.
+--   * The check for `pingInterval` being 0 or less has been moved to
+--     `withInterruptiblePingThread` to avoid spawning threads when unnecessary.
+--     Still calling this function with a zero or negative ping interval will
+--     not break anything, although it will cause it to spam pings.
 interruptiblePingThread :: WS.Connection -> Int -> IO Bool -> IO ()
 interruptiblePingThread conn pingInterval pingAction = ignore `handle` go 1
   where
+    pingIntervalUs :: Int
+    pingIntervalUs = pingInterval * 1000 * 1000
+
     go :: Int -> IO ()
     go i = do
-      threadDelay (pingInterval * 1000 * 1000)
-      WS.sendPing conn (T.pack $ show i)
+      threadDelay pingIntervalUs
+      -- If the send buffer is full (e.g. because we pushed a lot of updates to
+      -- a client that's timed out) then this send will block indefinitely.
+      -- Adding the timeout here prevents this from happening, and it also
+      -- interacts nicely with the @pingAction@.
+      _ <- timeout pingIntervalUs $ WS.sendPing conn (T.pack $ show i)
       -- The difference with the original 'pingThread' is that this action now
       -- returns a boolean, and we'll terminate this thread when that action
       -- returns true
