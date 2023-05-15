@@ -14,17 +14,18 @@ module Icepeak.Server.WebsocketServer (
 ) where
 
 import Control.Concurrent (modifyMVar_, readMVar, threadDelay)
-import Control.Concurrent.Async (withAsync, race_)
-import Control.Concurrent.MVar (MVar, newMVar, putMVar, swapMVar, takeMVar, tryTakeMVar)
+import Control.Concurrent.Async (race_, withAsync)
+import Control.Concurrent.MVar (MVar, putMVar, takeMVar, tryTakeMVar)
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TBQueue (readTBQueue)
-import Control.Exception (SomeAsyncException, SomeException, finally, fromException, catch, throwIO, AsyncException, handle)
-import Control.Monad (forever, when, void, unless)
+import Control.Exception (AsyncException, SomeAsyncException, SomeException, catch, finally, fromException, handle, throwIO)
+import Control.Monad (forever, unless, void, when)
 import Data.Aeson (Value)
 import Data.Foldable (for_)
+import Data.IORef (IORef, atomicWriteIORef, readIORef, newIORef)
 import Data.Text (Text)
 import Data.UUID
-import System.Clock (Clock (Monotonic), TimeSpec(..), getTime)
+import System.Clock (Clock (Monotonic), TimeSpec (..), getTime)
 import System.Random (randomIO)
 
 import qualified Data.Aeson as Aeson
@@ -59,11 +60,11 @@ type WSServerApp = WSServerOptions -> WS.ServerApp
 -- the client answered our last ping with a pong. If it hasn't, then the server
 -- will terminate the websocket connection as timeouts would otherwise leave
 -- zombie connections.
-newtype WSServerOptions = WSServerOptions { wsOptionLastPongTime :: MVar TimeSpec }
+newtype WSServerOptions = WSServerOptions { wsOptionLastPongTime :: IORef TimeSpec }
 
 -- | Builds the /per connection/-connection settings. This hooks up the
--- connection's pong handler to the last received pong time MVar so timeouts can
--- be detected in the ping thread's handlers.
+-- connection's pong handler to the last received pong time IORef so timeouts
+-- can be detected in the ping thread's handlers.
 wsConnectionOpts :: WSServerOptions -> WS.ConnectionOptions
 wsConnectionOpts wsOptions =
   WS.defaultConnectionOptions
@@ -80,7 +81,7 @@ mkWSServerOptions = do
   -- current time so this also works as expected if the client never sends a
   -- single pong.
   lastPongTime <- getTime Monotonic
-  WSServerOptions <$> newMVar lastPongTime
+  WSServerOptions <$> newIORef lastPongTime
 
 newUUID :: IO UUID
 newUUID = randomIO
@@ -234,7 +235,7 @@ processUpdates core = go
 -- last pong was received so 'pingHandler' can terminate the connection if the
 -- client stops sending pongs back.
 pongHandler :: WSServerOptions -> IO ()
-pongHandler (WSServerOptions lastPongTime) = getTime Monotonic >>= void . swapMVar lastPongTime
+pongHandler (WSServerOptions lastPongTime) = getTime Monotonic >>= void . atomicWriteIORef lastPongTime
 
 -- | An action passed to 'withInterruptiblePingThread' that is used together with
 -- 'pongHandler' to terminate a WebSocket connection if the client stops sending
@@ -247,7 +248,7 @@ pingHandler config (WSServerOptions lastPongTime) = do
       pongTimeout      = TimeSpec (fromIntegral $ configWebSocketPongTimeout config) 0
       lastPongDeadline = now - pingInterval - pongTimeout
 
-  lastPong <- readMVar lastPongTime
+  lastPong <- readIORef lastPongTime
   return $! lastPong < lastPongDeadline
 
 -- | Similar to 'WS.withPingThread', except that it uses a combination of
