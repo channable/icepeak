@@ -258,17 +258,16 @@ pingHandler config (WSServerOptions lastPongTime) = do
 -- The @pingAction@ is exected on every ping, and it should return @True@ if the
 -- client has timed out and the connection should be terminated.
 withInterruptiblePingThread :: WS.Connection -> Int -> IO Bool -> IO () -> IO ()
-withInterruptiblePingThread conn pingInterval pingAction =
-  race_ (interruptiblePingThread conn pingInterval pingAction)
+withInterruptiblePingThread conn pingInterval pingAction
+  | pingInterval <= 0 = id
+  | otherwise = race_ (interruptiblePingThread conn pingInterval pingAction)
 
 -- | 'WS.pingThread', with the only real difference being that it takes an @IO
 -- Bool@ instead of an @IO ()@ action. If that action returns true, then the
 -- ping thread will return early causing 'withInterruptiblePingThread' to
 -- terminate as well.
 interruptiblePingThread :: WS.Connection -> Int -> IO Bool -> IO ()
-interruptiblePingThread conn pingInterval pingAction
-  | pingInterval <= 0 = return ()
-  | otherwise = ignore `handle` go 1
+interruptiblePingThread conn pingInterval pingAction = ignore `handle` go 1
   where
     go :: Int -> IO ()
     go i = do
