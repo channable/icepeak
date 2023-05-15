@@ -47,6 +47,10 @@ data Config = Config
   , configSyncLogging :: Bool
   -- | Delay between two pings to the client (useful in order to keep the connexion alive)
   , configWebSocketPingInterval:: Int
+  -- | The timespan in seconds after sending a ping during which the client has
+  -- to respond with a pong. If no pong is sent within this timeframe then the
+  -- connection is considered to have timed out and it will be terminated.
+  , configWebSocketPongTimeout:: Int
   }
 
 data MetricsConfig = MetricsConfig
@@ -111,7 +115,12 @@ configParser environment = Config
        (long "websocket-ping-interval" <>
         metavar "WS-PING-INTERVAL" <>
         value 30 <>
-        help "The interval of time (in seconds) between two pings to the WebSocket clients. It is instrumental in keeping connections alive.")
+        help "The interval of time (in seconds) between two pings to the WebSocket clients. It is instrumental in keeping connections alive. Negative and zero values completely disable the timeout detection.")
+  <*> option auto
+       (long "websocket-pong-timeout" <>
+        metavar "WS-PONG-TIMEOUT" <>
+        value 30 <>
+        help "The timespan in seconds after sending a ping during which the client has to respond with a pong. If no pong is sent within this timeframe then the connection is considered to have timed out and it will be terminated.")
 
   where
     environ var = foldMap value (lookup var environment)
