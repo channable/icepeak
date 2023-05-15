@@ -115,7 +115,7 @@ configParser environment = Config
        (long "websocket-ping-interval" <>
         metavar "WS-PING-INTERVAL" <>
         value 30 <>
-        help "The interval of time (in seconds) between two pings to the WebSocket clients. It is instrumental in keeping connections alive.")
+        help "The interval of time (in seconds) between two pings to the WebSocket clients. It is instrumental in keeping connections alive. Negative and zero values completely disable the timeout detection.")
   <*> option auto
        (long "websocket-pong-timeout" <>
         metavar "WS-PONG-TIMEOUT" <>
