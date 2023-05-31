@@ -43,7 +43,7 @@
 
 mkDerivation {
   pname = "icepeak";
-  version = "1.6.0";
+  version = "2.0.0";
 
   # Opt in to hpack. We don't commit the cabal file in our repo currently.
   buildTools = [ hpack ];
