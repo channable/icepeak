@@ -1,20 +1,20 @@
 cabal-version: 1.12
+name:          icepeak-client
+version:       0.1.1
+synopsis:
+  Client library for Icepeak, a fast JSON document store with push notification support
 
-name:           icepeak-client
-version:        0.1.1
-synopsis:       Client library for Icepeak, a fast JSON document store with push notification support
-homepage:       https://github.com/channable/icepeak
-license:        BSD3
-build-type:     Simple
+homepage:      https://github.com/channable/icepeak
+license:       BSD3
+build-type:    Simple
 
 library
-  exposed-modules:
-      Icepeak.Client
-  other-modules:
-      Paths_icepeak_client
-  hs-source-dirs:
-      src
-  ghc-options: -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+  exposed-modules:  Icepeak.Client
+  other-modules:    Paths_icepeak_client
+  hs-source-dirs:   src
+  ghc-options:
+    -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+
   build-depends:
       aeson
     , base
@@ -25,4 +25,5 @@ library
     , http-types
     , retry
     , text
+
   default-language: Haskell2010
