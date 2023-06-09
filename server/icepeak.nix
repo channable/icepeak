@@ -43,6 +43,10 @@ mkDerivation {
     rm --recursive --verbose $out/lib
   '';
 
+  # The default is specified in the cabal.project file. This Nix build won't
+  # read that.
+  configureFlags = [ "--enable-optimization=2" ];
+
   executableHaskellDepends = [
     aeson
     async

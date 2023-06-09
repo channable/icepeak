@@ -37,7 +37,7 @@ library
   other-modules:    Paths_icepeak
   hs-source-dirs:   src
   ghc-options:
-    -Wall -Wno-orphans -Wno-unused-top-binds -O2 -fno-ignore-asserts
+    -Wall -Wno-orphans -Wno-unused-top-binds -fno-ignore-asserts
     -funbox-strict-fields
 
   build-depends:
