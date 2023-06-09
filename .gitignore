@@ -1,0 +1,20 @@
+dist-newstyle/
+cabal.project.local
+*.prof
+*.eventlog
+
+# Icepeak data
+icepeak.db
+icepeak.json
+icepeak.json.journal
+icepeak.json.new
+
+# IntelliJ IDEA project files
+*.idea
+*.iml
+
+# Nix result symlinks
+result*
+
+# Direnv
+.direnv/

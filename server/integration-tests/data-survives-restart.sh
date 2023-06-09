@@ -1,12 +1,10 @@
 #!/usr/bin/env bash
 
-if [ ! -f "stack.yaml" ]; then
-    echo "Run test in server package directory"
-    exit 1
-fi
+cd "$(dirname "$0")"
+cd ..
 
 ########## Preparations
-stack build
+cabal build -j icepeak
 
 BACKEND_FLAGS=("--file" "--sqlite")
 
@@ -16,7 +14,7 @@ for item in ${BACKEND_FLAGS[*]}
 do
 echo "--------------------- Testing backend: $item"
 DATA_FILE=`mktemp`
-stack exec -- icepeak $item --data-file="$DATA_FILE" > /dev/null &
+cabal run -j icepeak -- $item --data-file="$DATA_FILE" > /dev/null &
 ICEPEAK_PID=$!
 echo "Icepeak started PID=$ICEPEAK_PID"
 sleep 1
@@ -31,7 +29,7 @@ wait $ICEPEAK_PID
 sleep 1
 
 ########## 2nd PASS
-stack exec -- icepeak $item --data-file="$DATA_FILE" > /dev/null &
+cabal run -j icepeak -- $item --data-file="$DATA_FILE" > /dev/null &
 ICEPEAK_PID=$!
 echo "Icepeak started PID=$ICEPEAK_PID"
 sleep 1
