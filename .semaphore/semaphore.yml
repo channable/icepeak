@@ -85,11 +85,11 @@ blocks:
       jobs:
         - name: "Build client"
           commands:
-            - "nix-build --no-out-link -E '(import ./nix/nixpkgs.nix {}).haskellPackages.callPackage ./client-haskell/client.nix {}'"
+            - "nix-build --no-out-link ./release.nix --attr icepeak-client"
 
         - name: "Build server"
           commands:
-            - "nix-build --no-out-link ./server/default.nix"
+            - "nix-build --no-out-link ./release.nix --attr icepeak"
 
       epilogue:
         always:
