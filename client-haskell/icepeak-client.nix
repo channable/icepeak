@@ -23,7 +23,7 @@ mkDerivation {
     # Compute source based on whitelist
     whitelistFilter = path: _type:
       lib.any (prefix: lib.hasPrefix prefix path) prefixWhitelist;
-    gitignore = builtins.readFile ./.gitignore;
+    gitignore = builtins.readFile ../.gitignore;
     gitignoreFilter =
       nix-gitignore.gitignoreFilterPure whitelistFilter gitignore ./.;
     whitelistedSrc = lib.cleanSourceWith {
