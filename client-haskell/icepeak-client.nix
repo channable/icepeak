@@ -15,7 +15,8 @@ mkDerivation {
     # that nix has to copy to the temporary build directory that we don't want
     # to have in there (e.g. the `.dist-newstyle` directory, the `.git`
     # directory, etc.)
-    prefixWhitelist = builtins.map builtins.toString [ ./package.yaml ./src ];
+    prefixWhitelist =
+      builtins.map builtins.toString [ ./icepeak-client.cabal ./src ];
     # Compute source based on whitelist
     whitelistFilter = path: _type:
       lib.any (prefix: lib.hasPrefix prefix path) prefixWhitelist;

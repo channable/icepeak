@@ -12,11 +12,9 @@ let
       # Used for the integration tests
       (pkgs.python310.withPackages (p: [ p.websockets p.requests ]))
 
-      # TODO: Replace Stack with Cabal
-      # pkgs.haskellPackages.cabal-install
+      pkgs.haskellPackages.cabal-install
       pkgs.haskellPackages.haskell-language-server
       pkgs.haskellPackages.implicit-hie
-      pkgs.haskellPackages.stack
     ];
 
     withHoogle = true;

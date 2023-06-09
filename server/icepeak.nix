@@ -21,7 +21,7 @@ mkDerivation {
     # to have in there (e.g. the `.dist-newstyle` directory, the `.git`
     # directory, etc.)
     prefixWhitelist =
-      builtins.map builtins.toString [ ./package.yaml ./app ./src ./tests ];
+      builtins.map builtins.toString [ ./icepeak.cabal ./app ./src ./tests ];
     # Compute source based on whitelist
     whitelistFilter = path: _type:
       lib.any (prefix: lib.hasPrefix prefix path) prefixWhitelist;

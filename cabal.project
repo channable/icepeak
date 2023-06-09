@@ -1,0 +1,3 @@
+packages:
+  server/icepeak.cabal
+  client-haskell/icepeak-client.cabal

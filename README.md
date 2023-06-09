@@ -14,7 +14,7 @@ Clients can subscribe to specific paths in the JSON document like e.g. `/users/1
 via the websocket-based API and they will get a push update whenever any of the
 JSON data below this path changes.
 
-If a client subscribes to the document root `/` they will receive *all* updates.
+If a client subscribes to the document root `/` they will receive _all_ updates.
 
 Icepeak supports JWT-based authorization. JWT claims can be used
 to restrict the prefixes in the JSON document that a client can read or write.
@@ -49,11 +49,12 @@ a Haskell client library.
 
 ## Building and running Icepeak
 
-Cd into `/server`.
-Build with `stack build`.
-Run the tests with `stack test`.
-And run `icepeak` itself with `stack exec icepeak`.
-Install with `stack install`.
+Icepeak can be built using [Cabal](https://cabal.readthedocs.io/en/stable/),
+which can be installed through [ghcup](https://www.haskell.org/ghcup/). You can
+also use the [Nix](https://nixos.org/) shell provided by this repo.
+
+- Run the tests with `cabal test -j icepeak`.
+- And run `icepeak` itself with `cabal run -j icepeak`.
 
 Integration tests are in `/server/integration-tests`.
 They are stand-alone scripts that can be executed directly, e.g. `./read_after_write_test.py`.
@@ -67,11 +68,10 @@ garbage collector by passing the following runtime flags to icepeak:
 
 ## Building the Haskell client library
 
-Cd into `/client-haskell`.
-Build with `stack build`.
-Run the tests with `stack test`.
+Build with `cabal build -j icepeak-client`.
+Run the tests with `cabal test -j icepeak-client`.
 
-Run `stack haddock --no-haddock-deps` to generate the Haskell API documentation.
+Run `cabal haddock` to generate the Haskell API documentation.
 
 ## Usage:
 
@@ -119,15 +119,15 @@ The `icepeak` claim has the following JSON schema:
   "type": "object",
   "required": ["version"],
   "properties": {
-    "version": {"enum": [1]},
+    "version": { "enum": [1] },
     "whitelist": {
       "type": "array",
       "items": {
         "type": "object",
         "required": ["prefix", "modes"],
         "properties": {
-          "prefix": {"type": "array", "items": {"type": "string"}},
-          "modes": {"type": "array", "items": {"enum": ["read", "write"]}}
+          "prefix": { "type": "array", "items": { "type": "string" } },
+          "modes": { "type": "array", "items": { "enum": ["read", "write"] } }
         }
       }
     }
@@ -142,17 +142,18 @@ Example JWT token claim set:
   "icepeak": {
     "version": 1,
     "whitelist": [
-      {"prefix": ["foo"], "modes": ["read"]},
-      {"prefix": ["bar", "1"], "modes": ["read", "write"]}
+      { "prefix": ["foo"], "modes": ["read"] },
+      { "prefix": ["bar", "1"], "modes": ["read", "write"] }
     ]
   }
 }
 ```
 
 A request with this claim set may only:
- - Read paths that have `/foo` as a prefix.
- - Update paths that have `/bar/1` as a prefix.
-Any other request will result in a *401 Unauthorized* response.
+
+- Read paths that have `/foo` as a prefix.
+- Update paths that have `/bar/1` as a prefix.
+  Any other request will result in a _401 Unauthorized_ response.
 
 Generally, a claim contains a list of permissions which apply to the listed path
 itself and all sub-paths. A request is considered valid if there is at least one
@@ -220,7 +221,6 @@ Icepeak can provide usage metrics to Prometheus with the `--metrics HOST:PORT` c
 
 - `PORT` denotes the port number the metrics endpoint is listening on.
 
-
 ## Tests
 
 There are both unit and integration tests.
@@ -229,8 +229,7 @@ The unit tests for the server can be found in `server/tests`.
 They can be run with:
 
 ```
-cd server
-stack test
+cabal test -j all
 ```
 
 The integration tests can be found in `server/integration-tests`.
