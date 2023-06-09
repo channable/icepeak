@@ -1,7 +1,7 @@
 { lib, pkgs, mkDerivation
 
 # Core packages
-, hpack, nix-gitignore
+, nix-gitignore
 
 # Haskell packages
 , aeson, async, base, bytestring, clock, containers, directory, hashable, hspec
@@ -14,10 +14,6 @@
 mkDerivation {
   pname = "icepeak";
   version = "2.0.0";
-
-  # Opt in to hpack. We don't commit the cabal file in our repo currently.
-  buildTools = [ hpack ];
-  preConfigure = "hpack .";
 
   src = let
     # We do not want to include all files, because that leads to a lot of things
