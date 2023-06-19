@@ -1,0 +1,226 @@
+cabal-version: 1.12
+name:          icepeak
+-- Note: We follow the PVP here, required by Hackage
+version:       2.0.0.0
+synopsis:      A fast JSON document store with push notification support.
+description:
+  Icepeak is a fast JSON document store with push notification support.
+
+category:      web
+homepage:      https://github.com/channable/icepeak
+bug-reports:   https://github.com/channable/icepeak/issues
+author:        Channable
+maintainer:    rkrzr
+copyright:     (c) 2023, Channable
+license:       BSD3
+build-type:    Simple
+
+library
+  exposed-modules:
+    Icepeak.Server.AccessControl
+    Icepeak.Server.Config
+    Icepeak.Server.Core
+    Icepeak.Server.HTTPMethodInvalid
+    Icepeak.Server.HttpServer
+    Icepeak.Server.JwtAuth
+    Icepeak.Server.JwtMiddleware
+    Icepeak.Server.Logger
+    Icepeak.Server.Metrics
+    Icepeak.Server.MetricsServer
+    Icepeak.Server.Persistence
+    Icepeak.Server.SentryLogging
+    Icepeak.Server.Server
+    Icepeak.Server.Store
+    Icepeak.Server.Subscription
+    Icepeak.Server.WebsocketServer
+
+  other-modules:    Paths_icepeak
+  hs-source-dirs:   src
+  ghc-options:
+    -Wall -Wno-orphans -Wno-unused-top-binds -fno-ignore-asserts
+    -funbox-strict-fields
+
+  build-depends:
+      aeson                      >=1.4.6  && <2.1.0
+    , async                      >=2.2.2  && <2.3
+    , base                       >=4.15.0 && <4.18.0.0
+    , bytestring                 >=0.10.8 && <0.11.4.0.0
+    , clock                      >=0.8.3  && <0.9
+    , containers                 >=0.6.0  && <0.7
+    , directory                  >=1.3.3  && <1.4
+    , hashable                   >=1.2.0  && <1.4.2.0.0
+    , http-types                 >=0.12.3 && <0.13
+    , jwt                        >=0.10.0 && <0.12
+    , monad-logger               >=0.3.31 && <0.4
+    , mtl                        >=2.2.2  && <2.3
+    , network                    >=2.8.0  && <3.2
+    , optparse-applicative       >=0.16.0 && <0.17.0.0.0
+    , prometheus-client          >=1.0.0  && <1.2
+    , prometheus-metrics-ghc     >=1.0.0  && <1.1
+    , random                     >=1.1    && <1.3
+    , raven-haskell              >=0.1.2  && <0.2
+    , scotty                     >=0.11.5 && <0.13
+    , securemem                  >=0.1.10 && <0.2
+    , sqlite-simple              >=0.4.16 && <0.5
+    , stm                        >=2.5.0  && <2.6
+    , text                       >=1.2.3  && <1.3
+    , time                       >=1.8.0  && <1.12
+    , unix                       >=2.7.2  && <2.8
+    , unordered-containers       >=0.2.10 && <0.3
+    , uuid                       >=1.3.13 && <1.4
+    , wai                        >=3.2.2  && <3.3
+    , wai-extra                  >=3.0.29 && <3.2
+    , wai-middleware-prometheus  >=1.0.0  && <1.1
+    , wai-websockets             >=3.0.1  && <3.1
+    , warp                       >=3.3.0  && <3.4
+    , websockets                 >=0.12.7 && <0.13
+
+  default-language: Haskell2010
+
+executable icepeak
+  main-is:          Main.hs
+  other-modules:    Paths_icepeak
+  hs-source-dirs:   app/Icepeak
+  ghc-options:      -Wall -O2 -threaded -rtsopts "-with-rtsopts=-N -I0"
+  build-depends:
+      aeson                      >=1.4.6  && <2.1.0
+    , async                      >=2.2.2  && <2.3
+    , base                       >=4.15.0 && <4.18.0.0
+    , bytestring                 >=0.10.8 && <0.11.4.0.0
+    , clock                      >=0.8.3  && <0.9
+    , containers                 >=0.6.0  && <0.7
+    , directory                  >=1.3.3  && <1.4
+    , hashable                   >=1.2.0  && <1.4.2.0.0
+    , http-types                 >=0.12.3 && <0.13
+    , icepeak
+    , jwt                        >=0.10.0 && <0.12
+    , monad-logger               >=0.3.31 && <0.4
+    , mtl                        >=2.2.2  && <2.3
+    , network                    >=2.8.0  && <3.2
+    , optparse-applicative       >=0.16.0 && <0.17.0.0.0
+    , prometheus-client          >=1.0.0  && <1.2
+    , prometheus-metrics-ghc     >=1.0.0  && <1.1
+    , random                     >=1.1    && <1.3
+    , raven-haskell              >=0.1.2  && <0.2
+    , scotty                     >=0.11.5 && <0.13
+    , securemem                  >=0.1.10 && <0.2
+    , sqlite-simple              >=0.4.16 && <0.5
+    , stm                        >=2.5.0  && <2.6
+    , text                       >=1.2.3  && <1.3
+    , time                       >=1.8.0  && <1.12
+    , unix                       >=2.7.2  && <2.8
+    , unordered-containers       >=0.2.10 && <0.3
+    , uuid                       >=1.3.13 && <1.4
+    , wai                        >=3.2.2  && <3.3
+    , wai-extra                  >=3.0.29 && <3.2
+    , wai-middleware-prometheus  >=1.0.0  && <1.1
+    , wai-websockets             >=3.0.1  && <3.1
+    , warp                       >=3.3.0  && <3.4
+    , websockets                 >=0.12.7 && <0.13
+
+  default-language: Haskell2010
+
+executable icepeak-token-gen
+  main-is:          Main.hs
+  other-modules:    Paths_icepeak
+  hs-source-dirs:   app/IcepeakTokenGen
+  ghc-options:      -Wall
+  build-depends:
+      aeson                      >=1.4.6  && <2.1.0
+    , async                      >=2.2.2  && <2.3
+    , base                       >=4.15.0 && <4.18.0.0
+    , bytestring                 >=0.10.8 && <0.11.4.0.0
+    , clock                      >=0.8.3  && <0.9
+    , containers                 >=0.6.0  && <0.7
+    , directory                  >=1.3.3  && <1.4
+    , hashable                   >=1.2.0  && <1.4.2.0.0
+    , http-types                 >=0.12.3 && <0.13
+    , icepeak
+    , jwt                        >=0.10.0 && <0.12
+    , monad-logger               >=0.3.31 && <0.4
+    , mtl                        >=2.2.2  && <2.3
+    , network                    >=2.8.0  && <3.2
+    , optparse-applicative       >=0.16.0 && <0.17.0.0.0
+    , prometheus-client          >=1.0.0  && <1.2
+    , prometheus-metrics-ghc     >=1.0.0  && <1.1
+    , random                     >=1.1    && <1.3
+    , raven-haskell              >=0.1.2  && <0.2
+    , scotty                     >=0.11.5 && <0.13
+    , securemem                  >=0.1.10 && <0.2
+    , sqlite-simple              >=0.4.16 && <0.5
+    , stm                        >=2.5.0  && <2.6
+    , text                       >=1.2.3  && <1.3
+    , time                       >=1.8.0  && <1.12
+    , unix                       >=2.7.2  && <2.8
+    , unordered-containers       >=0.2.10 && <0.3
+    , uuid                       >=1.3.13 && <1.4
+    , wai                        >=3.2.2  && <3.3
+    , wai-extra                  >=3.0.29 && <3.2
+    , wai-middleware-prometheus  >=1.0.0  && <1.1
+    , wai-websockets             >=3.0.1  && <3.1
+    , warp                       >=3.3.0  && <3.4
+    , websockets                 >=0.12.7 && <0.13
+
+  default-language: Haskell2010
+
+test-suite spec
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  other-modules:
+    Icepeak.Server.AccessControlSpec
+    Icepeak.Server.ApiSpec
+    Icepeak.Server.CoreSpec
+    Icepeak.Server.JwtSpec
+    Icepeak.Server.PersistenceSpec
+    Icepeak.Server.RequestSpec
+    Icepeak.Server.SocketSpec
+    Icepeak.Server.StoreSpec
+    Icepeak.Server.SubscriptionTreeSpec
+    OrphanInstances
+    Paths_icepeak
+
+  hs-source-dirs:   tests
+  ghc-options:      -Wall -Wno-orphans
+  build-depends:
+      aeson                      >=1.4.6  && <2.1.0
+    , async                      >=2.2.2  && <2.3
+    , base                       >=4.15.0 && <4.18.0.0
+    , bytestring                 >=0.10.8 && <0.11.4.0.0
+    , clock                      >=0.8.3  && <0.9
+    , containers                 >=0.6.0  && <0.7
+    , directory                  >=1.3.3  && <1.4
+    , hashable                   >=1.2.0  && <1.4.2.0.0
+    , hspec
+    , hspec-core
+    , hspec-expectations
+    , hspec-wai
+    , http-types                 >=0.12.3 && <0.13
+    , icepeak
+    , jwt                        >=0.10.0 && <0.12
+    , monad-logger               >=0.3.31 && <0.4
+    , mtl                        >=2.2.2  && <2.3
+    , network                    >=2.8.0  && <3.2
+    , optparse-applicative       >=0.16.0 && <0.17.0.0.0
+    , prometheus-client          >=1.0.0  && <1.2
+    , prometheus-metrics-ghc     >=1.0.0  && <1.1
+    , QuickCheck
+    , quickcheck-instances
+    , random                     >=1.1    && <1.3
+    , raven-haskell              >=0.1.2  && <0.2
+    , scotty                     >=0.11.5 && <0.13
+    , securemem                  >=0.1.10 && <0.2
+    , sqlite-simple              >=0.4.16 && <0.5
+    , stm                        >=2.5.0  && <2.6
+    , text                       >=1.2.3  && <1.3
+    , time                       >=1.8.0  && <1.12
+    , unix                       >=2.7.2  && <2.8
+    , unordered-containers       >=0.2.10 && <0.3
+    , uuid                       >=1.3.13 && <1.4
+    , wai                        >=3.2.2  && <3.3
+    , wai-extra                  >=3.0.29 && <3.2
+    , wai-middleware-prometheus  >=1.0.0  && <1.1
+    , wai-websockets             >=3.0.1  && <3.1
+    , warp                       >=3.3.0  && <3.4
+    , websockets                 >=0.12.7 && <0.13
+
+  default-language: Haskell2010

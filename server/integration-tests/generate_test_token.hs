@@ -1,6 +1,9 @@
 #!/usr/bin/env stack
 -- stack --stack-yaml ../../server/stack.yaml runghc --package QuickCheck --package quickcheck-text --package icepeak
 
+-- FIXME: These scripts will either need to be dropped, or they should be moved
+--        into a proper Haskell binary
+
 {-# OPTIONS_GHC -Wall #-}
 
 {-# LANGUAGE OverloadedStrings #-}

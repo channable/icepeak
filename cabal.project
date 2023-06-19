@@ -1,0 +1,6 @@
+packages:
+  server/icepeak.cabal
+  client-haskell/icepeak-client.cabal
+
+package icepeak
+  optimization: 2

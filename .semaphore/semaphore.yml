@@ -8,47 +8,7 @@ agent:
     os_image: "ubuntu2004"
 
 blocks:
-  - name: "Run checks"
-    dependencies: []
-
-    task:
-      prologue:
-        commands:
-          - "checkout"
-
-          # Haskell requires libgmp for big integers.
-          - "sudo apt install libgmp-dev"
-
-          # Install Stack from source
-          - "mkdir -p ~/.local/bin"
-          - "export PATH=$HOME/.local/bin:$PATH"
-          - "wget https://github.com/commercialhaskell/stack/releases/download/v2.7.3/stack-2.7.3-linux-x86_64.tar.gz"
-          - "sha256sum --check .semaphore/install-stack.2.7.3.sha256"
-          - "cat stack-2.7.3-linux-x86_64.tar.gz | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'"
-
-          # restore stack cache
-          - "cache restore stack-"
-
-      jobs:
-        - name: "Run tests for client"
-          commands:
-            - "(cd client-haskell && stack setup -j2 --no-terminal)"
-            - "(cd client-haskell && stack build -j2 --no-terminal)"
-            - "(cd client-haskell && stack test  -j2 --no-terminal)"
-
-        - name: "Run tests for server"
-          commands:
-            - "(cd server && stack setup -j2 --no-terminal)"
-            - "(cd server && stack build -j2 --no-terminal)"
-            - "(cd server && stack test  -j2 --no-terminal)"
-
-      epilogue:
-        always:
-          commands:
-            # Store a copy of the stack installation folder
-            - "cache store stack-$(date -u -Idate) ~/.stack"
-
-  - name: "Build"
+  - name: "Build and test"
     dependencies: []
 
     task:
@@ -85,11 +45,11 @@ blocks:
       jobs:
         - name: "Build client"
           commands:
-            - "nix-build --no-out-link -E '(import ./nix/nixpkgs.nix {}).haskellPackages.callPackage ./client-haskell/client.nix {}'"
+            - "nix-build --no-out-link ./release.nix --attr icepeak-client"
 
         - name: "Build server"
           commands:
-            - "nix-build --no-out-link ./server/default.nix"
+            - "nix-build --no-out-link ./release.nix --attr icepeak"
 
       epilogue:
         always:
