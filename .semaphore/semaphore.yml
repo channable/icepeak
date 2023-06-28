@@ -45,7 +45,7 @@ blocks:
       jobs:
         - name: "Check frozen versions"
           commands:
-            - "nix develop -f default.nix cabal build --dry-run all"
+            - "nix develop -f default.nix -c cabal build --dry-run all"
 
         - name: "Build client"
           commands:
