@@ -43,6 +43,10 @@ blocks:
           - echo "max-jobs = auto" >> ~/.config/nix/nix.conf
 
       jobs:
+        - name: "Check frozen versions"
+          commands:
+            - "cabal build --dry-run all"
+
         - name: "Build client"
           commands:
             - "nix-build --no-out-link ./release.nix --attr icepeak-client"
