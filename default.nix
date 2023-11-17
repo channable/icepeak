@@ -13,6 +13,7 @@ let
       (pkgs.python310.withPackages (p: [ p.websockets p.requests ]))
 
       pkgs.haskellPackages.cabal-install
+      pkgs.haskellPackages.cabal-fmt
       pkgs.haskellPackages.channalu
       pkgs.haskellPackages.haskell-language-server
       pkgs.haskellPackages.implicit-hie
