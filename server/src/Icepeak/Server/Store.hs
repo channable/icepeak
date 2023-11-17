@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+
 module Icepeak.Server.Store
 (
   Modification (..),
@@ -15,7 +16,7 @@ module Icepeak.Server.Store
 )
 where
 
-import Data.Aeson (Value (..), (.=), (.:))
+import Data.Aeson (Value(..), (.=), (.:))
 import Data.Functor.Identity (runIdentity)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
@@ -25,6 +26,7 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.Aeson.Key as Key
+import Data.Foldable (fold)
 
 type Path = [Text]
 
@@ -34,16 +36,21 @@ data Modification
   | Delete Path
   deriving (Eq, Show)
 
-instance Aeson.ToJSON Modification where
-  toJSON (Put path value) = Aeson.object
+modificationToJSON :: (Aeson.KeyValue kv) => Modification -> [kv]
+modificationToJSON modification = case modification of
+  Put path value ->
     [ "op" .= ("put" :: Text)
     , "path" .= path
     , "value" .= value
     ]
-  toJSON (Delete path) = Aeson.object
+  Delete path ->
     [ "op" .= ("delete" :: Text)
     , "path" .= path
     ]
+
+instance Aeson.ToJSON Modification where
+  toJSON = Aeson.object . modificationToJSON
+  toEncoding = Aeson.pairs . fold . modificationToJSON
 
 instance Aeson.FromJSON Modification where
   parseJSON = Aeson.withObject "Modification" $ \v -> do
