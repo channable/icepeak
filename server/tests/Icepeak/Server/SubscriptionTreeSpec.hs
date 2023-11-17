@@ -3,6 +3,7 @@
 
 module Icepeak.Server.SubscriptionTreeSpec (spec) where
 
+import Data.List (sort)
 import Test.Hspec (Spec, describe, it, shouldBe)
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck.Instances ()
@@ -88,7 +89,7 @@ spec = do
         value_foo_bar = AE.Null
         value_baz = AE.object []
 
-        broadcast'' path = broadcast' path value root
+        broadcast'' path = sort (broadcast' path value root)
 
       it "notifies everyone on root updates" $ do
         broadcast'' []
