@@ -78,13 +78,14 @@ data Core = Core
 -- to communicate with them, at the moment, a simple `MVar` as a communication
 -- channel. This is a newtype in order for it to be extensible without
 -- rewriting all call sites.
-newtype SubscriberState = SubscriberState
+data SubscriberState
+  = SubscriberStateOld (MVar Value)
+  | SubscriberStateNew (MVar Value, MVar ())
   -- We don't need actual queues for subscribers because the only relevant value
   -- for them is the last one. Since we have one producer and one reader, we can
   -- rely on MVar as a simpler mechanism.
   -- We can expect from the subscribers to receive all the updates in the 
   -- absence of timeouts.
-  { subscriberData :: MVar Value }
 
 -- This structure keeps track of all subscribers. We use one SubscriberState per
 -- subscriber.
@@ -94,7 +95,7 @@ newServerState :: ServerState
 newServerState = empty
 
 newSubscriberState :: IO SubscriberState
-newSubscriberState = SubscriberState <$> newEmptyMVar
+newSubscriberState = SubscriberStateOld <$> newEmptyMVar
 
 -- | Try to initialize the core. This loads the database and sets up the internal data structures.
 newCore :: Config -> Logger -> Maybe Metrics.IcepeakMetrics -> IO (Either String Core)

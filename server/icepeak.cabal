@@ -33,6 +33,8 @@ library
     Icepeak.Server.Store
     Icepeak.Server.Subscription
     Icepeak.Server.WebsocketServer
+    Icepeak.Server.WebsocketServer.HandleClientSingleSubscription
+    Icepeak.Server.WebsocketServer.HandleClientMultiSubscription
 
   other-modules:    Paths_icepeak
   hs-source-dirs:   src
