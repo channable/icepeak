@@ -38,8 +38,8 @@ import Icepeak.Server.Core (Core (..), ServerState, SubscriberState (..), Update
 import Icepeak.Server.AccessControl (AccessMode(..))
 import Icepeak.Server.JwtMiddleware (AuthResult (..), isRequestAuthorized, errorResponseBody)
 
-import qualified Icepeak.Server.WebsocketServer.HandleClientSingleSubscription as HandleClientSingleSub
-import qualified Icepeak.Server.WebsocketServer.HandleClientMultiSubscription as HandleClientMultiSub
+import qualified Icepeak.Server.WebsocketServer.SingleSubscription as SingleSubscription
+import qualified Icepeak.Server.WebsocketServer.MultiSubscription as MultiSubscription
 
 import qualified Icepeak.Server.Metrics as Metrics
 import qualified Icepeak.Server.Subscription as Subscription
@@ -147,7 +147,7 @@ acceptConnection core wsOptions pending = do
       -- closed connections. Sends a ping message every 30 seconds.
       -- Note: The thread dies silently if the connection crashes or is closed.
       withInterruptiblePingThread connection pingInterval onPing
-        $ HandleClientSingleSub.handleClient connection path core
+        $ SingleSubscription.handleClient connection path core
 
 -- * Authorization
 

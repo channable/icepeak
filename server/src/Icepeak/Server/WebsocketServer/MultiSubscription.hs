@@ -1,4 +1,4 @@
-module Icepeak.Server.WebsocketServer.HandleClientMultiSubscription where
+module Icepeak.Server.WebsocketServer.MultiSubscription (handleClient) where
 
 import Control.Concurrent (modifyMVar_, newEmptyMVar)
 import Control.Concurrent.Async (withAsync)
