@@ -13,22 +13,19 @@ module Icepeak.Server.WebsocketServer (
   processUpdates
 ) where
 
-import Control.Concurrent (modifyMVar_, readMVar, threadDelay)
-import Control.Concurrent.Async (race_, withAsync)
-import Control.Concurrent.MVar (MVar, putMVar, takeMVar, tryTakeMVar)
+import Control.Concurrent (readMVar, threadDelay, tryPutMVar)
+import Control.Concurrent.Async (race_)
+import Control.Concurrent.MVar (MVar, putMVar, tryTakeMVar)
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TBQueue (readTBQueue)
-import Control.Exception (AsyncException, SomeAsyncException, SomeException, catch, finally, fromException, handle, throwIO)
-import Control.Monad (forever, unless, void, when)
+import Control.Exception (AsyncException, fromException, handle, throwIO)
+import Control.Monad (unless, void, when)
 import Data.Aeson (Value)
 import Data.Foldable (for_)
 import Data.IORef (IORef, atomicWriteIORef, readIORef, newIORef)
 import Data.Text (Text)
-import Data.UUID
 import System.Clock (Clock (Monotonic), TimeSpec (..), getTime)
-import System.Random (randomIO)
 
-import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text as T
 import qualified Data.Time.Clock.POSIX as Clock
@@ -37,10 +34,12 @@ import qualified Network.HTTP.Types.URI as Uri
 import qualified Network.WebSockets as WS
 
 import Icepeak.Server.Config (Config (..))
-import Icepeak.Server.Core (Core (..), ServerState, SubscriberState (..), Updated (..), getCurrentValue, withCoreMetrics, newSubscriberState)
-import Icepeak.Server.Store (Path)
+import Icepeak.Server.Core (Core (..), ServerState, SubscriberState (..), Updated (..))
 import Icepeak.Server.AccessControl (AccessMode(..))
 import Icepeak.Server.JwtMiddleware (AuthResult (..), isRequestAuthorized, errorResponseBody)
+
+import qualified Icepeak.Server.WebsocketServer.HandleClientSingleSubscription as HandleClientSingleSub
+import qualified Icepeak.Server.WebsocketServer.HandleClientMultiSubscription as HandleClientMultiSub
 
 import qualified Icepeak.Server.Metrics as Metrics
 import qualified Icepeak.Server.Subscription as Subscription
@@ -84,9 +83,6 @@ mkWSServerOptions = do
   lastPongTime <- getTime Monotonic
   WSServerOptions <$> newIORef lastPongTime
 
-newUUID :: IO UUID
-newUUID = randomIO
-
 -- send the updated data to all subscribers to the path
 broadcast :: Core -> [Text] -> Value -> ServerState -> IO ()
 broadcast core =
@@ -100,10 +96,32 @@ broadcast core =
       mbQueue <- tryTakeMVar queue
       -- If the MVar has not yet been read by the subscriber thread, it means
       -- that the update has been skipped.
-      when (isJust mbQueue) $ for_ (coreMetrics core) Metrics.incrementWsSkippedUpdates
+      Control.Monad.when (isJust mbQueue) $ for_ (coreMetrics core) Metrics.incrementWsSkippedUpdates
       putMVar queue val
-  in
-    Subscription.broadcast (writeToSub . subscriberData)
+
+    modifySubscriberState (SubscriberStateOld subscriberState) newValue =
+      writeToSub subscriberState newValue
+    modifySubscriberState (SubscriberStateNew (subscriberState, isDirtyMVar)) newValue =
+      do writeToSub subscriberState newValue
+         Control.Monad.void $ tryPutMVar isDirtyMVar ()
+
+  in Subscription.broadcast modifySubscriberState
+
+-- loop that is called for every update and that broadcasts the values to all
+-- subscribers of the updated path
+processUpdates :: Core -> IO ()
+processUpdates core = go
+  where
+    go = do
+      maybeUpdate <- atomically $ readTBQueue (coreUpdates core)
+      for_ (coreMetrics core) Metrics.incrementWsQueueRemoved
+      case maybeUpdate of
+        Just (Updated path value) -> do
+          clients <- readMVar (coreClients core)
+          broadcast core path value clients
+          go
+        -- Stop the loop when we receive a Nothing.
+        Nothing -> pure ()
 
 -- Called for each new client that connects.
 acceptConnection :: Core -> WSServerOptions -> WS.PendingConnection -> IO ()
@@ -128,7 +146,8 @@ acceptConnection core wsOptions pending = do
       -- Fork a pinging thread, for each client, to keep idle connections open and to detect
       -- closed connections. Sends a ping message every 30 seconds.
       -- Note: The thread dies silently if the connection crashes or is closed.
-      withInterruptiblePingThread connection pingInterval onPing $ handleClient connection path core
+      withInterruptiblePingThread connection pingInterval onPing
+        $ HandleClientSingleSub.handleClient connection path core
 
 -- * Authorization
 
@@ -142,88 +161,6 @@ authorizePendingConnection core conn
       return $ isRequestAuthorized headers query now (configJwtSecret (coreConfig core)) path ModeRead
   | otherwise = pure AuthAccepted
 
--- * Client handling
-
-handleClient :: WS.Connection -> Path -> Core -> IO ()
-handleClient conn path core = do
-  uuid <- newUUID
-  subscriberState <- newSubscriberState
-  let
-    state = coreClients core
-    onConnect = do
-      modifyMVar_ state (pure . Subscription.subscribe path uuid subscriberState)
-      withCoreMetrics core Metrics.incrementSubscribers
-    onDisconnect = do
-      modifyMVar_ state (pure . Subscription.unsubscribe path uuid)
-      withCoreMetrics core Metrics.decrementSubscribers
-    sendInitialValue = do
-      currentValue <- getCurrentValue core path
-      WS.sendTextData conn (Aeson.encode currentValue)
-    -- For each connection, we want to spawn a client thread with an associated
-    -- queue, in order to manage subscribers. `withAsync` acts as `forkIO` in this
-    -- context, with the assurance the child thread is killed when the parent is.
-    manageConnection = withAsync (updateThread conn subscriberState)
-                                 (const $ keepTalking conn)
-
-    -- Simply ignore connection errors, otherwise, Warp handles the exception
-    -- and sends a 500 response in the middle of a WebSocket connection, and
-    -- that violates the WebSocket protocol.
-    -- Note that subscribers are still properly removed by the finally below.
-    handleConnectionError :: WS.ConnectionException -> IO ()
-    handleConnectionError _ = pure ()
-  -- Put the client in the subscription tree and keep the connection open.
-  -- Remove it when the connection is closed.
-  finally (onConnect >> sendInitialValue >> manageConnection) onDisconnect
-    `catch` handleConnectionError
-
--- This function handles sending the updates to subscribers.
-updateThread :: WS.Connection -> SubscriberState -> IO ()
-updateThread conn state =
-  let
-    send :: Value -> IO ()
-    send value =
-      WS.sendTextData conn (Aeson.encode value)
-      `catch`
-      sendFailed
-
-    sendFailed :: SomeException -> IO ()
-    sendFailed exc
-      -- Rethrow async exceptions, they are meant for inter-thread communication
-      -- (e.g. ThreadKilled) and we don't expect them at this point.
-      | Just asyncExc <- fromException exc = throwIO (asyncExc :: SomeAsyncException)
-      -- We want to catch all other errors in order to prevent them from
-      -- bubbling up and disrupting the broadcasts to other clients.
-      | otherwise = pure ()
-  in forever $ do
-      value <- takeMVar $ subscriberData state
-      send value
-
--- We don't send any messages here; sending is done by the update
--- loop; it finds the client in the set of subscriptions. But we do
--- need to keep the thread running, otherwise the connection will be
--- closed. So we go into an infinite loop here.
-keepTalking :: WS.Connection -> IO ()
-keepTalking conn = forever $ do
-    -- Note: WS.receiveDataMessage will handle control messages automatically and e.g.
-    -- do the closing handshake of the websocket protocol correctly
-    WS.receiveDataMessage conn
-
--- loop that is called for every update and that broadcasts the values to all
--- subscribers of the updated path
-processUpdates :: Core -> IO ()
-processUpdates core = go
-  where
-    go = do
-      maybeUpdate <- atomically $ readTBQueue (coreUpdates core)
-      for_ (coreMetrics core) Metrics.incrementWsQueueRemoved
-      case maybeUpdate of
-        Just (Updated path value) -> do
-          clients <- readMVar (coreClients core)
-          broadcast core path value clients
-          go
-        -- Stop the loop when we receive a Nothing.
-        Nothing -> pure ()
-
 -- * Timeout handling
 --
 -- The websockets library lets you send pings, but it has no built in way to
@@ -236,7 +173,7 @@ processUpdates core = go
 -- last pong was received so 'pingHandler' can terminate the connection if the
 -- client stops sending pongs back.
 pongHandler :: WSServerOptions -> IO ()
-pongHandler (WSServerOptions lastPongTime) = getTime Monotonic >>= void . atomicWriteIORef lastPongTime
+pongHandler (WSServerOptions lastPongTime) = getTime Monotonic >>= Control.Monad.void . atomicWriteIORef lastPongTime
 
 -- | An action passed to 'withInterruptiblePingThread' that is used together with
 -- 'pongHandler' to terminate a WebSocket connection if the client stops sending
@@ -291,7 +228,7 @@ interruptiblePingThread conn pingInterval pingAction = ignore `handle` go 1
       -- returns a boolean, and we'll terminate this thread when that action
       -- returns true
       hasTimedOut <- pingAction
-      unless hasTimedOut $ go (i + 1)
+      Control.Monad.unless hasTimedOut $ go (i + 1)
 
     -- The rest of this function is exactly the same as the 'pingThread' in
     -- @websockets-0.12.7.3@
