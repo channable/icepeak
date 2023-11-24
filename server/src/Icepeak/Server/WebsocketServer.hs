@@ -96,14 +96,14 @@ broadcast core =
       mbQueue <- tryTakeMVar queue
       -- If the MVar has not yet been read by the subscriber thread, it means
       -- that the update has been skipped.
-      Control.Monad.when (isJust mbQueue) $ for_ (coreMetrics core) Metrics.incrementWsSkippedUpdates
+      when (isJust mbQueue) $ for_ (coreMetrics core) Metrics.incrementWsSkippedUpdates
       putMVar queue val
 
     modifySubscriberState (SubscriberStateOld subscriberState) newValue =
       writeToSub subscriberState newValue
     modifySubscriberState (SubscriberStateNew (subscriberState, isDirtyMVar)) newValue =
       do writeToSub subscriberState newValue
-         Control.Monad.void $ tryPutMVar isDirtyMVar ()
+         void $ tryPutMVar isDirtyMVar ()
 
   in Subscription.broadcast modifySubscriberState
 
@@ -173,7 +173,7 @@ authorizePendingConnection core conn
 -- last pong was received so 'pingHandler' can terminate the connection if the
 -- client stops sending pongs back.
 pongHandler :: WSServerOptions -> IO ()
-pongHandler (WSServerOptions lastPongTime) = getTime Monotonic >>= Control.Monad.void . atomicWriteIORef lastPongTime
+pongHandler (WSServerOptions lastPongTime) = getTime Monotonic >>= void . atomicWriteIORef lastPongTime
 
 -- | An action passed to 'withInterruptiblePingThread' that is used together with
 -- 'pongHandler' to terminate a WebSocket connection if the client stops sending
@@ -228,7 +228,7 @@ interruptiblePingThread conn pingInterval pingAction = ignore `handle` go 1
       -- returns a boolean, and we'll terminate this thread when that action
       -- returns true
       hasTimedOut <- pingAction
-      Control.Monad.unless hasTimedOut $ go (i + 1)
+      unless hasTimedOut $ go (i + 1)
 
     -- The rest of this function is exactly the same as the 'pingThread' in
     -- @websockets-0.12.7.3@
