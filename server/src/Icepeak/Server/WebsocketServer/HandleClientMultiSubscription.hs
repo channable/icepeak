@@ -28,16 +28,28 @@ import qualified Icepeak.Server.Subscription as Subscription
 newUUID :: IO UUID
 newUUID = randomIO
 
-data ParsedClientPayload
+data ClientPayload
   = Subscribe   { subscribePath :: [Text], token :: Text }
   | UnSubscribe { unsubscribePath :: [Text] }
-  | UnRecognisedPayload LBS.ByteString
 
-instance WS.WebSocketsData ParsedClientPayload where
-  fromDataMessage = undefined
-  fromLazyByteString = undefined
-  toLazyByteString = undefined
+instance Aeson.FromJSON ClientPayload where
+  parseJSON = undefined
 
+data ClientPayloadParsed
+  = ClientPayloadSuccessfulParse ClientPayload
+  | ClientPayloadFailedParse
+
+clientPayloadFromByteString :: LBS.ByteString -> ClientPayloadParsed
+clientPayloadFromByteString byteString = 
+  case Aeson.eitherDecode byteString of
+      (Left _jsonDecodeError) -> ClientPayloadFailedParse
+      (Right clientPayload)   -> ClientPayloadSuccessfulParse clientPayload
+
+clientPayloadFromDataMessage :: WS.DataMessage -> ClientPayloadParsed
+clientPayloadFromDataMessage (WS.Text encodedUtf8ByteString _mbDecodedCache) =
+  clientPayloadFromByteString encodedUtf8ByteString
+clientPayloadFromDataMessage (WS.Binary _) = ClientPayloadFailedParse
+  
 authorisePathSubscription :: [Text] -> Text -> IO Bool
 authorisePathSubscription = undefined
 
@@ -60,8 +72,9 @@ handleClient conn core = do
           (pure . Subscription.unsubscribe path uuid))
       withCoreMetrics core Metrics.decrementSubscribers
 
-    onPayload (Subscribe newPath pathToken) = do
+    onPayload (ClientPayloadSuccessfulParse (Subscribe newPath pathToken)) = do
       isAuthorised <- authorisePathSubscription newPath pathToken
+
       case isAuthorised of
         False -> undefined
         True -> do
@@ -69,15 +82,16 @@ handleClient conn core = do
           modifyMVar_ subscribedPathsMVar
             (pure . HashMap.insert newPath pathValueMVar)
           modifyMVar_ serverStateMVar
-            (pure . Subscription.subscribe newPath uuid (SubscriberStateNew (pathValueMVar, isDirtyMVar)))
+            (pure . Subscription.subscribe newPath uuid
+              (SubscriberStateNew (pathValueMVar, isDirtyMVar)))
 
-    onPayload (UnSubscribe unsubPath) = do
+    onPayload (ClientPayloadSuccessfulParse (UnSubscribe unsubPath)) = do
       modifyMVar_ serverStateMVar
         (pure . Subscription.unsubscribe unsubPath uuid)
       modifyMVar_ subscribedPathsMVar
         (pure . HashMap.delete unsubPath)
 
-    onPayload (UnRecognisedPayload _) = pure ()
+    onPayload ClientPayloadFailedParse = pure ()
 
     takeMVarNewValues = do
       takeMVar isDirtyMVar
@@ -86,7 +100,10 @@ handleClient conn core = do
 
     manageConnection = withAsync
       (updateThread conn takeMVarNewValues)
-      (const $ forever $ WS.receiveData conn >>= onPayload)
+      (const $ forever
+        $ WS.receiveDataMessage conn
+        >>= (pure . clientPayloadFromDataMessage)
+        >>= onPayload)
 
     -- Simply ignore connection errors, otherwise, Warp handles the exception
     -- and sends a 500 response in the middle of a WebSocket connection, and
