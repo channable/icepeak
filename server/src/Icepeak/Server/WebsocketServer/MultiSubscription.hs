@@ -2,9 +2,9 @@ module Icepeak.Server.WebsocketServer.MultiSubscription (handleClient) where
 
 import Control.Concurrent (modifyMVar_, newEmptyMVar)
 import Control.Concurrent.Async (withAsync)
-import Control.Concurrent.MVar (MVar, takeMVar, tryTakeMVar, newMVar, readMVar)
+import Control.Concurrent.MVar (MVar, takeMVar, tryTakeMVar, newMVar, readMVar, tryPutMVar)
 import Control.Exception (SomeAsyncException, SomeException, catch, finally, fromException, throwIO)
-import Control.Monad (forever)
+import Control.Monad (forever, void)
 import Data.Aeson (Value)
 import Data.Foldable (for_)
 import Data.Maybe (catMaybes)
@@ -19,7 +19,7 @@ import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LBS
 import qualified Network.WebSockets as WS
 
-import Icepeak.Server.Core (Core, coreClients, withCoreMetrics, SubscriberState (SubscriberStateNew))
+import Icepeak.Server.Core (Core, coreClients, withCoreMetrics)
 import qualified Icepeak.Server.Metrics as Metrics
 import qualified Icepeak.Server.Subscription as Subscription
 
@@ -83,7 +83,9 @@ handleClient conn core = do
             (pure . HashMap.insert newPath pathValueMVar)
           modifyMVar_ serverStateMVar
             (pure . Subscription.subscribe newPath uuid
-              (SubscriberStateNew (pathValueMVar, isDirtyMVar)))
+              (\writeToSub newValue -> do
+                  writeToSub pathValueMVar newValue
+                  void $ tryPutMVar isDirtyMVar ()))
 
     onPayload (ClientPayloadSuccessfulParse (UnSubscribe unsubPath)) = do
       modifyMVar_ serverStateMVar

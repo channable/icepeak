@@ -13,7 +13,7 @@ import qualified Data.Aeson as Aeson
 import qualified Network.WebSockets as WS
 
 import Icepeak.Server.Store (Path)
-import Icepeak.Server.Core (Core, coreClients, withCoreMetrics, SubscriberState (SubscriberStateOld), getCurrentValue)
+import Icepeak.Server.Core (Core, coreClients, withCoreMetrics, getCurrentValue)
 import qualified Icepeak.Server.Metrics as Metrics
 import qualified Icepeak.Server.Subscription as Subscription
 
@@ -25,11 +25,13 @@ newUUID = randomIO
 handleClient :: WS.Connection -> Path -> Core -> IO ()
 handleClient conn path core = do
   uuid <- newUUID
-  subscriberState <- newEmptyMVar
+  pathCurentValueMVar <- newEmptyMVar
   let
     state = coreClients core
     onConnect = do
-      modifyMVar_ state (pure . Subscription.subscribe path uuid (SubscriberStateOld subscriberState))
+      modifyMVar_ state
+        (pure . Subscription.subscribe path uuid 
+         (\writeToSub -> writeToSub pathCurentValueMVar))
       withCoreMetrics core Metrics.incrementSubscribers
     onDisconnect = do
       modifyMVar_ state (pure . Subscription.unsubscribe path uuid)
@@ -40,7 +42,7 @@ handleClient conn path core = do
     -- For each connection, we want to spawn a client thread with an associated
     -- queue, in order to manage subscribers. `withAsync` acts as `forkIO` in this
     -- context, with the assurance the child thread is killed when the parent is.
-    manageConnection = withAsync (updateThread conn subscriberState)
+    manageConnection = withAsync (updateThread conn pathCurentValueMVar)
                                  (const $ keepTalking conn)
 
     -- Simply ignore connection errors, otherwise, Warp handles the exception

@@ -13,7 +13,7 @@ module Icepeak.Server.WebsocketServer (
   processUpdates
 ) where
 
-import Control.Concurrent (readMVar, threadDelay, tryPutMVar)
+import Control.Concurrent (readMVar, threadDelay)
 import Control.Concurrent.Async (race_)
 import Control.Concurrent.MVar (MVar, putMVar, tryTakeMVar)
 import Control.Concurrent.STM (atomically)
@@ -34,7 +34,7 @@ import qualified Network.HTTP.Types.URI as Uri
 import qualified Network.WebSockets as WS
 
 import Icepeak.Server.Config (Config (..))
-import Icepeak.Server.Core (Core (..), ServerState, SubscriberState (..), Updated (..))
+import Icepeak.Server.Core (Core (..), ServerState, Updated (..))
 import Icepeak.Server.AccessControl (AccessMode(..))
 import Icepeak.Server.JwtMiddleware (AuthResult (..), isRequestAuthorized, errorResponseBody)
 
@@ -99,11 +99,7 @@ broadcast core =
       when (isJust mbQueue) $ for_ (coreMetrics core) Metrics.incrementWsSkippedUpdates
       putMVar queue val
 
-    modifySubscriberState (SubscriberStateOld subscriberState) newValue =
-      writeToSub subscriberState newValue
-    modifySubscriberState (SubscriberStateNew (subscriberState, isDirtyMVar)) newValue =
-      do writeToSub subscriberState newValue
-         void $ tryPutMVar isDirtyMVar ()
+    modifySubscriberState subUpdateCallback = subUpdateCallback writeToSub
 
   in Subscription.broadcast modifySubscriberState
 
