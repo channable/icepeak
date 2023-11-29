@@ -1,3 +1,7 @@
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE NumericUnderscores #-}
+{-# LANGUAGE TypeApplications #-}
+
 module Icepeak.Server.WebsocketServer.MultiSubscription (handleClient) where
 
 import Control.Concurrent (modifyMVar_, newEmptyMVar)
@@ -5,18 +9,27 @@ import Control.Concurrent.Async (withAsync)
 import Control.Concurrent.MVar (MVar, takeMVar, tryTakeMVar, newMVar, readMVar, tryPutMVar)
 import Control.Exception (SomeAsyncException, SomeException, catch, finally, fromException, throwIO)
 import Control.Monad (forever, void)
-import Data.Aeson (Value)
 import Data.Foldable (for_)
 import Data.Maybe (catMaybes)
 import Data.Text (Text)
+import qualified Data.Text as Text
+
 import Data.UUID (UUID)
 import System.Random (randomIO)
+
+import Data.Bifunctor
 
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 
+import Data.Aeson (Value)
 import qualified Data.Aeson as Aeson
-import qualified Data.ByteString.Lazy as LBS
+import qualified Data.Aeson.Types as Aeson
+import Data.Aeson ((.:))
+
+import qualified Data.ByteString.Lazy.Internal as LBS
+import qualified Data.ByteString as BS
+
 import qualified Network.WebSockets as WS
 
 import Icepeak.Server.Core (Core, coreClients, withCoreMetrics)
@@ -29,27 +42,98 @@ newUUID :: IO UUID
 newUUID = randomIO
 
 data ClientPayload
-  = Subscribe   { subscribePath :: [Text], token :: Text }
-  | UnSubscribe { unsubscribePath :: [Text] }
+  = Subscribe   { subscribePaths :: [Text], token :: Text }
+  | UnSubscribe { unsubscribePaths :: [Text] }
 
-instance Aeson.FromJSON ClientPayload where
-  parseJSON = undefined
+-- ** Parsing the Payload
 
-data ClientPayloadParsed
-  = ClientPayloadSuccessfulParse ClientPayload
-  | ClientPayloadFailedParse
+data PayloadType = SubscribeType | UnsubscribeType
 
-clientPayloadFromByteString :: LBS.ByteString -> ClientPayloadParsed
-clientPayloadFromByteString byteString = 
-  case Aeson.eitherDecode byteString of
-      (Left _jsonDecodeError) -> ClientPayloadFailedParse
-      (Right clientPayload)   -> ClientPayloadSuccessfulParse clientPayload
+instance Aeson.FromJSON PayloadType where
+  parseJSON (Aeson.String "subscribe") = pure SubscribeType
+  parseJSON (Aeson.String "unsubscribe") = pure UnsubscribeType
+  parseJSON _ = fail "Expecting 'type' to be either 'subscribe' or 'unsubscribe'"
 
-clientPayloadFromDataMessage :: WS.DataMessage -> ClientPayloadParsed
-clientPayloadFromDataMessage (WS.Text encodedUtf8ByteString _mbDecodedCache) =
-  clientPayloadFromByteString encodedUtf8ByteString
-clientPayloadFromDataMessage (WS.Binary _) = ClientPayloadFailedParse
-  
+data ClientPayloadMalformed
+  = PayloadSizeOutOfBounds
+  | UnexpectedBinaryPayload
+
+  | JsonDecodeError Text
+  | PayloadNotAnObject
+  | InvalidType Text
+
+  | SubscribePathsMissingOrMalformed Text
+  | SubscribeTokenMissing Text
+  | SubscribeTokenNotAString Text
+
+  | UnsubscribePathsMissingOrMalformed Text
+
+data BoundedBS
+  = WithinBounds LBS.ByteString
+  | OutOfBounds
+
+checkBounds :: Int -> LBS.ByteString -> BoundedBS
+checkBounds maxSize lazyBS = isOutOfBoundsAcc lazyBS 0
+  where
+    isOutOfBoundsAcc LBS.Empty _ = WithinBounds lazyBS
+    isOutOfBoundsAcc (LBS.Chunk chunk rest) accSize =
+      let accSize' = accSize + BS.length chunk in
+        if accSize' > maxSize then OutOfBounds
+        else isOutOfBoundsAcc rest accSize'
+
+maxPayloadBytes :: Int
+maxPayloadBytes = 1_000_000
+
+clientPayloadFromDataMessage
+  :: WS.DataMessage
+  -> Either ClientPayloadMalformed ClientPayload
+clientPayloadFromDataMessage (WS.Text encodedUtf8ByteString _)
+  = case checkBounds maxPayloadBytes encodedUtf8ByteString of
+      OutOfBounds -> Left PayloadSizeOutOfBounds
+      (WithinBounds boundedBytesString) ->
+        parseClientPayload boundedBytesString
+
+clientPayloadFromDataMessage (WS.Binary _)
+  = Left UnexpectedBinaryPayload
+
+parseClientPayload
+  :: LBS.ByteString
+  -> Either ClientPayloadMalformed ClientPayload
+
+parseClientPayload clientPayloadByteString = do
+  let
+    parseEither :: Aeson.Parser a -> Either String a
+    parseEither parser = Aeson.parseEither (const parser) ()
+
+    mapError = flip first
+
+    mapErrorAeson (Aeson.Error str) f = Left $ f str
+    mapErrorAeson (Aeson.Success val) _ = Right val
+
+  clientPayloadAeson <- Aeson.eitherDecode @Value clientPayloadByteString
+                        `mapError` (JsonDecodeError . Text.pack)
+  case clientPayloadAeson of
+    (Aeson.Object clientPayloadObject) -> do
+      payloadType <- parseEither @PayloadType (clientPayloadObject .: "type")
+                     `mapError` (InvalidType . Text.pack)
+      case payloadType of
+        SubscribeType -> do
+          pathsParsed <- parseEither @[Text] (clientPayloadObject .: "paths")
+                         `mapError` (SubscribePathsMissingOrMalformed . Text.pack)
+          tokenValue <- parseEither @Value (clientPayloadObject .: "token")
+                         `mapError` (SubscribeTokenMissing . Text.pack)
+          tokenParsed <- Aeson.fromJSON @Text tokenValue
+                         `mapErrorAeson` (SubscribeTokenNotAString . Text.pack)
+          pure $ Subscribe pathsParsed tokenParsed
+
+        UnsubscribeType -> do
+          parsedPaths <- parseEither @[Text] (clientPayloadObject .: "paths")
+                         `mapError` (UnsubscribePathsMissingOrMalformed . Text.pack)
+          pure $ UnSubscribe parsedPaths
+    _ -> Left PayloadNotAnObject
+
+
+
 authorisePathSubscription :: [Text] -> Text -> IO Bool
 authorisePathSubscription = undefined
 
@@ -72,7 +156,7 @@ handleClient conn core = do
           (pure . Subscription.unsubscribe path uuid))
       withCoreMetrics core Metrics.decrementSubscribers
 
-    onPayload (ClientPayloadSuccessfulParse (Subscribe newPath pathToken)) = do
+    onPayload (Right (Subscribe newPath pathToken)) = do
       isAuthorised <- authorisePathSubscription newPath pathToken
 
       case isAuthorised of
@@ -87,13 +171,13 @@ handleClient conn core = do
                   writeToSub pathValueMVar newValue
                   void $ tryPutMVar isDirtyMVar ()))
 
-    onPayload (ClientPayloadSuccessfulParse (UnSubscribe unsubPath)) = do
+    onPayload (Right (UnSubscribe unsubPath)) = do
       modifyMVar_ serverStateMVar
         (pure . Subscription.unsubscribe unsubPath uuid)
       modifyMVar_ subscribedPathsMVar
         (pure . HashMap.delete unsubPath)
 
-    onPayload ClientPayloadFailedParse = pure ()
+    onPayload (Left invalidPayload) = pure ()
 
     takeMVarNewValues = do
       takeMVar isDirtyMVar
@@ -104,7 +188,7 @@ handleClient conn core = do
       (updateThread conn takeMVarNewValues)
       (const $ forever
         $ WS.receiveDataMessage conn
-        >>= (pure . clientPayloadFromDataMessage)
+        >>= pure . clientPayloadFromDataMessage
         >>= onPayload)
 
     -- Simply ignore connection errors, otherwise, Warp handles the exception
