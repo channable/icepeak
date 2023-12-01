@@ -8,7 +8,7 @@ import Control.Concurrent (modifyMVar_, newEmptyMVar)
 import Control.Concurrent.Async (withAsync)
 import Control.Concurrent.MVar (MVar, takeMVar, tryTakeMVar, newMVar, readMVar, tryPutMVar)
 import Control.Exception (SomeAsyncException, SomeException, catch, finally, fromException, throwIO)
-import Control.Monad (forever, void)
+import Control.Monad (forever, void, forM)
 import Data.Foldable (for_)
 import Data.Maybe (catMaybes)
 import Data.Text (Text)
@@ -19,22 +19,35 @@ import System.Random (randomIO)
 
 import Data.Bifunctor
 
+import Data.Functor
+
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 
-import Data.Aeson (Value)
+import Data.Aeson (Value, (.=))
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
-import Data.Aeson ((.:))
+import Data.Aeson ((.:), (.:?))
 
 import qualified Data.ByteString.Lazy.Internal as LBS
 import qualified Data.ByteString as BS
 
 import qualified Network.WebSockets as WS
 
-import Icepeak.Server.Core (Core, coreClients, withCoreMetrics)
+import qualified Icepeak.Server.Config as Config
+import Icepeak.Server.Config (Config)
+
+import qualified Icepeak.Server.Core as Core
+import Icepeak.Server.Core (Core)
+
 import qualified Icepeak.Server.Metrics as Metrics
 import qualified Icepeak.Server.Subscription as Subscription
+import Network.WebSockets (sendDataMessage)
+import Icepeak.Server.Store (Path)
+import Icepeak.Server.JwtAuth (extractClaim)
+import qualified Icepeak.Server.AccessControl as Access
+import qualified Data.Time.Clock.POSIX as Clock
+import qualified Data.Text.Encoding as Text
 
 -- * Client handling
 
@@ -42,7 +55,7 @@ newUUID :: IO UUID
 newUUID = randomIO
 
 data ClientPayload
-  = Subscribe   { subscribePaths :: [Text], token :: Text }
+  = Subscribe   { subscribePaths :: [Text], token :: Maybe Text }
   | UnSubscribe { unsubscribePaths :: [Text] }
 
 -- ** Parsing the Payload
@@ -60,10 +73,9 @@ data ClientPayloadMalformed
 
   | JsonDecodeError Text
   | PayloadNotAnObject
-  | InvalidType Text
+  | UnexpectedType Text
 
   | SubscribePathsMissingOrMalformed Text
-  | SubscribeTokenMissing Text
   | SubscribeTokenNotAString Text
 
   | UnsubscribePathsMissingOrMalformed Text
@@ -84,17 +96,17 @@ checkBounds maxSize lazyBS = isOutOfBoundsAcc lazyBS 0
 maxPayloadBytes :: Int
 maxPayloadBytes = 1_000_000
 
-clientPayloadFromDataMessage
+fromDataMessage
   :: WS.DataMessage
   -> Either ClientPayloadMalformed ClientPayload
-clientPayloadFromDataMessage (WS.Text encodedUtf8ByteString _)
+fromDataMessage (WS.Text encodedUtf8ByteString _)
   = case checkBounds maxPayloadBytes encodedUtf8ByteString of
       OutOfBounds -> Left PayloadSizeOutOfBounds
       (WithinBounds boundedBytesString) ->
         parseClientPayload boundedBytesString
-
-clientPayloadFromDataMessage (WS.Binary _)
+fromDataMessage (WS.Binary _)
   = Left UnexpectedBinaryPayload
+  
 
 parseClientPayload
   :: LBS.ByteString
@@ -106,91 +118,173 @@ parseClientPayload clientPayloadByteString = do
     parseEither parser = Aeson.parseEither (const parser) ()
 
     mapError = flip first
-
-    mapErrorAeson (Aeson.Error str) f = Left $ f str
-    mapErrorAeson (Aeson.Success val) _ = Right val
-
+    
   clientPayloadAeson <- Aeson.eitherDecode @Value clientPayloadByteString
                         `mapError` (JsonDecodeError . Text.pack)
   case clientPayloadAeson of
     (Aeson.Object clientPayloadObject) -> do
       payloadType <- parseEither @PayloadType (clientPayloadObject .: "type")
-                     `mapError` (InvalidType . Text.pack)
+                     `mapError` (UnexpectedType . Text.pack)
       case payloadType of
         SubscribeType -> do
+
           pathsParsed <- parseEither @[Text] (clientPayloadObject .: "paths")
                          `mapError` (SubscribePathsMissingOrMalformed . Text.pack)
-          tokenValue <- parseEither @Value (clientPayloadObject .: "token")
-                         `mapError` (SubscribeTokenMissing . Text.pack)
-          tokenParsed <- Aeson.fromJSON @Text tokenValue
-                         `mapErrorAeson` (SubscribeTokenNotAString . Text.pack)
-          pure $ Subscribe pathsParsed tokenParsed
+          mbToken <- parseEither @(Maybe Text) (clientPayloadObject .:? "token")
+                         `mapError` (SubscribeTokenNotAString . Text.pack)
+          pure $ Subscribe pathsParsed mbToken
 
         UnsubscribeType -> do
           parsedPaths <- parseEither @[Text] (clientPayloadObject .: "paths")
                          `mapError` (UnsubscribePathsMissingOrMalformed . Text.pack)
           pure $ UnSubscribe parsedPaths
+          
     _ -> Left PayloadNotAnObject
 
 
+-- ** Sending Response Payloads
 
-authorisePathSubscription :: [Text] -> Text -> IO Bool
-authorisePathSubscription = undefined
+-- sendDataMessage  :: Connection -> DataMessage   -> IO () -- probably this one
+
+data SubscribeResponse
+  = SubscribeResponseSuccess
+  | SubscribeResponseFailure
+
+data UnsubscribeResponse
+  = UnubscribeResponseSuccess
+  | UnubscribeResponseFailure
+
+data Client = Client
+  { clientConn :: WS.Connection
+  , clientUuid :: UUID
+  , clientCore :: Core
+  , clientIsDirty :: MVar ()
+  , clientSubscriptions :: MVar (HashMap Path (MVar Value))
+  }
+
+onPayload
+  :: Client
+  -> Either ClientPayloadMalformed ClientPayload
+  -> IO ()
+onPayload client (Right (Subscribe paths mbToken)) = do
+  let
+    core = clientCore client
+    subscriptions = clientSubscriptions client
+    conn = clientConn client
+    isDirty = clientIsDirty client
+    uuid = clientUuid client
+
+    coreClients = Core.coreClients core
+           
+    coreConfig = Core.coreConfig core
+    jwtEnabled = Config.configEnableJwtAuth coreConfig
+    jwtSecret = Config.configJwtSecret coreConfig
+    
+    segmentedPaths = Text.splitOn "/" <$> paths :: [Path]
+
+    doSubscribe :: IO ()
+    doSubscribe = do
+      
+      pathsWithCurrentValue <- forM segmentedPaths $
+        \path -> do
+          valueAtPath <- Core.getCurrentValue core path
+          pure (Text.intercalate "/" path, valueAtPath)
+      
+      WS.sendTextData conn
+        $ Aeson.encode
+        $ Aeson.object
+        [ "type"  .= ("subscription" :: Text)
+        , "paths" .=
+          (pathsWithCurrentValue <&>
+            \(path, value) ->
+              Aeson.object [ "path" .= path, "value" .= value ])
+        ]
+
+      for_ segmentedPaths $ \newPath -> do
+        pathValueMVar <- newEmptyMVar
+        
+        modifyMVar_ subscriptions
+          (pure . HashMap.insert newPath pathValueMVar)
+          
+        modifyMVar_ coreClients
+          (pure . Subscription.subscribe newPath uuid
+            (\writeToSub newValue -> do
+                writeToSub pathValueMVar newValue
+                void $ tryPutMVar isDirty ()))
+  
+  case (jwtEnabled, jwtSecret, mbToken) of
+    (True, Just secret, Nothing) -> _
+    (True, Just secret, Just tokenBS) -> do
+      now <- Clock.getPOSIXTime
+      case extractClaim now secret (Text.encodeUtf8 tokenBS) of
+        Left tokenError -> _
+        Right authenticatedIcePeakClaim -> do
+          let pathIsAuth = segmentedPaths <&>
+                (\path -> Access.isAuthorizedByClaim
+                              authenticatedIcePeakClaim
+                              path Access.ModeRead)
+              allAuth = and pathIsAuth
+          if allAuth then doSubscribe
+            else _
+            
+    _ -> doSubscribe
+
+onPayload client (Right (UnSubscribe paths)) = do
+  pure ()  
+
+    --   modifyMVar_ serverStateMVar
+    --     (pure . Subscription.unsubscribe unsubPath uuid)
+    --   modifyMVar_ subscribedPathsMVar
+    --     (pure . HashMap.delete unsubPath)
+
+onPayload client (Left malformedPayload) = do
+  pure ()
+
+
+onMessage :: Client -> IO ()
+onMessage client = do
+  dataMessage <- WS.receiveDataMessage (clientConn client)
+  onPayload client (fromDataMessage dataMessage)
+
+onConnect :: Client -> IO ()
+onConnect client =
+  Core.withCoreMetrics (clientCore client) Metrics.incrementSubscribers
+
+onDisconnect :: Client -> IO ()
+onDisconnect client = do
+  let
+    core = clientCore client
+    subscriptions = clientSubscriptions client
+    uuid = clientUuid client
+    
+  paths <-  HashMap.keys <$> takeMVar subscriptions
+  for_ paths
+    (\path -> modifyMVar_ (Core.coreClients core)
+      (pure . Subscription.unsubscribe path uuid))
+    
+  Core.withCoreMetrics core Metrics.decrementSubscribers
 
 handleClient :: WS.Connection -> Core -> IO ()
 handleClient conn core = do
-  uuid <- newUUID
-
-  isDirtyMVar <- newMVar ()
-  subscribedPathsMVar <- newMVar (HashMap.empty :: HashMap [Text] (MVar Value))
+  uuid          <- newUUID
+  isDirty       <- newMVar ()
+  subscriptions <- newMVar (HashMap.empty :: HashMap [Text] (MVar Value))
 
   let
-    serverStateMVar = coreClients core
-
-    onConnect = withCoreMetrics core Metrics.incrementSubscribers
-
-    onDisconnect = do
-      paths <-  HashMap.keys <$> takeMVar subscribedPathsMVar
-      for_ paths
-        (\path -> modifyMVar_ serverStateMVar
-          (pure . Subscription.unsubscribe path uuid))
-      withCoreMetrics core Metrics.decrementSubscribers
-
-    onPayload (Right (Subscribe newPath pathToken)) = do
-      isAuthorised <- authorisePathSubscription newPath pathToken
-
-      case isAuthorised of
-        False -> undefined
-        True -> do
-          pathValueMVar <- newEmptyMVar
-          modifyMVar_ subscribedPathsMVar
-            (pure . HashMap.insert newPath pathValueMVar)
-          modifyMVar_ serverStateMVar
-            (pure . Subscription.subscribe newPath uuid
-              (\writeToSub newValue -> do
-                  writeToSub pathValueMVar newValue
-                  void $ tryPutMVar isDirtyMVar ()))
-
-    onPayload (Right (UnSubscribe unsubPath)) = do
-      modifyMVar_ serverStateMVar
-        (pure . Subscription.unsubscribe unsubPath uuid)
-      modifyMVar_ subscribedPathsMVar
-        (pure . HashMap.delete unsubPath)
-
-    onPayload (Left invalidPayload) = pure ()
-
-    takeMVarNewValues = do
-      takeMVar isDirtyMVar
-      valueMVars <- HashMap.elems <$> readMVar subscribedPathsMVar
-      catMaybes <$> mapM tryTakeMVar valueMVars
-
+    client = Client
+      { clientConn = conn
+      , clientUuid = uuid
+      , clientCore = core
+      , clientIsDirty = isDirty
+      , clientSubscriptions = subscriptions
+      }
+    
     manageConnection = withAsync
-      (updateThread conn takeMVarNewValues)
-      (const $ forever
-        $ WS.receiveDataMessage conn
-        >>= pure . clientPayloadFromDataMessage
-        >>= onPayload)
-
+      (updateThread client)
+      (const $ forever $ do
+          dataMessage <- WS.receiveDataMessage conn
+          onPayload client (fromDataMessage dataMessage))
+ 
     -- Simply ignore connection errors, otherwise, Warp handles the exception
     -- and sends a 500 response in the middle of a WebSocket connection, and
     -- that violates the WebSocket protocol.
@@ -199,19 +293,27 @@ handleClient conn core = do
     handleConnectionError _ = pure ()
   -- Put the client in the subscription tree and keep the connection open.
   -- Remove it when the connection is closed.
-  finally (onConnect >> manageConnection) onDisconnect
+  finally (onConnect client >> manageConnection) (onDisconnect client)
     `catch` handleConnectionError
 
 
--- This function handles sending the updates to subscribers.
-updateThread :: WS.Connection -> IO [Value] -> IO ()
-updateThread conn takeMVarNewValues =
+takeMVarUpdatedValues :: Client -> IO [Value]
+takeMVarUpdatedValues client = do
   let
+    isDirty = clientIsDirty client
+    subscriptions = clientSubscriptions client
+  takeMVar isDirty
+  valueMVars <- HashMap.elems <$> readMVar subscriptions
+  catMaybes <$> mapM tryTakeMVar valueMVars
+
+-- This function handles sending the updates to subscribers.
+updateThread :: Client -> IO ()
+updateThread client =
+  let
+    conn = clientConn client
+    
     send :: Value -> IO ()
-    send value =
-      WS.sendTextData conn (Aeson.encode value)
-      `catch`
-      sendFailed
+    send value = WS.sendTextData conn (Aeson.encode value) `catch` sendFailed
 
     sendFailed :: SomeException -> IO ()
     sendFailed exc
@@ -221,6 +323,7 @@ updateThread conn takeMVarNewValues =
       -- We want to catch all other errors in order to prevent them from
       -- bubbling up and disrupting the broadcasts to other clients.
       | otherwise = pure ()
+      
   in forever $ do
-      value <- takeMVarNewValues
-      mapM send value
+    value <- takeMVarUpdatedValues client
+    mapM send value
