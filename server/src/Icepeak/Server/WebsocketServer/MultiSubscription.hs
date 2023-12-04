@@ -144,16 +144,6 @@ parseClientPayload clientPayloadByteString = do
 
 -- ** Sending Response Payloads
 
--- sendDataMessage  :: Connection -> DataMessage   -> IO () -- probably this one
-
-data SubscribeResponse
-  = SubscribeResponseSuccess
-  | SubscribeResponseFailure
-
-data UnsubscribeResponse
-  = UnubscribeResponseSuccess
-  | UnubscribeResponseFailure
-
 data Client = Client
   { clientConn :: WS.Connection
   , clientUuid :: UUID
