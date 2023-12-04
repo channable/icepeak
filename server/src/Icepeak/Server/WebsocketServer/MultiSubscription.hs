@@ -168,13 +168,8 @@ onPayload
   -> IO ()
 onPayload client (Right (Subscribe paths mbToken)) = do
   let
-    core = clientCore client
-    subscriptions = clientSubscriptions client
     conn = clientConn client
-    isDirty = clientIsDirty client
-    uuid = clientUuid client
-
-    coreClients = Core.coreClients core
+    core = clientCore client
            
     coreConfig = Core.coreConfig core
     jwtEnabled = Config.configEnableJwtAuth coreConfig
@@ -184,6 +179,12 @@ onPayload client (Right (Subscribe paths mbToken)) = do
 
     doSubscribe :: IO ()
     doSubscribe = do
+      let
+        uuid          = clientUuid client
+        isDirty       = clientIsDirty client
+        subscriptions = clientSubscriptions client
+        
+        coreClients = Core.coreClients core
       
       pathsWithCurrentValue <- forM segmentedPaths $
         \path -> do
@@ -194,6 +195,10 @@ onPayload client (Right (Subscribe paths mbToken)) = do
         $ Aeson.encode
         $ Aeson.object
         [ "type"  .= ("subscription" :: Text)
+        , "status" .= Aeson.object
+          [ "code" .= (200 :: Int)
+          , "message" .= ("You've been successfully subscribed to the paths" :: Text)
+          , "extra" .= Aeson.object [] ]
         , "paths" .=
           (pathsWithCurrentValue <&>
             \(path, value) ->
@@ -213,21 +218,57 @@ onPayload client (Right (Subscribe paths mbToken)) = do
                 void $ tryPutMVar isDirty ()))
   
   case (jwtEnabled, jwtSecret, mbToken) of
-    (True, Just secret, Nothing) -> _
     (True, Just secret, Just tokenBS) -> do
       now <- Clock.getPOSIXTime
       case extractClaim now secret (Text.encodeUtf8 tokenBS) of
-        Left tokenError -> _
+        Left tokenError -> do -- 403  | Authorization token was rejected / malformed |
+          WS.sendTextData conn
+            $ Aeson.encode
+            $ Aeson.object
+            [ "type"  .= ("subscription" :: Text)
+            , "status" .= Aeson.object
+              [ "code" .= (403 :: Int)
+              , "message" .= ("Error while extracting claim from JWT" :: Text)
+              , "extra" .= Text.pack (show tokenError) ]
+            , "paths" .=  (segmentedPaths <&> \path -> Aeson.object [ "path" .= path ])
+            ]
+        
         Right authenticatedIcePeakClaim -> do
-          let pathIsAuth = segmentedPaths <&>
-                (\path -> Access.isAuthorizedByClaim
+          let pathsIsAuth = segmentedPaths <&>
+                (\path -> (path, Access.isAuthorizedByClaim
                               authenticatedIcePeakClaim
-                              path Access.ModeRead)
-              allAuth = and pathIsAuth
+                              path Access.ModeRead))
+              allAuth = and $ snd <$> pathsIsAuth
           if allAuth then doSubscribe
-            else _
+            else do -- 403  | Authorization token was rejected / malformed |
+            WS.sendTextData conn
+              $ Aeson.encode
+              $ Aeson.object
+              [ "type"  .= ("subscription" :: Text)
+              , "status" .= Aeson.object
+                [ "code" .= (403 :: Int)
+                , "message" .= ("Some paths are not authorised by the provided JWT claim" :: Text)
+                , "extra" .= Aeson.object [ "unauthorisedPaths" .= (snd <$> filter (not . snd) pathsIsAuth) ]
+                ]
+              , "paths" .=  (segmentedPaths <&> \path -> Aeson.object [ "path" .= path ])
+              ]
             
-    _ -> doSubscribe
+    (True , Just _secret, Nothing) -> do -- 401  | No authorization token provided
+      WS.sendTextData conn
+        $ Aeson.encode
+        $ Aeson.object
+        [ "type"  .= ("subscription" :: Text)
+        , "status" .= Aeson.object
+          [ "code" .= (401 :: Int)
+          , "message" .= ("No authorisation token provided" :: Text)
+          , "extra" .= Aeson.object [ ]
+          ]
+        , "paths" .=  (segmentedPaths <&> \path -> Aeson.object [ "path" .= path ])
+        ]
+    
+    (False, Just _ , _)  -> doSubscribe -- Footgun?
+    (True , Nothing, _)  -> doSubscribe -- Footgun?
+    (False, Nothing, _)  -> doSubscribe
 
 onPayload client (Right (UnSubscribe paths)) = do
   pure ()  
