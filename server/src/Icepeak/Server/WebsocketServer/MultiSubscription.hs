@@ -42,7 +42,6 @@ import Icepeak.Server.Core (Core)
 
 import qualified Icepeak.Server.Metrics as Metrics
 import qualified Icepeak.Server.Subscription as Subscription
-import Network.WebSockets (sendDataMessage)
 import Icepeak.Server.Store (Path)
 import Icepeak.Server.JwtAuth (extractClaim)
 import qualified Icepeak.Server.AccessControl as Access
@@ -79,6 +78,7 @@ data ClientPayloadMalformed
   | SubscribeTokenNotAString Text
 
   | UnsubscribePathsMissingOrMalformed Text
+  deriving Show
 
 data BoundedBS
   = WithinBounds LBS.ByteString
@@ -229,8 +229,9 @@ onPayload client (Right (Subscribe paths mbToken)) = do
             , "status" .= Aeson.object
               [ "code" .= (403 :: Int)
               , "message" .= ("Error while extracting claim from JWT" :: Text)
-              , "extra" .= Text.pack (show tokenError) ]
-            , "paths" .=  (segmentedPaths <&> \path -> Aeson.object [ "path" .= path ])
+              , "extra" .= Text.pack (show tokenError)
+              ]
+            , "paths" .=  (paths <&> \path -> Aeson.object [ "path" .= path ])
             ]
         
         Right authenticatedIcePeakClaim -> do
@@ -263,7 +264,7 @@ onPayload client (Right (Subscribe paths mbToken)) = do
           , "message" .= ("No authorisation token provided" :: Text)
           , "extra" .= Aeson.object [ ]
           ]
-        , "paths" .=  (segmentedPaths <&> \path -> Aeson.object [ "path" .= path ])
+        , "paths" .=  (paths <&> \path -> Aeson.object [ "path" .= path ])
         ]
     
     (False, Just _ , _)  -> doSubscribe -- Footgun?
@@ -271,15 +272,102 @@ onPayload client (Right (Subscribe paths mbToken)) = do
     (False, Nothing, _)  -> doSubscribe
 
 onPayload client (Right (UnSubscribe paths)) = do
-  pure ()  
+  let
+    conn = clientConn client
+    core = clientCore client
+    
+    segmentedPaths = Text.splitOn "/" <$> paths :: [Path]
 
-    --   modifyMVar_ serverStateMVar
-    --     (pure . Subscription.unsubscribe unsubPath uuid)
-    --   modifyMVar_ subscribedPathsMVar
-    --     (pure . HashMap.delete unsubPath)
+    uuid          = clientUuid client
+    subscriptions = clientSubscriptions client
+        
+    coreClients = Core.coreClients core
+                      
+  for_ segmentedPaths $ \path -> do
+    modifyMVar_ coreClients
+      (pure . Subscription.unsubscribe path uuid)
+      
+    modifyMVar_ subscriptions
+      (pure . HashMap.delete path)
+
+  WS.sendTextData conn
+    $ Aeson.encode
+    $ Aeson.object
+    [ "type"  .= ("unsubscribe" :: Text)
+    , "paths" .=  paths
+    , "status" .= Aeson.object
+          [ "code" .= (200 :: Int)
+          , "message" .= ("You've been successfully subscribed to the paths" :: Text)
+          , "extra" .= Aeson.object [ ]
+          ]
+    ]
+
 
 onPayload client (Left malformedPayload) = do
-  pure ()
+  let
+    conn = clientConn client
+    
+    closeConnection :: Text -> IO ()
+    closeConnection message = do
+      -- NOTE:
+      -- This will issue a control message to the peer.
+      -- The connection will stay alive, and we will be expecting the peer to eventually respond with a close
+      -- control message of its own, which will case receiveDataMessage to throw a CloseRequest exception.
+      WS.sendClose conn message
+
+    respondMalformedSubscribe :: Text -> IO ()
+    respondMalformedSubscribe message = do
+      WS.sendTextData conn
+        $ Aeson.encode
+        $ Aeson.object
+        [ "type"  .= ("subscribe" :: Text)
+        , "status" .= Aeson.object
+          [ "code" .= (400 :: Int)
+          , "message" .= ("Subscribe request payload is malformed" :: Text)
+          , "extra" .= message
+          ]
+        ]
+
+    respondMalformedUnsubscribe :: Text -> IO ()
+    respondMalformedUnsubscribe message = do
+      WS.sendTextData conn
+        $ Aeson.encode
+        $ Aeson.object
+        [ "type"  .= ("unsubscribe" :: Text)
+        , "status" .= Aeson.object
+          [ "code" .= (400 :: Int)
+          , "message" .= ("Unsubscribe request payload is malformed" :: Text)
+          , "extra" .= message
+          ]
+        ]
+    
+  case malformedPayload of
+    PayloadSizeOutOfBounds
+      -> closeConnection
+         "Received a payload size that is out of bounds"
+    UnexpectedBinaryPayload
+      -> closeConnection
+         "Received a payload using binary data instead of Text"
+    JsonDecodeError decodeError
+      -> closeConnection
+         $ "Received a payload that resulted in a JSON decode error: " <> decodeError
+    PayloadNotAnObject
+      -> closeConnection
+         "Received a JSON payload which is not an object"
+    UnexpectedType unexpectedType
+      -> closeConnection
+         $ "Received a payload of an unexpected 'type': " <> unexpectedType
+    
+    SubscribePathsMissingOrMalformed pathsParseError
+      -> respondMalformedSubscribe
+         $ "Subscribe paths are missing or malformed: " <> pathsParseError
+    SubscribeTokenNotAString tokenParseError
+      -> respondMalformedSubscribe
+         $ "Subscribe token is not a string: " <> tokenParseError
+    
+    UnsubscribePathsMissingOrMalformed pathsParseError
+      -> respondMalformedUnsubscribe
+         $ "Unsubscribe paths are missing or malformed: " <> pathsParseError
 
 
 onMessage :: Client -> IO ()
