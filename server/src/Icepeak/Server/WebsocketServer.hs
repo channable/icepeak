@@ -28,6 +28,7 @@ import System.Clock (Clock (Monotonic), TimeSpec (..), getTime)
 
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 import qualified Data.Time.Clock.POSIX as Clock
 import qualified Network.HTTP.Types.Header as HttpHeader
 import qualified Network.HTTP.Types.URI as Uri
@@ -45,6 +46,7 @@ import qualified Icepeak.Server.Metrics as Metrics
 import qualified Icepeak.Server.Subscription as Subscription
 import Data.Maybe (isJust)
 import System.Timeout (timeout)
+import qualified GHC.IO.Encoding as Text
 
 -- | 'WS.ServerApp' parameterized over the last received pong timestamp. See
 -- 'WSServerOptions'.
@@ -134,7 +136,7 @@ acceptConnection core wsOptions pending = do
         , WS.rejectBody = LBS.toStrict $ errorResponseBody err
         }
     AuthAccepted -> do
-      let path = fst $ Uri.decodePath $ WS.requestPath $ WS.pendingRequest pending
+      let (path, queryParams) = Uri.decodePath $ WS.requestPath $ WS.pendingRequest pending
           config = coreConfig core
           pingInterval = configWebSocketPingInterval config
           onPing = pingHandler config wsOptions
@@ -142,8 +144,21 @@ acceptConnection core wsOptions pending = do
       -- Fork a pinging thread, for each client, to keep idle connections open and to detect
       -- closed connections. Sends a ping message every 30 seconds.
       -- Note: The thread dies silently if the connection crashes or is closed.
-      withInterruptiblePingThread connection pingInterval onPing
-        $ SingleSubscription.handleClient connection path core
+      
+      let runHandleClient = withInterruptiblePingThread connection pingInterval onPing
+      case lookup "method" queryParams of
+        Nothing -> runHandleClient
+          $ SingleSubscription.handleClient connection path core
+        Just (Just "reusable") -> runHandleClient
+          $ MultiSubscription.handleClient connection core
+        Just _ ->
+          WS.rejectRequestWith pending $ WS.RejectRequest
+          { WS.rejectCode = 400
+          , WS.rejectMessage = "Unrecognised query parameter value"
+          , WS.rejectHeaders = [(HttpHeader.hContentType, "text/plain")]
+          , WS.rejectBody = "Invalid 'method' query parameter value, expecting 'reusable'"
+          }
+
 
 -- * Authorization
 
