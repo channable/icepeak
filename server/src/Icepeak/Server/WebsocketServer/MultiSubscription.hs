@@ -47,6 +47,7 @@ import Icepeak.Server.JwtAuth (extractClaim)
 import qualified Icepeak.Server.AccessControl as Access
 import qualified Data.Time.Clock.POSIX as Clock
 import qualified Data.Text.Encoding as Text
+import System.Posix (BaudRate(B2400))
 
 -- * Client handling
 
@@ -106,7 +107,7 @@ fromDataMessage (WS.Text encodedUtf8ByteString _)
         parseClientPayload boundedBytesString
 fromDataMessage (WS.Binary _)
   = Left UnexpectedBinaryPayload
-  
+
 
 parseClientPayload
   :: LBS.ByteString
@@ -118,7 +119,7 @@ parseClientPayload clientPayloadByteString = do
     parseEither parser = Aeson.parseEither (const parser) ()
 
     mapError = flip first
-    
+
   clientPayloadAeson <- Aeson.eitherDecode @Value clientPayloadByteString
                         `mapError` (JsonDecodeError . Text.pack)
   case clientPayloadAeson of
@@ -138,7 +139,7 @@ parseClientPayload clientPayloadByteString = do
           parsedPaths <- parseEither @[Text] (clientPayloadObject .: "paths")
                          `mapError` (UnsubscribePathsMissingOrMalformed . Text.pack)
           pure $ UnSubscribe parsedPaths
-          
+
     _ -> Left PayloadNotAnObject
 
 
@@ -152,6 +153,89 @@ data Client = Client
   , clientSubscriptions :: MVar (HashMap Path (MVar Value))
   }
 
+data SubscribeResponse
+  = SubscribeSuccess
+    { subscribePathsValues :: [(Text, Maybe Value)] }
+  | SubscribeFailure
+    { subscribeFailureStatusCode :: Int
+    , subscribeFailureMessage :: Text
+    , subscribeFailurePaths :: Maybe [Text]
+    , subscribeFailureExtraData :: Maybe Value
+    }
+
+instance Aeson.ToJSON SubscribeResponse where
+  toJSON (SubscribeSuccess pathsValues) =
+    Aeson.object
+    [ "type"  .= ("subscribe" :: Text)
+    , "status" .= Aeson.object
+      [ "code" .= (200 :: Int)
+      , "message" .= ("You've been successfully subscribed to the paths" :: Text)
+      , "extra" .= Aeson.object [] ]
+    , "paths" .=
+      (pathsValues <&>
+        \(path, value) ->
+          Aeson.object [ "path" .= path, "value" .= value ])
+    ]
+
+  toJSON (SubscribeFailure code message mbPaths extra) =
+    Aeson.object $ baseKeyValues <> addonKeyValues
+    where
+      baseKeyValues :: [ Aeson.Pair ]
+      baseKeyValues =
+        [ "type"  .= ("subscribe" :: Text)
+        , "status" .= Aeson.object
+          [ "code" .= (code :: Int)
+          , "message" .= (message :: Text)
+          , "extra" .= extra
+          ]
+        ]
+
+      addonKeyValues :: [ Aeson.Pair ]
+      addonKeyValues =
+        case mbPaths of
+          Just paths -> [ "paths" .= paths ]
+          Nothing  -> []
+
+data UnsubscribeResponse
+  = UnsubscribeSuccess { unsubscribeSuccessPaths :: [Text] }
+  | UnsubscribeFailure
+    { unsubscribeFailureStatusCode :: Int
+    , unsubscribeFailureMessage :: Text
+    , unsubscribeFailurePaths :: Maybe [Text]
+    , unsubscribeFailureExtraData :: Maybe Value
+    }
+
+instance Aeson.ToJSON UnsubscribeResponse where
+  toJSON (UnsubscribeSuccess paths) =
+    Aeson.object
+    [ "type"  .= ("unsubscribe" :: Text)
+    , "paths" .= paths
+    , "status" .= Aeson.object
+      [ "code" .= (200 :: Int)
+      , "message" .= ("You've been successfully unsubscribed from the paths" :: Text)
+      , "extra" .= Aeson.object [] ]
+    , "paths" .=  (paths <&> \path -> Aeson.object [ "path" .= path ])
+    ]
+
+  toJSON (UnsubscribeFailure code message mbPaths extraData) =
+    Aeson.object $ baseKeyValues <> addonKeyValues
+    where
+      baseKeyValues :: [ Aeson.Pair ]
+      baseKeyValues =
+        [ "type"  .= ("unsubscribe" :: Text)
+        , "status" .= Aeson.object
+          [ "code" .= (code :: Int)
+          , "message" .= (message :: Text)
+          , "extra" .= extraData
+          ]
+        ]
+
+      addonKeyValues :: [ Aeson.Pair ]
+      addonKeyValues =
+        case mbPaths of
+          Just paths -> [ "paths" .= paths ]
+          Nothing  -> []
+
 onPayload
   :: Client
   -> Either ClientPayloadMalformed ClientPayload
@@ -160,11 +244,11 @@ onPayload client (Right (Subscribe paths mbToken)) = do
   let
     conn = clientConn client
     core = clientCore client
-           
+
     coreConfig = Core.coreConfig core
     jwtEnabled = Config.configEnableJwtAuth coreConfig
     jwtSecret = Config.configJwtSecret coreConfig
-    
+
     segmentedPaths = Text.splitOn "/" <$> paths :: [Path]
 
     doSubscribe :: IO ()
@@ -173,40 +257,31 @@ onPayload client (Right (Subscribe paths mbToken)) = do
         uuid          = clientUuid client
         isDirty       = clientIsDirty client
         subscriptions = clientSubscriptions client
-        
+
         coreClients = Core.coreClients core
-      
+
       pathsWithCurrentValue <- forM segmentedPaths $
         \path -> do
           valueAtPath <- Core.getCurrentValue core path
           pure (Text.intercalate "/" path, valueAtPath)
-      
+
       WS.sendTextData conn
         $ Aeson.encode
-        $ Aeson.object
-        [ "type"  .= ("subscription" :: Text)
-        , "status" .= Aeson.object
-          [ "code" .= (200 :: Int)
-          , "message" .= ("You've been successfully subscribed to the paths" :: Text)
-          , "extra" .= Aeson.object [] ]
-        , "paths" .=
-          (pathsWithCurrentValue <&>
-            \(path, value) ->
-              Aeson.object [ "path" .= path, "value" .= value ])
-        ]
+        $ SubscribeSuccess
+        { subscribePathsValues = pathsWithCurrentValue }
 
       for_ segmentedPaths $ \newPath -> do
         pathValueMVar <- newEmptyMVar
-        
+
         modifyMVar_ subscriptions
           (pure . HashMap.insert newPath pathValueMVar)
-          
+
         modifyMVar_ coreClients
           (pure . Subscription.subscribe newPath uuid
             (\writeToSub newValue -> do
                 writeToSub pathValueMVar newValue
                 void $ tryPutMVar isDirty ()))
-  
+
   case (jwtEnabled, jwtSecret, mbToken) of
     (True, Just secret, Just tokenBS) -> do
       now <- Clock.getPOSIXTime
@@ -214,16 +289,12 @@ onPayload client (Right (Subscribe paths mbToken)) = do
         Left tokenError -> do -- 403  | Authorization token was rejected / malformed |
           WS.sendTextData conn
             $ Aeson.encode
-            $ Aeson.object
-            [ "type"  .= ("subscription" :: Text)
-            , "status" .= Aeson.object
-              [ "code" .= (403 :: Int)
-              , "message" .= ("Error while extracting claim from JWT" :: Text)
-              , "extra" .= Text.pack (show tokenError)
-              ]
-            , "paths" .=  (paths <&> \path -> Aeson.object [ "path" .= path ])
-            ]
-        
+            $ SubscribeFailure
+            { subscribeFailureStatusCode = 403
+            , subscribeFailureMessage = "Error while extracting claim from JWT: " <> Text.pack (show tokenError)
+            , subscribeFailureExtraData = Nothing
+            , subscribeFailurePaths = Just paths }
+
         Right authenticatedIcePeakClaim -> do
           let pathsIsAuth = segmentedPaths <&>
                 (\path -> (path, Access.isAuthorizedByClaim
@@ -234,29 +305,23 @@ onPayload client (Right (Subscribe paths mbToken)) = do
             else do -- 403  | Authorization token was rejected / malformed |
             WS.sendTextData conn
               $ Aeson.encode
-              $ Aeson.object
-              [ "type"  .= ("subscription" :: Text)
-              , "status" .= Aeson.object
-                [ "code" .= (403 :: Int)
-                , "message" .= ("Some paths are not authorised by the provided JWT claim" :: Text)
-                , "extra" .= Aeson.object [ "unauthorisedPaths" .= (snd <$> filter (not . snd) pathsIsAuth) ]
-                ]
-              , "paths" .=  (segmentedPaths <&> \path -> Aeson.object [ "path" .= path ])
-              ]
-            
+              $ SubscribeFailure
+              { subscribeFailureStatusCode = 403
+              , subscribeFailureMessage = "Some paths are not authorised by the provided JWT claim"
+              , subscribeFailureExtraData = Just
+                $ Aeson.object [ "unauthorisedPaths" .= (snd <$> filter (not . snd) pathsIsAuth) ]
+              , subscribeFailurePaths = Just paths }
+
     (True , Just _secret, Nothing) -> do -- 401  | No authorization token provided
       WS.sendTextData conn
         $ Aeson.encode
-        $ Aeson.object
-        [ "type"  .= ("subscription" :: Text)
-        , "status" .= Aeson.object
-          [ "code" .= (401 :: Int)
-          , "message" .= ("No authorisation token provided" :: Text)
-          , "extra" .= Aeson.object [ ]
-          ]
-        , "paths" .=  (paths <&> \path -> Aeson.object [ "path" .= path ])
-        ]
-    
+        $ SubscribeFailure
+        { subscribeFailureStatusCode = 401
+        , subscribeFailureMessage = "No authorisation token provided"
+        , subscribeFailureExtraData = Nothing
+        , subscribeFailurePaths = Just paths }
+
+
     (False, Just _ , _)  -> doSubscribe -- Footgun?
     (True , Nothing, _)  -> doSubscribe -- Footgun?
     (False, Nothing, _)  -> doSubscribe
@@ -265,38 +330,29 @@ onPayload client (Right (UnSubscribe paths)) = do
   let
     conn = clientConn client
     core = clientCore client
-    
+
     segmentedPaths = Text.splitOn "/" <$> paths :: [Path]
 
     uuid          = clientUuid client
     subscriptions = clientSubscriptions client
-        
+
     coreClients = Core.coreClients core
-                      
+
   for_ segmentedPaths $ \path -> do
     modifyMVar_ coreClients
       (pure . Subscription.unsubscribe path uuid)
-      
+
     modifyMVar_ subscriptions
       (pure . HashMap.delete path)
 
   WS.sendTextData conn
     $ Aeson.encode
-    $ Aeson.object
-    [ "type"  .= ("unsubscribe" :: Text)
-    , "paths" .=  paths
-    , "status" .= Aeson.object
-          [ "code" .= (200 :: Int)
-          , "message" .= ("You've been successfully subscribed to the paths" :: Text)
-          , "extra" .= Aeson.object [ ]
-          ]
-    ]
-
+    $ UnsubscribeSuccess { unsubscribeSuccessPaths = paths }
 
 onPayload client (Left malformedPayload) = do
   let
     conn = clientConn client
-    
+
     closeConnection :: Text -> IO ()
     closeConnection message = do
       -- NOTE:
@@ -307,30 +363,26 @@ onPayload client (Left malformedPayload) = do
 
     respondMalformedSubscribe :: Text -> IO ()
     respondMalformedSubscribe message = do
+
       WS.sendTextData conn
         $ Aeson.encode
-        $ Aeson.object
-        [ "type"  .= ("subscribe" :: Text)
-        , "status" .= Aeson.object
-          [ "code" .= (400 :: Int)
-          , "message" .= ("Subscribe request payload is malformed" :: Text)
-          , "extra" .= message
-          ]
-        ]
+        $ SubscribeFailure
+        { subscribeFailureStatusCode = 400
+        , subscribeFailureMessage = "Subscribe request payload is malformed: " <> message
+        , subscribeFailureExtraData = Nothing
+        , subscribeFailurePaths = Nothing }
 
     respondMalformedUnsubscribe :: Text -> IO ()
     respondMalformedUnsubscribe message = do
       WS.sendTextData conn
         $ Aeson.encode
-        $ Aeson.object
-        [ "type"  .= ("unsubscribe" :: Text)
-        , "status" .= Aeson.object
-          [ "code" .= (400 :: Int)
-          , "message" .= ("Unsubscribe request payload is malformed" :: Text)
-          , "extra" .= message
-          ]
-        ]
-    
+        $ UnsubscribeFailure
+        { unsubscribeFailureStatusCode = 400
+        , unsubscribeFailureMessage = "Unsubscribe request payload is malformed: " <> message
+        , unsubscribeFailurePaths = Nothing
+        , unsubscribeFailureExtraData = Nothing
+        }
+
   case malformedPayload of
     PayloadSizeOutOfBounds
       -> closeConnection
@@ -347,14 +399,14 @@ onPayload client (Left malformedPayload) = do
     UnexpectedType unexpectedType
       -> closeConnection
          $ "Received a payload of an unexpected 'type': " <> unexpectedType
-    
+
     SubscribePathsMissingOrMalformed pathsParseError
       -> respondMalformedSubscribe
          $ "Subscribe paths are missing or malformed: " <> pathsParseError
     SubscribeTokenNotAString tokenParseError
       -> respondMalformedSubscribe
          $ "Subscribe token is not a string: " <> tokenParseError
-    
+
     UnsubscribePathsMissingOrMalformed pathsParseError
       -> respondMalformedUnsubscribe
          $ "Unsubscribe paths are missing or malformed: " <> pathsParseError
@@ -375,12 +427,12 @@ onDisconnect client = do
     core = clientCore client
     subscriptions = clientSubscriptions client
     uuid = clientUuid client
-    
+
   paths <-  HashMap.keys <$> takeMVar subscriptions
   for_ paths
     (\path -> modifyMVar_ (Core.coreClients core)
       (pure . Subscription.unsubscribe path uuid))
-    
+
   Core.withCoreMetrics core Metrics.decrementSubscribers
 
 handleClient :: WS.Connection -> Core -> IO ()
@@ -397,13 +449,13 @@ handleClient conn core = do
       , clientIsDirty = isDirty
       , clientSubscriptions = subscriptions
       }
-    
+
     manageConnection = withAsync
       (updateThread client)
       (const $ forever $ do
           dataMessage <- WS.receiveDataMessage conn
           onPayload client (fromDataMessage dataMessage))
- 
+
     -- Simply ignore connection errors, otherwise, Warp handles the exception
     -- and sends a 500 response in the middle of a WebSocket connection, and
     -- that violates the WebSocket protocol.
@@ -430,7 +482,7 @@ updateThread :: Client -> IO ()
 updateThread client =
   let
     conn = clientConn client
-    
+
     send :: Value -> IO ()
     send value = WS.sendTextData conn (Aeson.encode value) `catch` sendFailed
 
@@ -442,7 +494,7 @@ updateThread client =
       -- We want to catch all other errors in order to prevent them from
       -- bubbling up and disrupting the broadcasts to other clients.
       | otherwise = pure ()
-      
+
   in forever $ do
     value <- takeMVarUpdatedValues client
     mapM send value
