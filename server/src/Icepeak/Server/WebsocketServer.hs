@@ -28,7 +28,6 @@ import System.Clock (Clock (Monotonic), TimeSpec (..), getTime)
 
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
 import qualified Data.Time.Clock.POSIX as Clock
 import qualified Network.HTTP.Types.Header as HttpHeader
 import qualified Network.HTTP.Types.URI as Uri
@@ -46,7 +45,6 @@ import qualified Icepeak.Server.Metrics as Metrics
 import qualified Icepeak.Server.Subscription as Subscription
 import Data.Maybe (isJust)
 import System.Timeout (timeout)
-import qualified GHC.IO.Encoding as Text
 
 -- | 'WS.ServerApp' parameterized over the last received pong timestamp. See
 -- 'WSServerOptions'.
