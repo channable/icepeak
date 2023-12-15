@@ -29,6 +29,7 @@ import qualified Control.Concurrent.Async as Async
 import qualified Control.Concurrent as Concurrent
 
 import qualified Control.Exception as Exception
+import qualified System.Directory as Directory
 
 import Data.Word (Word16)
 import Data.Text (Text)
@@ -46,7 +47,7 @@ data Icepeak = Icepeak
 
 defaultConfig
   :: Icepeak.Config
-defaultConfig
+defaultConfig 
   = Icepeak.Config
   { Icepeak.configDataFile = Nothing
   , Icepeak.configPort = icepeakPort
@@ -66,9 +67,17 @@ defaultConfig
 
 withIcepeak :: IO Icepeak
 withIcepeak = do
-  let config = defaultConfig
+  let
+    storageFile = "/tmp/icepeak.json"
+    config = defaultConfig { Icepeak.configDataFile = Just storageFile }
+  writeFile storageFile "{}"
   logger <- Icepeak.newLogger config
-  (Right core) <- Icepeak.newCore config logger Nothing
+  core <- Icepeak.newCore config logger Nothing >>=
+    (\mbCore -> case mbCore of
+        Left err -> do expectationFailure ("Failed to create Core: " <> err)
+                       undefined
+        Right core -> pure core)
+  
   let wsServer = Icepeak.acceptConnection core
   application <- IcepeakHttp.new core
 
@@ -83,7 +92,9 @@ withIcepeak = do
 
   pure $ Icepeak
     { icepeakCore = core
-    , icepeakShutdown = mapM_ Async.cancel [webserverThread, commandLoopThread, webSocketThread ]
+    , icepeakShutdown = do
+        mapM_ Async.cancel [webserverThread, commandLoopThread, webSocketThread ]
+        Directory.removeFile storageFile
     }
 
 createDataSet :: Icepeak -> IO ()
