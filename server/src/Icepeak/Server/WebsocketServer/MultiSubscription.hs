@@ -264,8 +264,8 @@ data PayloadAction
 -- `Core.Config` is needed to determine if auth is enabled, otherwise the
 -- `PayloadAction` can be determined purely from the parsed `RequestPayload`.
 determinePayloadAction
-  :: Config -> RequestPayload -> PayloadAction
-determinePayloadAction coreConfig (RequestPayloadSubscribe requestSubscribe) = do
+  :: Config -> Either RequestMalformedError RequestPayload -> PayloadAction
+determinePayloadAction coreConfig (Right (RequestPayloadSubscribe requestSubscribe)) = do
   let
     jwtEnabled = Config.configEnableJwtAuth coreConfig
     jwtSecret = Config.configJwtSecret coreConfig
@@ -275,9 +275,9 @@ determinePayloadAction coreConfig (RequestPayloadSubscribe requestSubscribe) = d
     (False, Just _) -> ActionSubscribeNoAuth requestSubscribe
     (True, Nothing) -> ActionSubscribeNoAuth requestSubscribe
     (False, Nothing) -> ActionSubscribeNoAuth requestSubscribe
-determinePayloadAction _ (RequestPayloadUnsubscribe requestUnsubscribe) =
+determinePayloadAction _ (Right (RequestPayloadUnsubscribe requestUnsubscribe)) =
   ActionUnsubscribe requestUnsubscribe
-determinePayloadAction _ (RequestPayloadMalformed malformedPayload) =
+determinePayloadAction _ (Left malformedPayload) =
   ActionError malformedPayload
 
 -- | Peform the payload action. We pass the `Client` argument, which

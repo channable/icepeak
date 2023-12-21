@@ -27,7 +27,6 @@ import Data.Word (Word16)
 data RequestPayload
   = RequestPayloadSubscribe RequestSubscribe
   | RequestPayloadUnsubscribe RequestUnsubscribe
-  | RequestPayloadMalformed RequestMalformedError
 
 data RequestSubscribe = RequestSubscribe
   { requestSubscribePaths :: [Text]
@@ -210,13 +209,13 @@ checkBounds lazyBS = isOutOfBoundsAcc lazyBS 0
         else isOutOfBoundsAcc rest accSize'
 
 parseDataMessage
-  :: WebSockets.DataMessage -> RequestPayload
-parseDataMessage (WebSockets.Binary _ ) = RequestPayloadMalformed UnexpectedBinaryPayload
+  :: WebSockets.DataMessage -> Either RequestMalformedError RequestPayload
+parseDataMessage (WebSockets.Binary _ ) = Left UnexpectedBinaryPayload
 parseDataMessage (WebSockets.Text utf8EncodedLazyByteString _ ) =
   case parsedPayload of
-    (Left malformed) -> RequestPayloadMalformed malformed
-    (Right (Left subscribe)) -> RequestPayloadSubscribe subscribe
-    (Right (Right unsubscribe)) -> RequestPayloadUnsubscribe unsubscribe
+    (Left malformed) -> Left malformed
+    (Right (Left subscribe)) -> Right $ RequestPayloadSubscribe subscribe
+    (Right (Right unsubscribe)) -> Right $ RequestPayloadUnsubscribe unsubscribe
   where
     parsedPayload
       :: Either RequestMalformedError (Either RequestSubscribe RequestUnsubscribe)
