@@ -99,55 +99,57 @@ onPayloadSubscribeWithAuth
   -> JWT.VerifySigner
   -> RequestSubscribe
   -> IO ()
-onPayloadSubscribeWithAuth client _ (RequestSubscribe paths Nothing) = do
+
+onPayloadSubscribeWithAuth client secret (RequestSubscribe paths mbToken) = do
   let conn = clientConn client
-  WS.sendTextData conn $ -- 401  | No authorization token provided
-    Aeson.encode $
-      ResponseSubscribeFailure
+  case mbToken of
+    Nothing -> do
+      WS.sendTextData conn $ -- 401  | No authorization token provided
+        Aeson.encode $
+        ResponseSubscribeFailure
         { subscribeFailureStatusCode = 401
         , subscribeFailureMessage = "No authorisation token provided"
         , subscribeFailureExtraData = Nothing
         , subscribeFailurePaths = Just paths
         }
-onPayloadSubscribeWithAuth client secret (RequestSubscribe paths (Just tokenBS)) = do
-  let
-    conn = clientConn client
-    segmentedPaths = Text.splitOn "/" <$> paths :: [Path]
-  now <- Clock.getPOSIXTime
-  case JwtAuth.extractClaim now secret (Text.encodeUtf8 tokenBS) of
-    Left tokenError -> do
-      -- 403  | Authorization token was rejected / malformed |
-      WS.sendTextData conn $
-        Aeson.encode $
-          ResponseSubscribeFailure
-            { subscribeFailureStatusCode = 403
-            , subscribeFailureMessage = "Error while extracting claim from JWT: " <> Text.pack (show tokenError)
-            , subscribeFailureExtraData = Nothing
-            , subscribeFailurePaths = Just paths
-            }
-    Right authenticatedIcePeakClaim -> do
-      let
-        pathsIsAuth =
-          segmentedPaths
-            <&> ( \path ->
-                    ( path
-                    , Access.isAuthorizedByClaim authenticatedIcePeakClaim path Access.ModeRead
-                    )
-                )
-        allAuth = and $ snd <$> pathsIsAuth
-      if allAuth
-        then doSubscribe client segmentedPaths
-        else
-          WS.sendTextData conn $ -- 403  | Authorization token was rejected / malformed |
+
+    Just tokenBS -> do
+      let segmentedPaths = Text.splitOn "/" <$> paths :: [Path]
+      now <- Clock.getPOSIXTime
+      case JwtAuth.extractClaim now secret (Text.encodeUtf8 tokenBS) of
+        Left tokenError -> do
+          -- 403  | Authorization token was rejected / malformed |
+          WS.sendTextData conn $
             Aeson.encode $
               ResponseSubscribeFailure
                 { subscribeFailureStatusCode = 403
-                , subscribeFailureMessage = "Some paths are not authorised by the provided JWT claim"
-                , subscribeFailureExtraData =
-                    Just $
-                      Aeson.object ["unauthorisedPaths" .= (fst <$> filter (not . snd) pathsIsAuth)]
+                , subscribeFailureMessage = "Error while extracting claim from JWT: " <> Text.pack (show tokenError)
+                , subscribeFailureExtraData = Nothing
                 , subscribeFailurePaths = Just paths
                 }
+        Right authenticatedIcePeakClaim -> do
+          let
+            pathsIsAuth =
+              segmentedPaths
+                <&> ( \path ->
+                        ( path
+                        , Access.isAuthorizedByClaim authenticatedIcePeakClaim path Access.ModeRead
+                        )
+                    )
+            allAuth = and $ snd <$> pathsIsAuth
+          if allAuth
+            then doSubscribe client segmentedPaths
+            else
+              WS.sendTextData conn $ -- 403  | Authorization token was rejected / malformed |
+                Aeson.encode $
+                  ResponseSubscribeFailure
+                    { subscribeFailureStatusCode = 403
+                    , subscribeFailureMessage = "Some paths are not authorised by the provided JWT claim"
+                    , subscribeFailureExtraData =
+                        Just $
+                          Aeson.object ["unauthorisedPaths" .= (fst <$> filter (not . snd) pathsIsAuth)]
+                    , subscribeFailurePaths = Just paths
+                    }
 
 onPayloadSubscribeNoAuth
   :: Client
