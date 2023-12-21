@@ -182,13 +182,13 @@ singleConnectionCommunicationSpec :: SpecWith Icepeak
 singleConnectionCommunicationSpec = aroundAllWith
   (\specUsingArgs icepeak -> openReusableIcepeakConn (curry specUsingArgs icepeak))
   $ describe "Communication over a single connection" $ do
-  succesfulSubscribe
-  succesfulReceiveUpdates
-  succesfulUnsubscribe
-  succesfulUnsubscribeNoUpdates
+  successfulSubscribe
+  successfulReceiveUpdates
+  successfulUnsubscribe
+  successfulUnsubscribeNoUpdates
   
-succesfulSubscribe :: SpecWith (Icepeak, WS.Connection)
-succesfulSubscribe = it "should subscribe and receive success response with values"
+successfulSubscribe :: SpecWith (Icepeak, WS.Connection)
+successfulSubscribe = it "should subscribe and receive success response with values"
   $ \(_, clientConn) -> do
   
   sendJson clientConn $ Aeson.object
@@ -225,8 +225,8 @@ succesfulSubscribe = it "should subscribe and receive success response with valu
               ]
             ]])
 
-succesfulReceiveUpdates :: SpecWith (Icepeak, WS.Connection)
-succesfulReceiveUpdates = it "should receive updates" $
+successfulReceiveUpdates :: SpecWith (Icepeak, WS.Connection)
+successfulReceiveUpdates = it "should receive updates" $
   \(icepeak, clientConn) -> do
     makeModification (icepeakCore icepeak) (Icepeak.Put ["A", "A"] "C")
     withResponseJson clientConn
@@ -277,8 +277,8 @@ succesfulReceiveUpdates = it "should receive updates" $
             , "path" .= ("A/A" :: Text)
             ])
 
-succesfulUnsubscribe :: SpecWith (Icepeak, WS.Connection)
-succesfulUnsubscribe = it "should unsubscribe and receive success response" $
+successfulUnsubscribe :: SpecWith (Icepeak, WS.Connection)
+successfulUnsubscribe = it "should unsubscribe and receive success response" $
   \(_icepeak, clientConn) -> do
     
     sendJson clientConn $ Aeson.object
@@ -303,8 +303,8 @@ succesfulUnsubscribe = it "should unsubscribe and receive success response" $
             , "paths" .= ([ "NULL/NULL", "NULL/NULL" ] :: [Text])
             ])
 
-succesfulUnsubscribeNoUpdates :: SpecWith (Icepeak, WS.Connection)
-succesfulUnsubscribeNoUpdates = it "should no longer receive updates for unsusbscribed paths" $
+successfulUnsubscribeNoUpdates :: SpecWith (Icepeak, WS.Connection)
+successfulUnsubscribeNoUpdates = it "should no longer receive updates for unsusbscribed paths" $
   \(icepeak, clientConn) -> do
     makeModification (icepeakCore icepeak) (Icepeak.Put ["A", "B"] "C")
     expectNoMessage clientConn >>= shouldBe ()
