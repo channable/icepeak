@@ -111,7 +111,7 @@ instance Aeson.ToJSON ResponseSubscribeFailure where
           Just paths -> [ "paths" .= paths ]
           Nothing  -> []
 
-data ResponseUnsubscribeSuccess
+newtype ResponseUnsubscribeSuccess
   = ResponseUnsubscribeSuccess
   { unsubscribeSuccessPaths :: [Text]
   }
