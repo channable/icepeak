@@ -13,14 +13,13 @@ The URL path:
 - points to the root of your icepeak service
 - has the query parameter `method` set to `reusable`
 
-The request should contain:
-- a token of autherisation about the right to establish a connection with the server **UNDER-SPECIFIED** 
+The authorisation method follows the same protocol as the previous one.
 
 # Subscribing, Unsubscribing & Updates
 
 In summary:
 - The client can request to subscribe to an array of paths.
-- The client, on the single connection, can cummulavely keep subscribing and unsubscribing to paths by sending corresponding payloads.
+- The client, on the single connection, can cumulatively keep subscribing and unsubscribing to paths by sending corresponding payloads.
   - The server also sends back a response about the status, and some data of the corresponding subscription or unsubscription request.
 - The server will send the client the new value/update at the subscribed path whenever there is a change at that path.
 - Both, subscription and unsubscription requests are idempotent.
