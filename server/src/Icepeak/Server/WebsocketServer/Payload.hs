@@ -2,7 +2,6 @@
 {-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE TypeApplications #-}
 
-
 module Icepeak.Server.WebsocketServer.Payload where
 
 import qualified Network.WebSockets as WebSockets
@@ -68,13 +67,6 @@ instance Aeson.ToJSON Update where
     ]  
 
 -- * Response
-
-data ResponsePayload
-  = ResponsePayloadSubscribeSuccess ResponseSubscribeSuccess
-  | ResponsePayloadeSubscribeFailure ResponseSubscribeFailure
-  | ResponsePayloadUnsubscribeSuccess ResponseUnsubscribeSuccess
-  | ResponsePayloadUnsubscribeFailure ResponseUnsubscribeFailure
-
 
 data ResponseSubscribeSuccess
   = ResponseSubscribeSuccess
