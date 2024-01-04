@@ -5,7 +5,6 @@ module Icepeak.Server.Core
   EnqueueResult (..),
   Command (..),
   ServerState,
-  SubscriberState (..),
   Updated (..),
   enqueueCommand,
   tryEnqueueCommand,
@@ -13,7 +12,6 @@ module Icepeak.Server.Core
   withCoreMetrics,
   lookup,
   newCore,
-  newSubscriberState,
   postQuit,
   runCommandLoop,
   runSyncTimer
@@ -21,7 +19,7 @@ module Icepeak.Server.Core
 where
 
 import Control.Concurrent (threadDelay)
-import Control.Concurrent.MVar (MVar, newEmptyMVar, newMVar, putMVar)
+import Control.Concurrent.MVar (MVar, newMVar, putMVar)
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TBQueue (TBQueue, newTBQueueIO, readTBQueue, writeTBQueue, isFullTBQueue)
 import Control.Concurrent.STM.TVar (TVar, newTVarIO)
@@ -74,27 +72,14 @@ data Core = Core
   , coreMetrics      :: Maybe Metrics.IcepeakMetrics
   }
 
--- This structure describes the state associated to each subscriber in order
--- to communicate with them, at the moment, a simple `MVar` as a communication
--- channel. This is a newtype in order for it to be extensible without
--- rewriting all call sites.
-newtype SubscriberState = SubscriberState
-  -- We don't need actual queues for subscribers because the only relevant value
-  -- for them is the last one. Since we have one producer and one reader, we can
-  -- rely on MVar as a simpler mechanism.
-  -- We can expect from the subscribers to receive all the updates in the 
-  -- absence of timeouts.
-  { subscriberData :: MVar Value }
 
 -- This structure keeps track of all subscribers. We use one SubscriberState per
 -- subscriber.
-type ServerState = SubscriptionTree UUID SubscriberState
+type ServerState =
+  SubscriptionTree UUID ((MVar Value -> Value -> IO ()) -> Value -> IO ())
 
 newServerState :: ServerState
 newServerState = empty
-
-newSubscriberState :: IO SubscriberState
-newSubscriberState = SubscriberState <$> newEmptyMVar
 
 -- | Try to initialize the core. This loads the database and sets up the internal data structures.
 newCore :: Config -> Logger -> Maybe Metrics.IcepeakMetrics -> IO (Either String Core)

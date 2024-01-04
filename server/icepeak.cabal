@@ -34,6 +34,10 @@ library
     Icepeak.Server.Store
     Icepeak.Server.Subscription
     Icepeak.Server.WebsocketServer
+    Icepeak.Server.WebsocketServer.SingleSubscription
+    Icepeak.Server.WebsocketServer.MultiSubscription
+    Icepeak.Server.WebsocketServer.Payload
+    Icepeak.Server.WebsocketServer.Utils
 
   other-modules:    Paths_icepeak
   hs-source-dirs:   src
@@ -177,6 +181,7 @@ test-suite spec
     Icepeak.Server.SocketSpec
     Icepeak.Server.StoreSpec
     Icepeak.Server.SubscriptionTreeSpec
+    Icepeak.Server.MultiSubscriptionSpec
     OrphanInstances
     Paths_icepeak
 
@@ -223,5 +228,6 @@ test-suite spec
     , wai-websockets
     , warp
     , websockets
+    , hspec-expectations-json
 
   default-language: Haskell2010
