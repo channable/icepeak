@@ -6,31 +6,28 @@ import Control.Concurrent.MVar (MVar, takeMVar)
 import Control.Exception (SomeAsyncException, SomeException, catch, finally, fromException, throwIO)
 import Control.Monad (forever)
 import Data.Aeson (Value)
-import Data.UUID (UUID)
-import System.Random (randomIO)
 
 import qualified Data.Aeson as Aeson
 import qualified Network.WebSockets as WS
 
 import Icepeak.Server.Store (Path)
 import Icepeak.Server.Core (Core, coreClients, withCoreMetrics, getCurrentValue)
+
 import qualified Icepeak.Server.Metrics as Metrics
 import qualified Icepeak.Server.Subscription as Subscription
+import qualified Icepeak.Server.WebsocketServer.Utils as Utils
 
 -- * Client handling
 
-newUUID :: IO UUID
-newUUID = randomIO
-
 handleClient :: WS.Connection -> Path -> Core -> IO ()
 handleClient conn path core = do
-  uuid <- newUUID
+  uuid <- Utils.newUUID
   pathCurentValueMVar <- newEmptyMVar
   let
     state = coreClients core
     onConnect = do
       modifyMVar_ state
-        (pure . Subscription.subscribe path uuid 
+        (pure . Subscription.subscribe path uuid
          (\writeToSub -> writeToSub pathCurentValueMVar))
       withCoreMetrics core Metrics.incrementSubscribers
     onDisconnect = do
