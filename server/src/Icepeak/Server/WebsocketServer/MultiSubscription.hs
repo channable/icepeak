@@ -99,20 +99,18 @@ onPayloadSubscribeWithAuth
   -> JWT.VerifySigner
   -> RequestSubscribe
   -> IO ()
-
 onPayloadSubscribeWithAuth client secret (RequestSubscribe paths mbToken) = do
   let conn = clientConn client
   case mbToken of
     Nothing -> do
       WS.sendTextData conn $ -- 401  | No authorization token provided
         Aeson.encode $
-        ResponseSubscribeFailure
-        { subscribeFailureStatusCode = 401
-        , subscribeFailureMessage = "No authorisation token provided"
-        , subscribeFailureExtraData = Nothing
-        , subscribeFailurePaths = Just paths
-        }
-
+          ResponseSubscribeFailure
+            { subscribeFailureStatusCode = 401
+            , subscribeFailureMessage = "No authorisation token provided"
+            , subscribeFailureExtraData = Nothing
+            , subscribeFailurePaths = Just paths
+            }
     Just tokenBS -> do
       let segmentedPaths = Text.splitOn "/" <$> paths :: [Path]
       now <- Clock.getPOSIXTime
@@ -272,10 +270,10 @@ onPayload coreConfig client (RequestPayloadSubscribe requestSubscribe) = do
     jwtSecret = Config.configJwtSecret coreConfig
 
   case (jwtEnabled, jwtSecret) of
-    (True , Just secret) -> onPayloadSubscribeWithAuth client secret requestSubscribe
-    (False, Just _)      -> onPayloadSubscribeNoAuth client requestSubscribe
-    (True , Nothing)     -> onPayloadSubscribeNoAuth client requestSubscribe
-    (False, Nothing)     -> onPayloadSubscribeNoAuth client requestSubscribe
+    (True, Just secret) -> onPayloadSubscribeWithAuth client secret requestSubscribe
+    (False, Just _) -> onPayloadSubscribeNoAuth client requestSubscribe
+    (True, Nothing) -> onPayloadSubscribeNoAuth client requestSubscribe
+    (False, Nothing) -> onPayloadSubscribeNoAuth client requestSubscribe
 onPayload _ client (RequestPayloadUnsubscribe requestUnsubscribe) =
   onPayloadUnsubscribe client requestUnsubscribe
 onPayload _ client (RequestPayloadMalformed malformedPayload) =
@@ -287,8 +285,8 @@ onMessage client = do
     coreConfig = Core.coreConfig $ clientCore client
     conn = clientConn client
   dataMessage <- WS.receiveDataMessage conn
-  onPayload coreConfig client
-    $ parseDataMessage dataMessage
+  onPayload coreConfig client $
+    parseDataMessage dataMessage
 
 onConnect :: Client -> IO ()
 onConnect client =
