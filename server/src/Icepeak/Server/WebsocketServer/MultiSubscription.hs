@@ -175,18 +175,28 @@ onPayloadUnsubscribe client (RequestUnsubscribe paths) = do
 
     coreClients = Core.coreClients core
 
-  Monad.forM_ segmentedPaths $ \path -> do
-    MVar.modifyMVar_
-      coreClients
-      (pure . Subscription.unsubscribe path uuid)
+  unsubscribedPaths <-
+    Maybe.catMaybes
+      <$> Monad.forM
+        segmentedPaths
+        ( \path -> do
+            pathIsSubscribed <- MVar.readMVar subscriptions <&> HashMap.member path
+            case pathIsSubscribed of
+              True -> do
+                MVar.modifyMVar_
+                  coreClients
+                  (pure . Subscription.unsubscribe path uuid)
 
-    MVar.modifyMVar_
-      subscriptions
-      (pure . HashMap.delete path)
+                MVar.modifyMVar_
+                  subscriptions
+                  (pure . HashMap.delete path)
+                pure $ Just $ Text.intercalate "/" path
+              False -> pure Nothing
+        )
 
   WS.sendTextData conn $
     Aeson.encode $
-      ResponseUnsubscribeSuccess{unsubscribeSuccessPaths = paths}
+      ResponseUnsubscribeSuccess{unsubscribeSuccessPaths = unsubscribedPaths}
 
 onPayloadMalformed
   :: Client
