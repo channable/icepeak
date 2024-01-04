@@ -47,7 +47,7 @@ data Icepeak = Icepeak
 
 defaultConfig
   :: Icepeak.Config
-defaultConfig 
+defaultConfig
   = Icepeak.Config
   { Icepeak.configDataFile = Nothing
   , Icepeak.configPort = icepeakPort
@@ -77,7 +77,7 @@ withIcepeak = do
         Left err -> do expectationFailure ("Failed to create Core: " <> err)
                        undefined
         Right core -> pure core)
-  
+
   let wsServer = Icepeak.acceptConnection core
   application <- IcepeakHttp.new core
 
@@ -153,7 +153,7 @@ invalidPayloadsSpec = describe "Opening and sending invalid payloads" $ do
              Exception.catch
                (do unexpectedDataMessage <- WS.receiveDataMessage conn
                    pure (Unexpected $ "Received data message when socket close was expected: " <> show unexpectedDataMessage))
-               
+
                (\case (WS.CloseRequest code _) -> pure $ CloseCode code
                       otherException -> pure $ Unexpected ("Unexpected exception: " <> show otherException))
 
@@ -186,11 +186,11 @@ singleConnectionCommunicationSpec = aroundAllWith
   successfulReceiveUpdates
   successfulUnsubscribe
   successfulUnsubscribeNoUpdates
-  
+
 successfulSubscribe :: SpecWith (Icepeak, WS.Connection)
 successfulSubscribe = it "should subscribe and receive success response with values"
   $ \(_, clientConn) -> do
-  
+
   sendJson clientConn $ Aeson.object
     [ "type" .= ("subscribe" :: Text)
     , "paths" .= ([ "A/B", "A/A" ] :: [Text]) ]
@@ -199,7 +199,7 @@ successfulSubscribe = it "should subscribe and receive success response with val
         responseJson `shouldMatchJson` Aeson.object
           [ "type" .= ("subscribe" :: Text)
           , "code" .= (200 :: Int)
-          , "paths" .= 
+          , "paths" .=
             [ Aeson.object
               [ "path"  .= ("A/B" :: Text)
               , "value" .= ("B":: Text)
@@ -218,7 +218,7 @@ successfulSubscribe = it "should subscribe and receive success response with val
         responseJson `shouldMatchJson` Aeson.object
           [ "type" .= ("subscribe" :: Text)
           , "code" .= (200 :: Int)
-          , "paths" .= 
+          , "paths" .=
             [ Aeson.object
               [ "path"  .= ("NULL" :: Text)
               , "value" .= Aeson.Null
@@ -280,7 +280,7 @@ successfulReceiveUpdates = it "should receive updates" $
 successfulUnsubscribe :: SpecWith (Icepeak, WS.Connection)
 successfulUnsubscribe = it "should unsubscribe and receive success response" $
   \(_icepeak, clientConn) -> do
-    
+
     sendJson clientConn $ Aeson.object
       [ "type" .= ("unsubscribe" :: Text)
       , "paths" .= ([ "A/B", "A/A" ] :: [Text]) ]
@@ -320,13 +320,13 @@ successfulUnsubscribeNoUpdates = it "should no longer receive updates for unsusb
           responseJson `shouldMatchJson` Aeson.object
             [ "type" .= ("subscribe" :: Text)
             , "code" .= (200 :: Int)
-            , "paths" .= [ Aeson.object [ "path" .= ("A/B" :: Text), "value" .= ("C" :: Text)] ] 
+            , "paths" .= [ Aeson.object [ "path" .= ("A/B" :: Text), "value" .= ("C" :: Text)] ]
             ])
 
     expectNoMessage clientConn >>= shouldBe ()
 
-    
-            
+
+
 spec :: Spec
 spec =
   aroundAll
