@@ -20,7 +20,6 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Data.Time.Clock.POSIX as Clock
 import qualified Network.WebSockets as WS
-import qualified System.Random as Random
 import qualified Web.JWT as JWT
 
 import Icepeak.Server.Config (Config)
@@ -34,11 +33,9 @@ import qualified Icepeak.Server.Core as Core
 import qualified Icepeak.Server.JwtAuth as JwtAuth
 import qualified Icepeak.Server.Metrics as Metrics
 import qualified Icepeak.Server.Subscription as Subscription
+import qualified Icepeak.Server.WebsocketServer.Utils as Utils
 
 -- * Client handling
-
-newUUID :: IO UUID
-newUUID = Random.randomIO
 
 -- ** Sending Response Payloads
 
@@ -312,7 +309,7 @@ onDisconnect client = do
 
 handleClient :: WS.Connection -> Core -> IO ()
 handleClient conn core = do
-  uuid <- newUUID
+  uuid <- Utils.newUUID
   isDirty <- MVar.newMVar ()
   subscriptions <- MVar.newMVar (HashMap.empty :: HashMap [Text] (MVar Value))
 
