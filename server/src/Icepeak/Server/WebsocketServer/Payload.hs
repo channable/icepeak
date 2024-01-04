@@ -203,8 +203,8 @@ parseDataMessage
 parseDataMessage (WebSockets.Binary _) = RequestPayloadMalformed UnexpectedBinaryPayload
 parseDataMessage (WebSockets.Text utf8EncodedLazyByteString _) =
   case parsedPayload of
-    (Left malformed) -> RequestPayloadMalformed malformed
-    (Right (Left subscribe)) -> RequestPayloadSubscribe subscribe
+    (Left malformed)            -> RequestPayloadMalformed malformed
+    (Right (Left subscribe))    -> RequestPayloadSubscribe subscribe
     (Right (Right unsubscribe)) -> RequestPayloadUnsubscribe unsubscribe
  where
   parsedPayload

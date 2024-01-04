@@ -252,51 +252,24 @@ onPayloadMalformed client requestMalformedError = do
       respondMalformedUnsubscribe $
         "Unsubscribe paths are missing or malformed: " <> pathsParseError
 
--- | Explicit enumeration of the procedures that
--- the server will perform given a request.
-data PayloadAction
-  = ActionSubscribeWithAuth JWT.VerifySigner RequestSubscribe
-  | ActionSubscribeNoAuth RequestSubscribe
-  | ActionUnsubscribe RequestUnsubscribe
-  | ActionError RequestMalformedError
-
--- | Determine the server action based on the request and config.
--- `Core.Config` is needed to determine if auth is enabled, otherwise the
--- `PayloadAction` can be determined purely from the parsed `RequestPayload`.
-determinePayloadAction
-  :: Config -> RequestPayload -> PayloadAction
-determinePayloadAction coreConfig (RequestPayloadSubscribe requestSubscribe) = do
+-- | Perform the server response based on the request and config.
+-- `Core.Config` is needed to determine if auth is enabled.
+onPayload
+  :: Config -> Client -> RequestPayload -> IO ()
+onPayload coreConfig client (RequestPayloadSubscribe requestSubscribe) = do
   let
     jwtEnabled = Config.configEnableJwtAuth coreConfig
     jwtSecret = Config.configJwtSecret coreConfig
 
   case (jwtEnabled, jwtSecret) of
-    (True, Just secret) -> ActionSubscribeWithAuth secret requestSubscribe
-    (False, Just _) -> ActionSubscribeNoAuth requestSubscribe
-    (True, Nothing) -> ActionSubscribeNoAuth requestSubscribe
-    (False, Nothing) -> ActionSubscribeNoAuth requestSubscribe
-determinePayloadAction _ (RequestPayloadUnsubscribe requestUnsubscribe) =
-  ActionUnsubscribe requestUnsubscribe
-determinePayloadAction _ (RequestPayloadMalformed malformedPayload) =
-  ActionError malformedPayload
-
--- | Peform the payload action. We pass the `Client` argument, which
--- heavily implies impure things are to happen, namely:
---  - Mutating `Core` MVars
---  - Using `Conn`
---  - Mutating `Client` MVars
-performPayloadAction
-  :: Client -> PayloadAction -> IO ()
-performPayloadAction client payloadAction =
-  case payloadAction of
-    ActionSubscribeWithAuth secret requestSubscribe ->
-      onPayloadSubscribeWithAuth client secret requestSubscribe
-    ActionSubscribeNoAuth requestSubscribe ->
-      onPayloadSubscribeNoAuth client requestSubscribe
-    ActionUnsubscribe requestUnsubscribe ->
-      onPayloadUnsubscribe client requestUnsubscribe
-    ActionError requestMalformed ->
-      onPayloadMalformed client requestMalformed
+    (True , Just secret) -> onPayloadSubscribeWithAuth client secret requestSubscribe
+    (False, Just _)      -> onPayloadSubscribeNoAuth client requestSubscribe
+    (True , Nothing)     -> onPayloadSubscribeNoAuth client requestSubscribe
+    (False, Nothing)     -> onPayloadSubscribeNoAuth client requestSubscribe
+onPayload _ client (RequestPayloadUnsubscribe requestUnsubscribe) =
+  onPayloadUnsubscribe client requestUnsubscribe
+onPayload _ client (RequestPayloadMalformed malformedPayload) =
+  onPayloadMalformed client malformedPayload
 
 onMessage :: Client -> IO ()
 onMessage client = do
@@ -304,9 +277,8 @@ onMessage client = do
     coreConfig = Core.coreConfig $ clientCore client
     conn = clientConn client
   dataMessage <- WS.receiveDataMessage conn
-  performPayloadAction client $
-    determinePayloadAction coreConfig $
-      parseDataMessage dataMessage
+  onPayload coreConfig client
+    $ parseDataMessage dataMessage
 
 onConnect :: Client -> IO ()
 onConnect client =
