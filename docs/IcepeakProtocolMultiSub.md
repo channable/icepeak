@@ -54,7 +54,7 @@ In summary:
   - The client has to send a JWT that authorises all the paths.
 - The client can expect a response from the server that contains the status/acknowledgement of the request.
   - Upon a successful request, the client can expect the payload to also contain the current value of the paths requested.
-  
+
 ### Client Subscribe Request
 Each subscription is checked against a JWT to see if the user is authorised to access the path(s).
 
