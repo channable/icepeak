@@ -155,9 +155,7 @@ data CloseType
 
 -- https://developer.mozilla.org/en-US/docs/Web/API/WebSocket/close#parameters
 
--- Status codes in the range 3000-3999 are reserved for use by
--- libraries, frameworks, and applications. The interpretation of these codes
--- is undefined by this protocol.
+-- Status codes in the range 3000-3999 are reserved for use by libraries, frameworks, and applications.
 
 closeCode :: CloseType -> Word16
 closeCode TypeSizeOutOfBounds = 3001
@@ -203,8 +201,8 @@ parseDataMessage
 parseDataMessage (WebSockets.Binary _) = RequestPayloadMalformed UnexpectedBinaryPayload
 parseDataMessage (WebSockets.Text utf8EncodedLazyByteString _) =
   case parsedPayload of
-    (Left malformed)            -> RequestPayloadMalformed malformed
-    (Right (Left subscribe))    -> RequestPayloadSubscribe subscribe
+    (Left malformed) -> RequestPayloadMalformed malformed
+    (Right (Left subscribe)) -> RequestPayloadSubscribe subscribe
     (Right (Right unsubscribe)) -> RequestPayloadUnsubscribe unsubscribe
  where
   parsedPayload
