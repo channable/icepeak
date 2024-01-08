@@ -2,13 +2,16 @@
 
 module Icepeak.Server.WebsocketServer.MultiSubscription (handleClient) where
 
+import Control.Concurrent.Async (Async)
 import Control.Concurrent.MVar (MVar)
 import Data.Aeson (Value, (.=))
 import Data.Functor ((<&>))
 import Data.HashMap.Strict (HashMap)
 import Data.Text (Text)
 import Data.UUID (UUID)
+import Control.Exception (Exception)
 
+import qualified Control.Concurrent as Concurrent
 import qualified Control.Concurrent.Async as Async
 import qualified Control.Concurrent.MVar as MVar
 import qualified Control.Exception as Exception
@@ -34,6 +37,7 @@ import qualified Icepeak.Server.JwtAuth as JwtAuth
 import qualified Icepeak.Server.Metrics as Metrics
 import qualified Icepeak.Server.Subscription as Subscription
 import qualified Icepeak.Server.WebsocketServer.Utils as Utils
+import Control.Concurrent (threadDelay)
 
 -- * Client handling
 
@@ -276,15 +280,6 @@ onPayload _ client (RequestPayloadUnsubscribe requestUnsubscribe) =
 onPayload _ client (RequestPayloadMalformed malformedPayload) =
   onPayloadMalformed client malformedPayload
 
-onMessage :: Client -> IO ()
-onMessage client = do
-  let
-    coreConfig = Core.coreConfig $ clientCore client
-    conn = clientConn client
-  dataMessage <- WS.receiveDataMessage conn
-  onPayload coreConfig client $
-    parseDataMessage dataMessage
-
 onConnect :: Client -> IO ()
 onConnect client =
   Core.withCoreMetrics (clientCore client) Metrics.incrementSubscribers
@@ -307,6 +302,11 @@ onDisconnect client = do
 
   Core.withCoreMetrics core Metrics.decrementSubscribers
 
+data SubscriptionTimeout = SubscriptionTimeout
+  deriving Show
+
+instance Exception SubscriptionTimeout where
+
 handleClient :: WS.Connection -> Core -> IO ()
 handleClient conn core = do
   uuid <- Utils.newUUID
@@ -325,19 +325,72 @@ handleClient conn core = do
 
     manageConnection =
       Async.withAsync
-        (updateThread client)
-        (const $ Monad.forever $ onMessage client)
+      (startUpdaterThread client)
+      -- It's important that the below action is the outer action of the `withAsync` as
+      -- we rely on the Exceptions the outer action throws for 3 reasons:
+      -- 1. To cancel the inner "updaterThread" action when the outer action throws.
+      -- 2. To propagate the SubscriptionTimeout exception from the `withSubscribeTimeout`.
+      -- 3. To propagate the ConnectionException from the `receiveDataMessage` that is
+      --    used within the "messageHandlerThread".
+      (const $ withSubscribeTimeout client
+        (startMessageHandlerThread client))
 
     -- Simply ignore connection errors, otherwise, Warp handles the exception
     -- and sends a 500 response in the middle of a WebSocket connection, and
     -- that violates the WebSocket protocol.
     -- Note that subscribers are still properly removed by the finally below.
+
+    -- We can also ignore the websocket 'CloseRequest' exception because wai-websockets ensures
+    -- that the connection is closed when this IO action finishes, as this IO action is executing in a bracket.
+    -- https://github.com/yesodweb/wai/blob/c92d7b1993338fb0f91e0f5f34fb9678871028a0/wai-websockets/Network/Wai/Handler/WebSockets.hs#L98
     handleConnectionError :: WS.ConnectionException -> IO ()
     handleConnectionError _ = pure ()
+
+    -- Since we are in a bracket that closes the connection, let the action silently exit.
+    handleSubscriptionTimeout :: SubscriptionTimeout -> IO ()
+    handleSubscriptionTimeout _ = pure ()
+
   -- Put the client in the subscription tree and keep the connection open.
   -- Remove it when the connection is closed.
-  Exception.finally (onConnect client >> manageConnection) (onDisconnect client)
-    `Exception.catch` handleConnectionError
+  Exception.finally
+    (onConnect client >> manageConnection)
+    (onDisconnect client)
+    `Exception.catch`
+    handleConnectionError
+    `Exception.catch`
+    handleSubscriptionTimeout
+
+-- After timeout, throw the action an exception if the client hasn't subscribed.
+withSubscribeTimeout :: Client -> IO a -> IO a
+withSubscribeTimeout client action = do
+  let
+    initalSubscriptionTimeout =
+      Config.configInitialSubscriptionTimeoutMicroSeconds $
+      Core.coreConfig $
+      clientCore client
+
+    clientNoSubscribers = do
+      let subscriptions = clientSubscriptions client
+      HashMap.null <$> MVar.readMVar subscriptions
+
+  threadId <- Concurrent.myThreadId
+  Monad.void $ Concurrent.forkIO $ do
+    threadDelay initalSubscriptionTimeout
+    noSubscribers <- clientNoSubscribers
+    Monad.when noSubscribers (Concurrent.throwTo threadId SubscriptionTimeout)
+  action
+
+startMessageHandlerThread :: Client -> IO ()
+startMessageHandlerThread client = Monad.forever $ do
+  let
+    coreConfig = Core.coreConfig $ clientCore client
+    conn = clientConn client
+  -- Note: WS.receiveDataMessage will handle control messages automatically.
+  -- Upon a close control message, a CloseRequest exception will be thrown.
+  dataMessage <- WS.receiveDataMessage conn
+  onPayload coreConfig client $
+    parseDataMessage dataMessage
+
 
 takeMVarUpdatedValues :: Client -> IO [(Text, Value)]
 takeMVarUpdatedValues client = do
@@ -354,8 +407,8 @@ takeMVarUpdatedValues client = do
         )
 
 -- This function handles sending the updates to subscribers.
-updateThread :: Client -> IO ()
-updateThread client =
+startUpdaterThread :: Client -> IO ()
+startUpdaterThread client =
   let
     conn = clientConn client
 
