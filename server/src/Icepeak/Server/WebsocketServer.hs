@@ -4,13 +4,12 @@ module Icepeak.Server.WebsocketServer (
   WSServerApp,
   -- The constructor is intentionally not exposed since the 'TimeSpec' should be
   -- initialized using the monotonic clock
-  WSServerOptions(),
+  WSServerOptions (),
   wsConnectionOpts,
   mkWSServerOptions,
-
   ServerState,
   acceptConnection,
-  processUpdates
+  processUpdates,
 ) where
 
 import Control.Concurrent (readMVar, threadDelay)
@@ -22,7 +21,7 @@ import Control.Exception (AsyncException, fromException, handle, throwIO)
 import Control.Monad (unless, void, when)
 import Data.Aeson (Value)
 import Data.Foldable (for_)
-import Data.IORef (IORef, atomicWriteIORef, readIORef, newIORef)
+import Data.IORef (IORef, atomicWriteIORef, newIORef, readIORef)
 import Data.Text (Text)
 import System.Clock (Clock (Monotonic), TimeSpec (..), getTime)
 
@@ -33,17 +32,17 @@ import qualified Network.HTTP.Types.Header as HttpHeader
 import qualified Network.HTTP.Types.URI as Uri
 import qualified Network.WebSockets as WS
 
+import Icepeak.Server.AccessControl (AccessMode (..))
 import Icepeak.Server.Config (Config (..))
 import Icepeak.Server.Core (Core (..), ServerState, Updated (..))
-import Icepeak.Server.AccessControl (AccessMode(..))
-import Icepeak.Server.JwtMiddleware (AuthResult (..), isRequestAuthorized, errorResponseBody)
+import Icepeak.Server.JwtMiddleware (AuthResult (..), errorResponseBody, isRequestAuthorized)
 
-import qualified Icepeak.Server.WebsocketServer.SingleSubscription as SingleSubscription
 import qualified Icepeak.Server.WebsocketServer.MultiSubscription as MultiSubscription
+import qualified Icepeak.Server.WebsocketServer.SingleSubscription as SingleSubscription
 
+import Data.Maybe (isJust)
 import qualified Icepeak.Server.Metrics as Metrics
 import qualified Icepeak.Server.Subscription as Subscription
-import Data.Maybe (isJust)
 import System.Timeout (timeout)
 
 -- | 'WS.ServerApp' parameterized over the last received pong timestamp. See
@@ -60,7 +59,7 @@ type WSServerApp = WSServerOptions -> WS.ServerApp
 -- the client answered our last ping with a pong. If it hasn't, then the server
 -- will terminate the websocket connection as timeouts would otherwise leave
 -- zombie connections.
-newtype WSServerOptions = WSServerOptions { wsOptionLastPongTime :: IORef TimeSpec }
+newtype WSServerOptions = WSServerOptions {wsOptionLastPongTime :: IORef TimeSpec}
 
 -- | Builds the /per connection/-connection settings. This hooks up the
 -- connection's pong handler to the last received pong time IORef so timeouts
@@ -100,63 +99,78 @@ broadcast core =
       putMVar queue val
 
     modifySubscriberState subUpdateCallback = subUpdateCallback writeToSub
-
-  in Subscription.broadcast modifySubscriberState
+  in
+    Subscription.broadcast modifySubscriberState
 
 -- loop that is called for every update and that broadcasts the values to all
 -- subscribers of the updated path
 processUpdates :: Core -> IO ()
 processUpdates core = go
-  where
-    go = do
-      maybeUpdate <- atomically $ readTBQueue (coreUpdates core)
-      for_ (coreMetrics core) Metrics.incrementWsQueueRemoved
-      case maybeUpdate of
-        Just (Updated path value) -> do
-          clients <- readMVar (coreClients core)
-          broadcast core path value clients
-          go
-        -- Stop the loop when we receive a Nothing.
-        Nothing -> pure ()
+ where
+  go = do
+    maybeUpdate <- atomically $ readTBQueue (coreUpdates core)
+    for_ (coreMetrics core) Metrics.incrementWsQueueRemoved
+    case maybeUpdate of
+      Just (Updated path value) -> do
+        clients <- readMVar (coreClients core)
+        broadcast core path value clients
+        go
+      -- Stop the loop when we receive a Nothing.
+      Nothing -> pure ()
 
 -- Called for each new client that connects.
 acceptConnection :: Core -> WSServerOptions -> WS.PendingConnection -> IO ()
 acceptConnection core wsOptions pending = do
   -- printRequest pending
   -- TODO: Validate the path and headers of the pending request
-  authResult <- authorizePendingConnection core pending
-  case authResult of
-    AuthRejected err ->
-      WS.rejectRequestWith pending $ WS.RejectRequest
-        { WS.rejectCode = 401
-        , WS.rejectMessage = "Unauthorized"
-        , WS.rejectHeaders = [(HttpHeader.hContentType, "application/json")]
-        , WS.rejectBody = LBS.toStrict $ errorResponseBody err
-        }
-    AuthAccepted -> do
-      let (path, queryParams) = Uri.decodePath $ WS.requestPath $ WS.pendingRequest pending
-          config = coreConfig core
-          pingInterval = configWebSocketPingInterval config
-          onPing = pingHandler config wsOptions
-      connection <- WS.acceptRequest pending
-      -- Fork a pinging thread, for each client, to keep idle connections open and to detect
-      -- closed connections. Sends a ping message every 30 seconds.
-      -- Note: The thread dies silently if the connection crashes or is closed.
+  let
+    (path, queryParams) = Uri.decodePath $ WS.requestPath $ WS.pendingRequest pending
+    config = coreConfig core
+    pingInterval = configWebSocketPingInterval config
+    onPing = pingHandler config wsOptions
 
-      let runHandleClient = withInterruptiblePingThread connection pingInterval onPing
-      case lookup "method" queryParams of
-        Nothing -> runHandleClient
-          $ SingleSubscription.handleClient connection path core
-        Just (Just "reusable") -> runHandleClient
-          $ MultiSubscription.handleClient connection core
-        Just _ ->
-          WS.rejectRequestWith pending $ WS.RejectRequest
+    -- Fork a pinging thread, for each client, to keep idle connections open and to detect
+    -- closed connections. Sends a ping message every 30 seconds.
+    -- Note: The thread dies silently if the connection crashes or is closed.
+    runHandleClientWithPingThread connection handleClient =
+      withInterruptiblePingThread connection pingInterval onPing handleClient
+
+  case lookup "method" queryParams of
+    Just (Just "reusable") -> acceptMultiSubscription core runHandleClientWithPingThread pending
+    Nothing -> acceptSingleSubscription core path runHandleClientWithPingThread pending
+    Just _ ->
+      WS.rejectRequestWith pending $
+        WS.RejectRequest
           { WS.rejectCode = 400
           , WS.rejectMessage = "Unrecognised query parameter value"
           , WS.rejectHeaders = [(HttpHeader.hContentType, "text/plain")]
           , WS.rejectBody = "Invalid 'method' query parameter value, expecting 'reusable'"
           }
 
+type RunHandleClient = WS.Connection -> IO () -> IO ()
+
+-- Immediately accept the connection, authorisation mechanism is done via a subscription deadline timeout.
+acceptMultiSubscription :: Core -> RunHandleClient -> WS.PendingConnection -> IO ()
+acceptMultiSubscription core runHandleClient pending = do
+  connection <- WS.acceptRequest pending
+  runHandleClient connection $
+    MultiSubscription.handleClient connection core
+
+acceptSingleSubscription :: Core -> [Text] -> RunHandleClient -> WS.PendingConnection -> IO ()
+acceptSingleSubscription core path runHandleClient pending = do
+  authResult <- authorizePendingConnection core pending
+  case authResult of
+    AuthRejected err ->
+      WS.rejectRequestWith pending $
+        WS.RejectRequest
+          { WS.rejectCode = 401
+          , WS.rejectMessage = "Unauthorized"
+          , WS.rejectHeaders = [(HttpHeader.hContentType, "application/json")]
+          , WS.rejectBody = LBS.toStrict $ errorResponseBody err
+          }
+    AuthAccepted -> do
+      connection <- WS.acceptRequest pending
+      runHandleClient connection (SingleSubscription.handleClient connection path core)
 
 -- * Authorization
 
@@ -164,13 +178,15 @@ authorizePendingConnection :: Core -> WS.PendingConnection -> IO AuthResult
 authorizePendingConnection core conn
   | configEnableJwtAuth (coreConfig core) = do
       now <- Clock.getPOSIXTime
-      let req = WS.pendingRequest conn
-          (path, query) = Uri.decodePath $ WS.requestPath req
-          headers = WS.requestHeaders req
+      let
+        req = WS.pendingRequest conn
+        (path, query) = Uri.decodePath $ WS.requestPath req
+        headers = WS.requestHeaders req
       return $ isRequestAuthorized headers query now (configJwtSecret (coreConfig core)) path ModeRead
   | otherwise = pure AuthAccepted
 
 -- * Timeout handling
+
 --
 -- The websockets library lets you send pings, but it has no built in way to
 -- terminate clients that never send a pong back. We implement this ourselves by
@@ -191,9 +207,10 @@ pongHandler (WSServerOptions lastPongTime) = getTime Monotonic >>= void . atomic
 pingHandler :: Config -> WSServerOptions -> IO Bool
 pingHandler config (WSServerOptions lastPongTime) = do
   now <- getTime Monotonic
-  let pingInterval     = TimeSpec (fromIntegral $ configWebSocketPingInterval config) 0
-      pongTimeout      = TimeSpec (fromIntegral $ configWebSocketPongTimeout config) 0
-      lastPongDeadline = now - pingInterval - pongTimeout
+  let
+    pingInterval = TimeSpec (fromIntegral $ configWebSocketPingInterval config) 0
+    pongTimeout = TimeSpec (fromIntegral $ configWebSocketPongTimeout config) 0
+    lastPongDeadline = now - pingInterval - pongTimeout
 
   lastPong <- readIORef lastPongTime
   return $! lastPong < lastPongDeadline
@@ -221,26 +238,26 @@ withInterruptiblePingThread conn pingInterval pingAction
 --     not break anything, although it will cause it to spam pings.
 interruptiblePingThread :: WS.Connection -> Int -> IO Bool -> IO ()
 interruptiblePingThread conn pingInterval pingAction = ignore `handle` go 1
-  where
-    pingIntervalUs :: Int
-    pingIntervalUs = pingInterval * 1000 * 1000
+ where
+  pingIntervalUs :: Int
+  pingIntervalUs = pingInterval * 1000 * 1000
 
-    go :: Int -> IO ()
-    go i = do
-      threadDelay pingIntervalUs
-      -- If the send buffer is full (e.g. because we pushed a lot of updates to
-      -- a client that's timed out) then this send will block indefinitely.
-      -- Adding the timeout here prevents this from happening, and it also
-      -- interacts nicely with the @pingAction@.
-      _ <- timeout pingIntervalUs $ WS.sendPing conn (T.pack $ show i)
-      -- The difference with the original 'pingThread' is that this action now
-      -- returns a boolean, and we'll terminate this thread when that action
-      -- returns true
-      hasTimedOut <- pingAction
-      unless hasTimedOut $ go (i + 1)
+  go :: Int -> IO ()
+  go i = do
+    threadDelay pingIntervalUs
+    -- If the send buffer is full (e.g. because we pushed a lot of updates to
+    -- a client that's timed out) then this send will block indefinitely.
+    -- Adding the timeout here prevents this from happening, and it also
+    -- interacts nicely with the @pingAction@.
+    _ <- timeout pingIntervalUs $ WS.sendPing conn (T.pack $ show i)
+    -- The difference with the original 'pingThread' is that this action now
+    -- returns a boolean, and we'll terminate this thread when that action
+    -- returns true
+    hasTimedOut <- pingAction
+    unless hasTimedOut $ go (i + 1)
 
-    -- The rest of this function is exactly the same as the 'pingThread' in
-    -- @websockets-0.12.7.3@
-    ignore e = case fromException e of
-      Just async -> throwIO (async :: AsyncException)
-      Nothing -> return ()
+  -- The rest of this function is exactly the same as the 'pingThread' in
+  -- @websockets-0.12.7.3@
+  ignore e = case fromException e of
+    Just async -> throwIO (async :: AsyncException)
+    Nothing -> return ()
