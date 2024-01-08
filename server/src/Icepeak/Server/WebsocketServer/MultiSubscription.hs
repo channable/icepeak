@@ -360,7 +360,7 @@ handleClient conn core = do
     `Exception.catch`
     handleSubscriptionTimeout
 
--- After timeout, throw thread an exception if client hasn't subscribed.
+-- After timeout, throw the action an exception if the client hasn't subscribed.
 withSubscribeTimeout :: Client -> IO a -> IO a
 withSubscribeTimeout client action = do
   let
@@ -369,16 +369,15 @@ withSubscribeTimeout client action = do
       Core.coreConfig $
       clientCore client
 
-    clientHasSubscribed = do
+    clientNoSubscribers = do
       let subscriptions = clientSubscriptions client
-      not . HashMap.null <$> MVar.readMVar subscriptions
+      HashMap.null <$> MVar.readMVar subscriptions
 
   threadId <- Concurrent.myThreadId
   Monad.void $ Concurrent.forkIO $ do
     threadDelay initalSubscriptionTimeout
-    hasSubscribed <- clientHasSubscribed
-    if hasSubscribed then pure () else
-      Concurrent.throwTo threadId SubscriptionTimeout
+    noSubscribers <- clientNoSubscribers
+    Monad.when noSubscribers (Concurrent.throwTo threadId SubscriptionTimeout)
   action
 
 startMessageHandlerThread :: Client -> IO ()
