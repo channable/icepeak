@@ -2,7 +2,6 @@
 
 module Icepeak.Server.WebsocketServer.MultiSubscription (handleClient) where
 
-import Control.Concurrent.Async (Async)
 import Control.Concurrent.MVar (MVar)
 import Control.Exception (Exception)
 import Data.Aeson (Value, (.=))
@@ -30,7 +29,6 @@ import Icepeak.Server.Core (Core)
 import Icepeak.Server.Store (Path)
 import Icepeak.Server.WebsocketServer.Payload
 
-import Control.Concurrent (threadDelay)
 import qualified Icepeak.Server.AccessControl as Access
 import qualified Icepeak.Server.Config as Config
 import qualified Icepeak.Server.Core as Core
@@ -89,10 +87,9 @@ doSubscribe client paths = do
           . Subscription.subscribe
             newPath
             uuid
-            ( \writeToSub newValue -> do
-                writeToSub pathValueMVar newValue
-                Monad.void $ MVar.tryPutMVar isDirty ()
-            )
+            (\newValue -> do
+                Utils.writeToSub core pathValueMVar newValue
+                Monad.void $ MVar.tryPutMVar isDirty ())
       )
 
 onPayloadSubscribeWithAuth
@@ -377,7 +374,7 @@ withSubscribeTimeout client action = do
 
   threadId <- Concurrent.myThreadId
   Monad.void $ Concurrent.forkIO $ do
-    threadDelay initalSubscriptionTimeout
+    Concurrent.threadDelay initalSubscriptionTimeout
     noSubscribers <- clientNoSubscribers
     Monad.when noSubscribers (Concurrent.throwTo threadId SubscriptionTimeout)
   action

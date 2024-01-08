@@ -28,7 +28,8 @@ handleClient conn path core = do
     onConnect = do
       modifyMVar_ state
         (pure . Subscription.subscribe path uuid
-         (\writeToSub -> writeToSub pathCurentValueMVar))
+         (Utils.writeToSub core pathCurentValueMVar)
+        )
       withCoreMetrics core Metrics.incrementSubscribers
     onDisconnect = do
       modifyMVar_ state (pure . Subscription.unsubscribe path uuid)
