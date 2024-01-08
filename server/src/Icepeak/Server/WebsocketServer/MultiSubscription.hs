@@ -371,7 +371,7 @@ withSubscribeTimeout client action = do
 
     clientHasSubscribed = do
       let subscriptions = clientSubscriptions client
-      HashMap.null <$> MVar.readMVar subscriptions
+      not . HashMap.null <$> MVar.readMVar subscriptions
 
   threadId <- Concurrent.myThreadId
   Monad.void $ Concurrent.forkIO $ do
