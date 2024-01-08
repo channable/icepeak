@@ -1,6 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE NumericUnderscores #-}
 
 module Icepeak.Server.MultiSubscriptionSpec (spec) where
@@ -63,6 +62,7 @@ defaultConfig
   , Icepeak.configSyncLogging = False
   , Icepeak.configWebSocketPingInterval = 1
   , Icepeak.configWebSocketPongTimeout = 1
+  , Icepeak.configInitialSubscriptionTimeoutMicroSeconds = 100_000
   }
 
 withIcepeak :: IO Icepeak
@@ -146,8 +146,8 @@ withResponseJson conn jsonCheck = do
   jsonCheck json
 
 invalidPayloadsSpec :: SpecWith a
-invalidPayloadsSpec = describe "Opening and sending invalid payloads" $ do
-  it "should close connection upon invalid payload" $ const $ do
+invalidPayloadsSpec = describe "Payload Parse" $ do
+  context "when provided with invalid payload " $ do
     let openThenSend dataMessage = openReusableIcepeakConn $ \conn ->
           do WS.sendDataMessage conn dataMessage
              Exception.catch
@@ -157,26 +157,31 @@ invalidPayloadsSpec = describe "Opening and sending invalid payloads" $ do
                (\case (WS.CloseRequest code _) -> pure $ CloseCode code
                       otherException -> pure $ Unexpected ("Unexpected exception: " <> show otherException))
 
-    notJSON <- openThenSend (WS.Text "Hello" Nothing)
-    notJSON `shouldBe` CloseCode (Icepeak.closeCode Icepeak.TypeJsonDecodeError)
+    it "should close and know when provided with non-json input" $ const $ do
+      notJSON <- openThenSend (WS.Text "Hello" Nothing)
+      notJSON `shouldBe` CloseCode (Icepeak.closeCode Icepeak.TypeJsonDecodeError)
 
-    binaryMessage <- openThenSend (WS.Binary "Hello")
-    binaryMessage `shouldBe` CloseCode (Icepeak.closeCode Icepeak.TypeBinaryPayload)
+    it "should close and know when provided with binary payload" $ const $ do
+      binaryMessage <- openThenSend (WS.Binary "Hello")
+      binaryMessage `shouldBe` CloseCode (Icepeak.closeCode Icepeak.TypeBinaryPayload)
 
-    notAnObject <- openThenSend (WS.Text (Aeson.encode $ Aeson.Number 3) Nothing)
-    notAnObject `shouldBe` CloseCode (Icepeak.closeCode Icepeak.TypePayloadNotObject)
+    it "should close and know when provided with something other than object" $ const $ do
+      notAnObject <- openThenSend (WS.Text (Aeson.encode $ Aeson.Number 3) Nothing)
+      notAnObject `shouldBe` CloseCode (Icepeak.closeCode Icepeak.TypePayloadNotObject)
 
-    unexpectedType <- openThenSend (WS.Text (Aeson.encode $ Aeson.object [ "type" .= ("subskribe" :: String) ]) Nothing)
-    unexpectedType `shouldBe` CloseCode (Icepeak.closeCode Icepeak.TypeMissingOrUnexpectedType)
+    it "should close and know when provided with unexpected payload type" $ const $ do
+      unexpectedType <- openThenSend (WS.Text (Aeson.encode $ Aeson.object [ "type" .= ("subskribe" :: String) ]) Nothing)
+      unexpectedType `shouldBe` CloseCode (Icepeak.closeCode Icepeak.TypeMissingOrUnexpectedType)
 
-    noType <- openThenSend (WS.Text (Aeson.encode $ Aeson.object [ ]) Nothing)
-    noType `shouldBe` CloseCode (Icepeak.closeCode Icepeak.TypeMissingOrUnexpectedType)
+      typeMissing <- openThenSend (WS.Text (Aeson.encode $ Aeson.object [ ]) Nothing)
+      typeMissing `shouldBe` CloseCode (Icepeak.closeCode Icepeak.TypeMissingOrUnexpectedType)
 
-    outOfBounds <- openThenSend (WS.Text (BS.Lazy.replicate (fromInteger (toInteger $ Icepeak.maxPayloadBytes + 1)) 0) Nothing)
-    outOfBounds `shouldBe` CloseCode (Icepeak.closeCode Icepeak.TypeSizeOutOfBounds)
+    it "should close and know when provided with a payload size that is out of bounds" $ const $ do
+      outOfBounds <- openThenSend (WS.Text (BS.Lazy.replicate (fromInteger (toInteger $ Icepeak.maxPayloadBytes + 1)) 0) Nothing)
+      outOfBounds `shouldBe` CloseCode (Icepeak.closeCode Icepeak.TypeSizeOutOfBounds)
 
-    insideOfBounds <- openThenSend (WS.Text (BS.Lazy.replicate (fromInteger (toInteger Icepeak.maxPayloadBytes)) 0) Nothing)
-    insideOfBounds `shouldNotBe` CloseCode (Icepeak.closeCode Icepeak.TypeSizeOutOfBounds)
+      insideOfBounds <- openThenSend (WS.Text (BS.Lazy.replicate (fromInteger (toInteger Icepeak.maxPayloadBytes)) 0) Nothing)
+      insideOfBounds `shouldNotBe` CloseCode (Icepeak.closeCode Icepeak.TypeSizeOutOfBounds)
 
 singleConnectionCommunicationSpec :: SpecWith Icepeak
 singleConnectionCommunicationSpec = aroundAllWith
@@ -300,7 +305,7 @@ successfulUnsubscribe = it "should unsubscribe and receive success response" $
           responseJson `shouldMatchJson` Aeson.object
             [ "type" .= ("unsubscribe" :: Text)
             , "code" .= (200 :: Int)
-            , "paths" .= ([ "NULL/NULL", "NULL/NULL" ] :: [Text])
+            , "paths" .= ([ ] :: [Text])
             ])
 
 successfulUnsubscribeNoUpdates :: SpecWith (Icepeak, WS.Connection)
@@ -324,8 +329,6 @@ successfulUnsubscribeNoUpdates = it "should no longer receive updates for unsusb
             ])
 
     expectNoMessage clientConn >>= shouldBe ()
-
-
 
 spec :: Spec
 spec =
