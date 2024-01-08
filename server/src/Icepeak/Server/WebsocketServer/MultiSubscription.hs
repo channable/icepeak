@@ -4,12 +4,12 @@ module Icepeak.Server.WebsocketServer.MultiSubscription (handleClient) where
 
 import Control.Concurrent.Async (Async)
 import Control.Concurrent.MVar (MVar)
+import Control.Exception (Exception)
 import Data.Aeson (Value, (.=))
 import Data.Functor ((<&>))
 import Data.HashMap.Strict (HashMap)
 import Data.Text (Text)
 import Data.UUID (UUID)
-import Control.Exception (Exception)
 
 import qualified Control.Concurrent as Concurrent
 import qualified Control.Concurrent.Async as Async
@@ -30,6 +30,7 @@ import Icepeak.Server.Core (Core)
 import Icepeak.Server.Store (Path)
 import Icepeak.Server.WebsocketServer.Payload
 
+import Control.Concurrent (threadDelay)
 import qualified Icepeak.Server.AccessControl as Access
 import qualified Icepeak.Server.Config as Config
 import qualified Icepeak.Server.Core as Core
@@ -37,7 +38,6 @@ import qualified Icepeak.Server.JwtAuth as JwtAuth
 import qualified Icepeak.Server.Metrics as Metrics
 import qualified Icepeak.Server.Subscription as Subscription
 import qualified Icepeak.Server.WebsocketServer.Utils as Utils
-import Control.Concurrent (threadDelay)
 
 -- * Client handling
 
@@ -303,9 +303,9 @@ onDisconnect client = do
   Core.withCoreMetrics core Metrics.decrementSubscribers
 
 data SubscriptionTimeout = SubscriptionTimeout
-  deriving Show
+  deriving (Show)
 
-instance Exception SubscriptionTimeout where
+instance Exception SubscriptionTimeout
 
 handleClient :: WS.Connection -> Core -> IO ()
 handleClient conn core = do
@@ -325,15 +325,18 @@ handleClient conn core = do
 
     manageConnection =
       Async.withAsync
-      (startUpdaterThread client)
-      -- It's important that the below action is the outer action of the `withAsync` as
-      -- we rely on the Exceptions the outer action throws for 3 reasons:
-      -- 1. To cancel the inner "updaterThread" action when the outer action throws.
-      -- 2. To propagate the SubscriptionTimeout exception from the `withSubscribeTimeout`.
-      -- 3. To propagate the ConnectionException from the `receiveDataMessage` that is
-      --    used within the "messageHandlerThread".
-      (const $ withSubscribeTimeout client
-        (startMessageHandlerThread client))
+        (startUpdaterThread client)
+        -- It's important that the below action is the outer action of the `withAsync` as
+        -- we rely on the Exceptions the outer action throws for 3 reasons:
+        -- 1. To cancel the inner "updaterThread" action when the outer action throws.
+        -- 2. To propagate the SubscriptionTimeout exception from the `withSubscribeTimeout`.
+        -- 3. To propagate the ConnectionException from the `receiveDataMessage` that is
+        --    used within the "messageHandlerThread".
+        ( const $
+            withSubscribeTimeout
+              client
+              (startMessageHandlerThread client)
+        )
 
     -- Simply ignore connection errors, otherwise, Warp handles the exception
     -- and sends a 500 response in the middle of a WebSocket connection, and
@@ -355,10 +358,8 @@ handleClient conn core = do
   Exception.finally
     (onConnect client >> manageConnection)
     (onDisconnect client)
-    `Exception.catch`
-    handleConnectionError
-    `Exception.catch`
-    handleSubscriptionTimeout
+    `Exception.catch` handleConnectionError
+    `Exception.catch` handleSubscriptionTimeout
 
 -- After timeout, throw the action an exception if the client hasn't subscribed.
 withSubscribeTimeout :: Client -> IO a -> IO a
@@ -366,8 +367,8 @@ withSubscribeTimeout client action = do
   let
     initalSubscriptionTimeout =
       Config.configInitialSubscriptionTimeoutMicroSeconds $
-      Core.coreConfig $
-      clientCore client
+        Core.coreConfig $
+          clientCore client
 
     clientNoSubscribers = do
       let subscriptions = clientSubscriptions client
@@ -390,7 +391,6 @@ startMessageHandlerThread client = Monad.forever $ do
   dataMessage <- WS.receiveDataMessage conn
   onPayload coreConfig client $
     parseDataMessage dataMessage
-
 
 takeMVarUpdatedValues :: Client -> IO [(Text, Value)]
 takeMVarUpdatedValues client = do

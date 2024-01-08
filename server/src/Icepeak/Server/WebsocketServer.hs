@@ -142,7 +142,7 @@ acceptConnection core wsOptions pending = do
       -- Fork a pinging thread, for each client, to keep idle connections open and to detect
       -- closed connections. Sends a ping message every 30 seconds.
       -- Note: The thread dies silently if the connection crashes or is closed.
-      
+
       let runHandleClient = withInterruptiblePingThread connection pingInterval onPing
       case lookup "method" queryParams of
         Nothing -> runHandleClient
