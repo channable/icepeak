@@ -327,11 +327,12 @@ handleClient conn core = do
       Async.withAsync
         (startUpdaterThread client)
         -- It's important that the below action is the outer action of the `withAsync` as
-        -- we rely on the Exceptions the outer action throws for 3 reasons:
-        -- 1. To cancel the inner "updaterThread" action when the outer action throws.
+        -- we rely on the Exceptions the outer action throws for 4 reasons:
+        -- 1. For `withAsync` to kill the inner "updaterThread" thread when the outer action throws.
         -- 2. To propagate the SubscriptionTimeout exception from the `withSubscribeTimeout`.
         -- 3. To propagate the ConnectionException from the `receiveDataMessage` that is
-        --    used within the "messageHandlerThread".
+        --    thrown within the "messageHandlerThread".
+        -- 4. So that `onDisconnect` runs, see that `manageConnection` is in a `finally`.
         ( const $
             withSubscribeTimeout
               client
