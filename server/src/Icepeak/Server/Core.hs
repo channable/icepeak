@@ -73,10 +73,11 @@ data Core = Core
   }
 
 
--- This structure keeps track of all subscribers. We use one SubscriberState per
--- subscriber.
-type ServerState =
-  SubscriptionTree UUID ((MVar Value -> Value -> IO ()) -> Value -> IO ())
+-- This structure keeps track of all subscribers.
+-- Each subscriber is associated with a function for how to notify them.
+-- This is a a flexability in order to support the multiple protcols that
+-- exist for subscribing, i.e 'MultiSubscription.hs' and 'SingleSubscription.hs'.
+type ServerState = SubscriptionTree UUID (Value -> IO ())
 
 newServerState :: ServerState
 newServerState = empty

@@ -14,12 +14,10 @@ module Icepeak.Server.WebsocketServer (
 
 import Control.Concurrent (readMVar, threadDelay)
 import Control.Concurrent.Async (race_)
-import Control.Concurrent.MVar (MVar, putMVar, tryTakeMVar)
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TBQueue (readTBQueue)
 import Control.Exception (AsyncException, fromException, handle, throwIO)
-import Control.Monad (unless, void, when)
-import Data.Aeson (Value)
+import Control.Monad (unless, void)
 import Data.Foldable (for_)
 import Data.IORef (IORef, atomicWriteIORef, newIORef, readIORef)
 import Data.Text (Text)
@@ -40,7 +38,6 @@ import Icepeak.Server.JwtMiddleware (AuthResult (..), errorResponseBody, isReque
 import qualified Icepeak.Server.WebsocketServer.MultiSubscription as MultiSubscription
 import qualified Icepeak.Server.WebsocketServer.SingleSubscription as SingleSubscription
 
-import Data.Maybe (isJust)
 import qualified Icepeak.Server.Metrics as Metrics
 import qualified Icepeak.Server.Subscription as Subscription
 import System.Timeout (timeout)
@@ -82,26 +79,6 @@ mkWSServerOptions = do
   lastPongTime <- getTime Monotonic
   WSServerOptions <$> newIORef lastPongTime
 
--- send the updated data to all subscribers to the path
-broadcast :: Core -> [Text] -> Value -> ServerState -> IO ()
-broadcast core =
-  let
-    writeToSub :: MVar Value -> Value -> IO ()
-    writeToSub queue val = do
-      -- We are the only producer, so either the subscriber already
-      -- read the value or we can discard it to replace it with the
-      -- new one. We don't need atomicity for this operation.
-      -- `tryTakeMVar` basically empties the MVar, from this perspective.
-      mbQueue <- tryTakeMVar queue
-      -- If the MVar has not yet been read by the subscriber thread, it means
-      -- that the update has been skipped.
-      when (isJust mbQueue) $ for_ (coreMetrics core) Metrics.incrementWsSkippedUpdates
-      putMVar queue val
-
-    modifySubscriberState subUpdateCallback = subUpdateCallback writeToSub
-  in
-    Subscription.broadcast modifySubscriberState
-
 -- loop that is called for every update and that broadcasts the values to all
 -- subscribers of the updated path
 processUpdates :: Core -> IO ()
@@ -113,7 +90,7 @@ processUpdates core = go
     case maybeUpdate of
       Just (Updated path value) -> do
         clients <- readMVar (coreClients core)
-        broadcast core path value clients
+        Subscription.broadcast (\subscriberWrite newValue -> subscriberWrite newValue) path value clients
         go
       -- Stop the loop when we receive a Nothing.
       Nothing -> pure ()
