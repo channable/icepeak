@@ -13,7 +13,10 @@ The URL path:
 - points to the root of your icepeak service
 - has the query parameter `method` set to `reusable`
 
-The authorisation method follows the same protocol as the previous one.
+The authorisation mechanism is a "subscription deadline timout": Initial websocket connection does not need authorisation, but if the client does not subscribe to a client before the server-configured timeout, then the connection will be closed.
+
+Timeout is set by the `--first-subscription-deadline-timeout` flag, the input is in terms of microseconds, the default value is `100000` (0.1 seconds).
+
 
 # Subscribing, Unsubscribing & Updates
 
@@ -22,7 +25,7 @@ In summary:
 - The client, on the single connection, can cumulatively keep subscribing and unsubscribing to paths by sending corresponding payloads.
   - The server also sends back a response about the status, and some data of the corresponding subscription or unsubscription request.
 - The server will send the client the new value/update at the subscribed path whenever there is a change at that path.
-- Both, subscription and unsubscription requests are idempotent.
+- Both, subscription and unsubscription requests are idempotent, in terms of the effect on the state of the server, actual response received from client varies depending on the state of the server.
 
 ## Update
 
@@ -36,14 +39,18 @@ In summary:
   "type": "object",
   "properties": {
     "type": { "const": "update" },
-    "change": {
-      "type": "object",
-      "properties": {
-        "path": { "type": "string" },
-        "value": {}
-      }
-    }
+	"path": { "type": "string" },
+	"value": {}
   }
+}
+```
+
+Example:
+```javascript
+{
+ "type": "update",
+ "path": "path/to/value",
+ "value": <any-type>
 }
 ```
 
@@ -72,7 +79,17 @@ Each subscription is checked against a JWT to see if the user is authorised to a
     "token": { "type": "string" }
   }
 }
+
 ```
+Example:
+```javascript
+{
+ "type": "subscribe",
+ "paths": [ "path/one", "path/two", "otherpath" ],
+ "token": "eyJ..."
+}
+```
+
 
 ### Server Subscribe Response
 The server sends back a payload to the client. The payload will always contain a status code:
@@ -102,7 +119,7 @@ If the status code is `200` and **whether or not the client is already subscribe
     "type": { "const": "subscribe" },
     "paths": {
       "type": "array",
-      "items": {
+      "path": {
         "type": "object",
         "properties": {
           "path": { "type": "string" },
@@ -117,12 +134,26 @@ If the status code is `200` and **whether or not the client is already subscribe
 }
 ```
 
+Example success:
+```javascript
+{
+ "type": "subscribe",
+ "paths": [
+	{ "path": "path/one", "value": val },
+	{ "path": "path/two", "value": val2 },
+    { "path": "otherpath", "value": val3 },
+ ],
+ "code": 200,
+ "message": "You've been successfully subscribed to the paths",
+ "extra": {}
+}
+```
+
 ## Unsubscribe
 
 In summary:
 - The client can send a payload that contains paths to unsubscribe from.
-- The client can expect a response from the server that contains the status/acknowledgement of the request.
-  - In the case of a successful request, the response also contains the list of paths in the client request.
+- The client can expect a response from the server that contains the status/acknowledgement of the request, and paths unsubscribed from.
 
 ### Client Unsubscribe Request
 
@@ -141,6 +172,14 @@ In summary:
 }
 ```
 
+Example unsubscribe request:
+```javascript
+{
+ "type": "unsubscribe",
+ "paths": [ "path/one", "path/two", "path/three" ],
+}
+```
+
 ### Server Unsubscribe Response
 The server sends back a payload to the client. The payload will always contain a status code:
 
@@ -149,8 +188,8 @@ The server sends back a payload to the client. The payload will always contain a
 | 200  | Unsubscription was successfully processed |
 | 400  | Request payload was malformed             |
 
-If the status code is `200` and **whether or not the client is already unsubscribed**, the client can expect a payload from server that contains:
-- the list of the unsubscribe paths that the client had sent in the request.
+If the status code is `200`, the client can expect a payload from server that contains:
+- the list of paths that the client had been meaningfully unsubscribe from, i.e only the paths that the client had subscribed to.
 
 `JSON Schema` declaration of the unsubscribe client request:
 ```javascript
@@ -170,7 +209,16 @@ If the status code is `200` and **whether or not the client is already unsubscri
 }
 ```
 
-
+Example succesful unsubscribe response:
+```javascript
+{
+ "type": "unsubscribe",
+ "paths": [ "path/one", "path/two" ],
+ "code": 200,
+ "message": "You've been successfully unsubscribed from the paths",
+ "extra": {}
+}
+```
 
 # Invalid Client Message
-The server will close the websocket connection if the client payload contains an unrecognised `type`.
+The server will close the websocket connection with an informative message if the client payload is not recognised.
