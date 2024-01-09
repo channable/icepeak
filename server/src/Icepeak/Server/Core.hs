@@ -1,11 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Icepeak.Server.Core
-(
+
+module Icepeak.Server.Core (
   Core (..), -- TODO: Expose only put for clients.
   EnqueueResult (..),
   Command (..),
   ServerState,
-  SubscriberState (..),
   Updated (..),
   enqueueCommand,
   tryEnqueueCommand,
@@ -13,17 +12,16 @@ module Icepeak.Server.Core
   withCoreMetrics,
   lookup,
   newCore,
-  newSubscriberState,
   postQuit,
   runCommandLoop,
-  runSyncTimer
+  runSyncTimer,
 )
 where
 
 import Control.Concurrent (threadDelay)
-import Control.Concurrent.MVar (MVar, newEmptyMVar, newMVar, putMVar)
+import Control.Concurrent.MVar (MVar, newMVar, putMVar)
 import Control.Concurrent.STM (atomically)
-import Control.Concurrent.STM.TBQueue (TBQueue, newTBQueueIO, readTBQueue, writeTBQueue, isFullTBQueue)
+import Control.Concurrent.STM.TBQueue (TBQueue, isFullTBQueue, newTBQueueIO, readTBQueue, writeTBQueue)
 import Control.Concurrent.STM.TVar (TVar, newTVarIO)
 import Control.Monad (forever, unless, when)
 import Control.Monad.IO.Class
@@ -35,13 +33,13 @@ import Prelude hiding (log, writeFile)
 
 import Icepeak.Server.Config (Config (..), periodicSyncingEnabled)
 import Icepeak.Server.Logger (Logger)
-import Icepeak.Server.Store (Path, Modification (..))
+import Icepeak.Server.Persistence (PersistenceConfig (..), PersistentValue)
+import Icepeak.Server.Store (Modification (..), Path)
 import Icepeak.Server.Subscription (SubscriptionTree, empty)
-import Icepeak.Server.Persistence (PersistentValue, PersistenceConfig (..))
 
-import qualified Icepeak.Server.Store as Store
-import qualified Icepeak.Server.Persistence as Persistence
 import qualified Icepeak.Server.Metrics as Metrics
+import qualified Icepeak.Server.Persistence as Persistence
+import qualified Icepeak.Server.Store as Store
 
 -- | Defines the kinds of commands that are handled by the event loop of the Core.
 data Command
@@ -63,56 +61,48 @@ data EnqueueResult = Enqueued | Dropped
 
 data Core = Core
   { coreCurrentValue :: PersistentValue
-  -- the "dirty" flag is set to True whenever the core value has been modified
-  -- and is reset to False when it is persisted.
-  , coreValueIsDirty :: TVar Bool
-  , coreQueue        :: TBQueue Command
-  , coreUpdates      :: TBQueue (Maybe Updated)
-  , coreClients      :: MVar ServerState
-  , coreLogger       :: Logger
-  , coreConfig       :: Config
-  , coreMetrics      :: Maybe Metrics.IcepeakMetrics
+  , -- the "dirty" flag is set to True whenever the core value has been modified
+    -- and is reset to False when it is persisted.
+    coreValueIsDirty :: TVar Bool
+  , coreQueue :: TBQueue Command
+  , coreUpdates :: TBQueue (Maybe Updated)
+  , coreClients :: MVar ServerState
+  , coreLogger :: Logger
+  , coreConfig :: Config
+  , coreMetrics :: Maybe Metrics.IcepeakMetrics
   }
 
--- This structure describes the state associated to each subscriber in order
--- to communicate with them, at the moment, a simple `MVar` as a communication
--- channel. This is a newtype in order for it to be extensible without
--- rewriting all call sites.
-newtype SubscriberState = SubscriberState
-  -- We don't need actual queues for subscribers because the only relevant value
-  -- for them is the last one. Since we have one producer and one reader, we can
-  -- rely on MVar as a simpler mechanism.
-  -- We can expect from the subscribers to receive all the updates in the 
-  -- absence of timeouts.
-  { subscriberData :: MVar Value }
-
--- This structure keeps track of all subscribers. We use one SubscriberState per
--- subscriber.
-type ServerState = SubscriptionTree UUID SubscriberState
+-- This structure keeps track of all subscribers.
+-- Each subscriber is associated with a function for how to notify them.
+-- This is a a flexability in order to support the multiple protcols that
+-- exist for subscribing, i.e 'MultiSubscription.hs' and 'SingleSubscription.hs'.
+type ServerState = SubscriptionTree UUID (Value -> IO ())
 
 newServerState :: ServerState
 newServerState = empty
-
-newSubscriberState :: IO SubscriberState
-newSubscriberState = SubscriberState <$> newEmptyMVar
 
 -- | Try to initialize the core. This loads the database and sets up the internal data structures.
 newCore :: Config -> Logger -> Maybe Metrics.IcepeakMetrics -> IO (Either String Core)
 newCore config logger metrics = do
   let queueCapacity = fromIntegral . configQueueCapacity $ config
   -- load the persistent data from disk
-  let filePath = Persistence.getDataFile (configStorageBackend config) (configDataFile config)
-      journalFile
-        | configEnableJournaling config
-          && periodicSyncingEnabled config = Just $ filePath ++ ".journal"
-        | otherwise = Nothing
-  eitherValue <- Persistence.loadFromBackend (configStorageBackend config) PersistenceConfig
-    { pcDataFile = filePath
-    , pcJournalFile = journalFile
-    , pcLogger = logger
-    , pcMetrics = metrics
-    , pcLogSync = configSyncLogging config
-    }
+  let
+    filePath = Persistence.getDataFile (configStorageBackend config) (configDataFile config)
+    journalFile
+      | configEnableJournaling config
+          && periodicSyncingEnabled config =
+          Just $ filePath ++ ".journal"
+      | otherwise = Nothing
+  eitherValue <-
+    Persistence.loadFromBackend
+      (configStorageBackend config)
+      PersistenceConfig
+        { pcDataFile = filePath
+        , pcJournalFile = journalFile
+        , pcLogger = logger
+        , pcMetrics = metrics
+        , pcLogSync = configSyncLogging config
+        }
   for eitherValue $ \value -> do
     -- create synchronization channels
     tdirty <- newTVarIO False
@@ -156,7 +146,7 @@ getCurrentValue :: Core -> Path -> IO (Maybe Value)
 getCurrentValue core path =
   fmap (Store.lookup path) $ atomically $ Persistence.getValue $ coreCurrentValue core
 
-withCoreMetrics :: MonadIO m => Core -> (Metrics.IcepeakMetrics -> IO ()) -> m ()
+withCoreMetrics :: (MonadIO m) => Core -> (Metrics.IcepeakMetrics -> IO ()) -> m ()
 withCoreMetrics core act = liftIO $ forM_ (coreMetrics core) act
 
 -- | Drain the command queue and execute them. Changes are published to all
@@ -164,27 +154,27 @@ withCoreMetrics core act = liftIO $ forM_ (coreMetrics core) act
 -- queue.
 runCommandLoop :: Core -> IO ()
 runCommandLoop core = go
-  where
-    config = coreConfig core
-    currentValue = coreCurrentValue core
-    storageBackend = configStorageBackend config
-    go = do
-      command <- atomically $ readTBQueue (coreQueue core)
-      for_ (coreMetrics core) Metrics.incrementQueueRemoved
-      case command of
-        Modify op maybeNotifyVar -> do
-          Persistence.apply op currentValue
-          postUpdate (Store.modificationPath op) core
-          -- when periodic syncing is disabled, data is persisted after every modification
-          unless (periodicSyncingEnabled $ coreConfig core) $
-            Persistence.syncToBackend storageBackend currentValue
-          mapM_ (`putMVar` ()) maybeNotifyVar
-          go
-        Sync -> do
-          maybe id Metrics.measureSyncDuration (coreMetrics core) $
-            Persistence.syncToBackend storageBackend currentValue
-          go
-        Stop -> Persistence.syncToBackend storageBackend currentValue
+ where
+  config = coreConfig core
+  currentValue = coreCurrentValue core
+  storageBackend = configStorageBackend config
+  go = do
+    command <- atomically $ readTBQueue (coreQueue core)
+    for_ (coreMetrics core) Metrics.incrementQueueRemoved
+    case command of
+      Modify op maybeNotifyVar -> do
+        Persistence.apply op currentValue
+        postUpdate (Store.modificationPath op) core
+        -- when periodic syncing is disabled, data is persisted after every modification
+        unless (periodicSyncingEnabled $ coreConfig core) $
+          Persistence.syncToBackend storageBackend currentValue
+        mapM_ (`putMVar` ()) maybeNotifyVar
+        go
+      Sync -> do
+        maybe id Metrics.measureSyncDuration (coreMetrics core) $
+          Persistence.syncToBackend storageBackend currentValue
+        go
+      Stop -> Persistence.syncToBackend storageBackend currentValue
 
 -- | Post an update to the core's update queue (read by the websocket subscribers)
 postUpdate :: Path -> Core -> IO ()
@@ -198,15 +188,14 @@ postUpdate path core = do
     return full
   for_ (coreMetrics core) $
     if isWsQueueFull
-    then Metrics.incrementWsQueueSkippedUpdates
-    else Metrics.incrementWsQueueAdded
+      then Metrics.incrementWsQueueSkippedUpdates
+      else Metrics.incrementWsQueueAdded
 
 -- | Periodically send a 'Sync' command to the 'Core' if enabled in the core
 -- configuration.
 runSyncTimer :: Core -> IO ()
 runSyncTimer core = mapM_ go (configSyncIntervalMicroSeconds $ coreConfig core)
-  where
-    go interval = forever $ do
-      enqueueCommand Sync core
-      threadDelay interval
-
+ where
+  go interval = forever $ do
+    enqueueCommand Sync core
+    threadDelay interval
