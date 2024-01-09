@@ -323,6 +323,13 @@ handleClient conn core = do
     manageConnection =
       Async.withAsync
         (startUpdaterThread client)
+        -- This thread is only responsive to aync exceptions, and it ignores any other exception that may happen inside it and keeps going.
+        -- This makes sense for 2 reasons:
+        -- 1. `withAsync` will send a kill signal to the inner action ("updaterThread" in this case) when the outer action exists or throws an exception.
+        -- 2. Since we do not use the `Async` handle of the inner action, we do not call `wait` on it in the outer action.
+        --    `wait` is the mechanism that propagates any exception that might be thrown.
+        --     Since we do not use `wait`, if an exception is thrown inside the inner action, then it will just silently die.
+
         -- It's important that the below action is the outer action of the `withAsync` as
         -- we rely on the Exceptions the outer action throws for 4 reasons:
         -- 1. For `withAsync` to kill the inner "updaterThread" thread when the outer action throws.
