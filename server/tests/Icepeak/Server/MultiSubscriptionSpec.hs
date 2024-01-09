@@ -147,7 +147,7 @@ withResponseJson conn jsonCheck = do
 
 invalidPayloadsSpec :: SpecWith a
 invalidPayloadsSpec = describe "Payload Parse" $ do
-  context "when provided with invalid payload " $ do
+  context "when client sends invalid payload " $ do
     let openThenSend dataMessage = openReusableIcepeakConn $ \conn ->
           do WS.sendDataMessage conn dataMessage
              Exception.catch
@@ -186,149 +186,174 @@ invalidPayloadsSpec = describe "Payload Parse" $ do
 singleConnectionCommunicationSpec :: SpecWith Icepeak
 singleConnectionCommunicationSpec = aroundAllWith
   (\specUsingArgs icepeak -> openReusableIcepeakConn (curry specUsingArgs icepeak))
-  $ describe "Communication over a single connection" $ do
+  $ describe "Communication Over Single Connection" $ do
   successfulSubscribe
   successfulReceiveUpdates
   successfulUnsubscribe
   successfulUnsubscribeNoUpdates
 
 successfulSubscribe :: SpecWith (Icepeak, WS.Connection)
-successfulSubscribe = it "should subscribe and receive success response with values"
-  $ \(_, clientConn) -> do
-
-  sendJson clientConn $ Aeson.object
-    [ "type" .= ("subscribe" :: Text)
-    , "paths" .= ([ "A/B", "A/A" ] :: [Text]) ]
-  withResponseJson clientConn
-    (\responseJson -> do
-        responseJson `shouldMatchJson` Aeson.object
-          [ "type" .= ("subscribe" :: Text)
-          , "code" .= (200 :: Int)
-          , "paths" .=
-            [ Aeson.object
-              [ "path"  .= ("A/B" :: Text)
-              , "value" .= ("B":: Text)
-              ]
-            , Aeson.object
-              [ "path"  .= ("A/A" :: Text)
-              , "value" .= ("A":: Text)
-              ]
-            ]])
-
-  sendJson clientConn $ Aeson.object
-    [ "type" .= ("subscribe" :: Text)
-    , "paths" .= ([ "NULL" ] :: [Text]) ]
-  withResponseJson clientConn
-    (\responseJson -> do
-        responseJson `shouldMatchJson` Aeson.object
-          [ "type" .= ("subscribe" :: Text)
-          , "code" .= (200 :: Int)
-          , "paths" .=
-            [ Aeson.object
-              [ "path"  .= ("NULL" :: Text)
-              , "value" .= Aeson.Null
-              ]
-            ]])
-
-successfulReceiveUpdates :: SpecWith (Icepeak, WS.Connection)
-successfulReceiveUpdates = it "should receive updates" $
-  \(icepeak, clientConn) -> do
-    makeModification (icepeakCore icepeak) (Icepeak.Put ["A", "A"] "C")
-    withResponseJson clientConn
-      (\responseJson -> do
-          responseJson `shouldMatchJson` Aeson.object
-            [ "type" .= ("update" :: Text)
-            , "value" .= ("C" :: Text)
-            ])
-
-    makeModification (icepeakCore icepeak) (Icepeak.Put ["A"] "C")
-    withResponseJson clientConn
-      (\responseJson -> do
-          responseJson `shouldMatchJson` Aeson.object
-            [ "type" .= ("update" :: Text)
-            , "value" .= Aeson.Null
-            ])
-    withResponseJson clientConn
-      (\responseJson -> do
-          responseJson `shouldMatchJson` Aeson.object
-            [ "type" .= ("update" :: Text)
-            , "value" .= Aeson.Null
-            ])
-
-    makeModification (icepeakCore icepeak) (Icepeak.Put ["A", "A"] "C")
-    withResponseJson clientConn
-      (\responseJson -> do
-          responseJson `shouldMatchJson` Aeson.object
-            [ "type" .= ("update" :: Text)
-            , "value" .= ("C" :: Text)
-            , "path" .= ("A/A" :: Text)
-            ])
-
-    makeModification (icepeakCore icepeak) (Icepeak.Delete ["A", "A"])
-    withResponseJson clientConn
-      (\responseJson -> do
-          responseJson `shouldMatchJson` Aeson.object
-            [ "type" .= ("update" :: Text)
-            , "value" .= Aeson.Null
-            , "path" .= ("A/A" :: Text)
-            ])
-
-    makeModification (icepeakCore icepeak) (Icepeak.Put ["A", "A"] "D")
-    withResponseJson clientConn
-      (\responseJson -> do
-          responseJson `shouldMatchJson` Aeson.object
-            [ "type" .= ("update" :: Text)
-            , "value" .= ("D" :: Text)
-            , "path" .= ("A/A" :: Text)
-            ])
-
-successfulUnsubscribe :: SpecWith (Icepeak, WS.Connection)
-successfulUnsubscribe = it "should unsubscribe and receive success response" $
-  \(_icepeak, clientConn) -> do
-
-    sendJson clientConn $ Aeson.object
-      [ "type" .= ("unsubscribe" :: Text)
-      , "paths" .= ([ "A/B", "A/A" ] :: [Text]) ]
-    withResponseJson clientConn
-      (\responseJson -> do
-          responseJson `shouldMatchJson` Aeson.object
-            [ "type" .= ("unsubscribe" :: Text)
-            , "code" .= (200 :: Int)
-            , "paths" .= ([ "A/B", "A/A" ] :: [Text])
-            ])
-
-    sendJson clientConn $ Aeson.object
-      [ "type" .= ("unsubscribe" :: Text)
-      , "paths" .= ([ "NULL/NULL", "NULL/NULL" ] :: [Text]) ]
-    withResponseJson clientConn
-      (\responseJson -> do
-          responseJson `shouldMatchJson` Aeson.object
-            [ "type" .= ("unsubscribe" :: Text)
-            , "code" .= (200 :: Int)
-            , "paths" .= ([ ] :: [Text])
-            ])
-
-successfulUnsubscribeNoUpdates :: SpecWith (Icepeak, WS.Connection)
-successfulUnsubscribeNoUpdates = it "should no longer receive updates for unsusbscribed paths" $
-  \(icepeak, clientConn) -> do
-    makeModification (icepeakCore icepeak) (Icepeak.Put ["A", "B"] "C")
-    expectNoMessage clientConn >>= shouldBe ()
-
-    makeModification (icepeakCore icepeak) (Icepeak.Put ["A", "A"] "C")
-    expectNoMessage clientConn >>= shouldBe ()
-
+successfulSubscribe = context "when client subscribes" $ do
+  it "should succesfully send subscribe and receive values at paths" $
+    \(_, clientConn) -> do
     sendJson clientConn $ Aeson.object
       [ "type" .= ("subscribe" :: Text)
-      , "paths" .= ([ "A/B" ] :: [Text]) ]
+      , "paths" .= ([ "A/B", "A/A" ] :: [Text])
+      ]
     withResponseJson clientConn
       (\responseJson -> do
           responseJson `shouldMatchJson` Aeson.object
             [ "type" .= ("subscribe" :: Text)
             , "code" .= (200 :: Int)
-            , "paths" .= [ Aeson.object [ "path" .= ("A/B" :: Text), "value" .= ("C" :: Text)] ]
-            ])
+            , "paths" .=
+              [ Aeson.object
+                [ "path"  .= ("A/B" :: Text)
+                , "value" .= ("B":: Text)
+                ]
+              , Aeson.object
+                [ "path"  .= ("A/A" :: Text)
+                , "value" .= ("A":: Text)
+                ]
+              ]])
 
-    expectNoMessage clientConn >>= shouldBe ()
+  it "should subscribe to non-existent path and get null" $
+    \(_, clientConn) -> do
+    sendJson clientConn $ Aeson.object
+      [ "type" .= ("subscribe" :: Text)
+      , "paths" .= ([ "NULL" ] :: [Text]) ]
+    withResponseJson clientConn
+      (\responseJson -> do
+          responseJson `shouldMatchJson` Aeson.object
+            [ "type" .= ("subscribe" :: Text)
+            , "code" .= (200 :: Int)
+            , "paths" .=
+              [ Aeson.object
+                [ "path"  .= ("NULL" :: Text)
+                , "value" .= Aeson.Null
+                ]
+              ]])
+
+successfulReceiveUpdates :: SpecWith (Icepeak, WS.Connection)
+successfulReceiveUpdates = context "when values are updated" $ do
+  it "should send client upated value at subscribed path" $
+    \(icepeak, clientConn) -> do
+      makeModification (icepeakCore icepeak) (Icepeak.Put ["A", "A"] "C")
+      withResponseJson clientConn
+        (\responseJson -> do
+            responseJson `shouldMatchJson` Aeson.object
+              [ "type" .= ("update" :: Text)
+              , "value" .= ("C" :: Text)
+              ])
+
+  it "should send client nulled sub-paths when path sub-paths are overriden with value" $
+    \(icepeak, clientConn) -> do
+      makeModification (icepeakCore icepeak) (Icepeak.Put ["A"] "C")
+      withResponseJson clientConn
+        (\responseJson -> do
+            responseJson `shouldMatchJson` Aeson.object
+              [ "type" .= ("update" :: Text)
+              , "value" .= Aeson.Null
+              ])
+      withResponseJson clientConn
+        (\responseJson -> do
+            responseJson `shouldMatchJson` Aeson.object
+              [ "type" .= ("update" :: Text)
+              , "value" .= Aeson.Null
+              ])
+
+  it "should send client update on previosly overriden path" $
+    \(icepeak, clientConn) -> do
+      makeModification (icepeakCore icepeak) (Icepeak.Put ["A", "A"] "C")
+      withResponseJson clientConn
+        (\responseJson -> do
+            responseJson `shouldMatchJson` Aeson.object
+              [ "type" .= ("update" :: Text)
+              , "value" .= ("C" :: Text)
+              , "path" .= ("A/A" :: Text)
+              ])
+
+  it "should send client null update on deleted path" $
+    \(icepeak, clientConn) -> do
+      makeModification (icepeakCore icepeak) (Icepeak.Delete ["A", "A"])
+      withResponseJson clientConn
+        (\responseJson -> do
+            responseJson `shouldMatchJson` Aeson.object
+              [ "type" .= ("update" :: Text)
+              , "value" .= Aeson.Null
+              , "path" .= ("A/A" :: Text)
+              ])
+
+  it "should send client update on previosly deleted path" $
+    \(icepeak, clientConn) -> do
+      makeModification (icepeakCore icepeak) (Icepeak.Put ["A", "A"] "D")
+      withResponseJson clientConn
+        (\responseJson -> do
+            responseJson `shouldMatchJson` Aeson.object
+              [ "type" .= ("update" :: Text)
+              , "value" .= ("D" :: Text)
+              , "path" .= ("A/A" :: Text)
+              ])
+
+successfulUnsubscribe :: SpecWith (Icepeak, WS.Connection)
+successfulUnsubscribe = context "when client unsubscribes" $ do
+  it "should unsubscribe from multiple existing paths" $
+    \(_icepeak, clientConn) -> do
+      sendJson clientConn $ Aeson.object
+        [ "type" .= ("unsubscribe" :: Text)
+        , "paths" .= ([ "A/B", "A/A" ] :: [Text]) ]
+      withResponseJson clientConn
+        (\responseJson -> do
+            responseJson `shouldMatchJson` Aeson.object
+              [ "type" .= ("unsubscribe" :: Text)
+              , "code" .= (200 :: Int)
+              , "paths" .= ([ "A/B", "A/A" ] :: [Text])
+              ])
+
+  it "should get no paths from non-subscribed paths" $
+    \(_icepeak, clientConn) -> do
+        sendJson clientConn $ Aeson.object
+          [ "type" .= ("unsubscribe" :: Text)
+          , "paths" .= ([ "C/D", "E" ] :: [Text]) ]
+
+        withResponseJson clientConn
+          (\responseJson -> do
+              responseJson `shouldMatchJson` Aeson.object
+                [ "type" .= ("unsubscribe" :: Text)
+                , "code" .= (200 :: Int)
+                , "paths" .= ([ ] :: [Text])
+                ])
+
+successfulUnsubscribeNoUpdates :: SpecWith (Icepeak, WS.Connection)
+successfulUnsubscribeNoUpdates = context "when client unsubscribes" $ do
+  it "should no longer receive updates for unsusbscribed paths" $
+    \(icepeak, clientConn) -> do
+      makeModification (icepeakCore icepeak) (Icepeak.Put ["A", "B"] "C")
+      expectNoMessage clientConn >>= shouldBe ()
+
+      makeModification (icepeakCore icepeak) (Icepeak.Put ["A", "A"] "C")
+      expectNoMessage clientConn >>= shouldBe ()
+
+  it "should be able to resubscribe after unsubscribing" $
+    \(icepeak, clientConn) -> do
+      sendJson clientConn $ Aeson.object
+        [ "type" .= ("subscribe" :: Text)
+        , "paths" .= ([ "A/B" ] :: [Text]) ]
+      withResponseJson clientConn
+         (\responseJson -> do
+            responseJson `shouldMatchJson` Aeson.object
+              [ "type" .= ("subscribe" :: Text)
+              , "code" .= (200 :: Int)
+              , "paths" .= [ Aeson.object [ "path" .= ("A/B" :: Text), "value" .= ("C" :: Text)] ]
+              ])
+      makeModification (icepeakCore icepeak) (Icepeak.Put ["A", "B"] "D")
+      withResponseJson clientConn
+        (\responseJson -> do
+            responseJson `shouldMatchJson` Aeson.object
+              [ "type" .= ("update" :: Text)
+              , "value" .= ("D" :: Text)
+              , "path" .= ("A/B" :: Text)
+              ])
+      expectNoMessage clientConn >>= shouldBe ()
 
 spec :: Spec
 spec =
@@ -338,6 +363,6 @@ spec =
       createDataSet icepeak
       testSpec icepeak
       icepeakShutdown icepeak)
-  $ describe "MultiSubscription connection protocol"
+  $ describe "MultiSubscription Connection Protocol"
   $ do invalidPayloadsSpec
        singleConnectionCommunicationSpec
