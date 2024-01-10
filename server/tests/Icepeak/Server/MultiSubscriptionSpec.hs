@@ -4,6 +4,23 @@
 
 module Icepeak.Server.MultiSubscriptionSpec (spec) where
 
+import Test.Hspec
+import Test.Hspec.Expectations.Json
+import Data.Aeson ((.=))
+import Data.Word (Word16)
+import Data.Text (Text)
+
+import qualified Data.Aeson as Aeson
+import qualified Control.Concurrent as MVar
+import qualified Control.Concurrent.Async as Async
+import qualified Control.Concurrent as Concurrent
+import qualified Control.Exception as Exception
+import qualified System.Directory as Directory
+import qualified Data.ByteString.Lazy as BS.Lazy
+import qualified Network.WebSockets.Client as WS
+import qualified Network.WebSockets.Connection as WS
+import qualified Network.WebSockets as WS
+
 import qualified Icepeak.Server.Server as Icepeak
 import qualified Icepeak.Server.Logger as Icepeak
 import qualified Icepeak.Server.Config as Icepeak
@@ -12,28 +29,6 @@ import qualified Icepeak.Server.Core as Icepeak
 import qualified Icepeak.Server.Store as Icepeak
 import qualified Icepeak.Server.HttpServer as IcepeakHttp
 import qualified Icepeak.Server.WebsocketServer.Payload as Icepeak
-
-import Test.Hspec
-import Test.Hspec.Expectations.Json
-
-import qualified Network.WebSockets.Client as WS
-import qualified Network.WebSockets.Connection as WS
-import qualified Network.WebSockets as WS
-
-import Data.Aeson ((.=))
-import qualified Data.Aeson as Aeson
-
-import qualified Control.Concurrent as MVar
-import qualified Control.Concurrent.Async as Async
-import qualified Control.Concurrent as Concurrent
-
-import qualified Control.Exception as Exception
-import qualified System.Directory as Directory
-
-import Data.Word (Word16)
-import Data.Text (Text)
-
-import qualified Data.ByteString.Lazy as BS.Lazy
 
 
 icepeakPort :: Int
@@ -363,6 +358,51 @@ spec =
       createDataSet icepeak
       testSpec icepeak
       icepeakShutdown icepeak)
-  $ describe "MultiSubscription Connection Protocol"
-  $ do invalidPayloadsSpec
-       singleConnectionCommunicationSpec
+  $ do describe "MultiSubscription Connection Protocol" $ do
+         invalidPayloadsSpec
+         singleConnectionCommunicationSpec
+       describe "MultiSubscription Subscription Timeout Deadline Authorisation Mechanism" $ do
+         deadlineTimeoutSpec
+
+deadlineTimeoutSpec :: SpecWith Icepeak
+deadlineTimeoutSpec = do
+  it "should cause the server to close the connection if send subscribe late"
+    (\icepeak -> openReusableIcepeakConn
+      (\conn -> do
+        let timeoutDeadline = Icepeak.configInitialSubscriptionTimeoutMicroSeconds
+              $ Icepeak.coreConfig
+              $ icepeakCore icepeak
+        Concurrent.threadDelay $ timeoutDeadline + 50_000
+        sendJson conn $ Aeson.object
+          [ "type" .= ("subscribe" :: Text)
+          , "paths" .= ([ "A/B", "A/A" ] :: [Text]) ]
+        WS.receive conn `shouldThrow` connectionClosed
+     ))
+  it "should cause the server to close the connection if other request on time but still not subscribed"
+    (\icepeak -> openReusableIcepeakConn
+      (\conn -> do
+        let timeoutDeadline = Icepeak.configInitialSubscriptionTimeoutMicroSeconds
+              $ Icepeak.coreConfig
+              $ icepeakCore icepeak
+            dummyMsg = Aeson.object
+              [ "type" .= ("unsubscribe" :: Text)
+              , "paths" .= ([ "A/B", "A/A" ] :: [Text]) ]
+
+        Concurrent.threadDelay $ timeoutDeadline - 50_000
+
+        sendJson conn dummyMsg
+        _ <- expectDataMessage conn
+        sendJson conn dummyMsg
+        _ <- expectDataMessage conn
+
+        Concurrent.threadDelay 100_000
+
+        sendJson conn (Aeson.object
+          [ "type" .= ("subscribe" :: Text)
+          , "paths" .= ([ "A/B", "A/A" ] :: [Text]) ])
+        WS.receive conn `shouldThrow` connectionClosed
+     ))
+
+connectionClosed :: Selector WS.ConnectionException
+connectionClosed WS.ConnectionClosed = True
+connectionClosed _ = False
