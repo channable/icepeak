@@ -9,6 +9,7 @@ import qualified Icepeak.Server.RequestSpec
 import qualified Icepeak.Server.SocketSpec
 import qualified Icepeak.Server.StoreSpec
 import qualified Icepeak.Server.SubscriptionTreeSpec
+import qualified Icepeak.Server.MultiSubscriptionSpec
 
 main :: IO ()
 main = hspec $ do
@@ -21,3 +22,4 @@ main = hspec $ do
   Icepeak.Server.SocketSpec.spec
   Icepeak.Server.StoreSpec.spec
   Icepeak.Server.SubscriptionTreeSpec.spec
+  Icepeak.Server.MultiSubscriptionSpec.spec
