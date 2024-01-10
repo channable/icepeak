@@ -13,7 +13,7 @@ The URL path:
 - points to the root of your icepeak service
 - has the query parameter `method` set to `reusable`
 
-The authorisation mechanism is a "subscription deadline timout": Initial websocket connection does not need authorisation, but if the client does not subscribe to a client before the server-configured timeout, then the connection will be closed.
+The authorisation mechanism is a "subscription deadline timout": Initial websocket connection does not need authorisation, but if the client does not subscribe to a client before the server-configured timeout, then the connection will be closed un-politely, i.e the server will not send a WS close control message.
 
 Timeout is set by the `--first-subscription-deadline-timeout` flag, the input is in terms of microseconds, the default value is `100000` (0.1 seconds).
 
