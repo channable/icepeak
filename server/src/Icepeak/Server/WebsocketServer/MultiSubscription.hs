@@ -363,8 +363,8 @@ handleClient conn core = do
     handleSubscriptionTimeout :: SubscriptionTimeout -> IO ()
     handleSubscriptionTimeout _ = pure ()
 
-  -- Put the client in the subscription tree and keep the connection open.
-  -- Remove it when the connection is closed.
+  -- Run the threads to popagate updates to client, and to receive and handle payloads
+  -- Upon disonnect, unsubscribe client from all subscriptions
   Exception.finally
     (onConnect client >> manageConnection)
     (onDisconnect client)
