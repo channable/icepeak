@@ -363,8 +363,9 @@ handleClient conn core = do
     handleSubscriptionTimeout :: SubscriptionTimeout -> IO ()
     handleSubscriptionTimeout _ = pure ()
 
-  -- Put the client in the subscription tree and keep the connection open.
-  -- Remove it when the connection is closed.
+  -- Run the threads to propagate updates to client, and to receive and handle payloads
+  -- Upon threads dying, unsubscribe client from all subscriptions, then exit the procedure
+  -- to let `wai-websockets` close the websocket stream (since we are in a bracket)
   Exception.finally
     (onConnect client >> manageConnection)
     (onDisconnect client)
