@@ -131,7 +131,7 @@ configParser environment = Config
   <*> option auto
        (long "first-subscription-deadline-timeout" <>
         metavar "MICROSECONDS" <>
-        value 100_000 <> -- 0.1 seconds
+        value 1_000_000 <> -- 1 second
         help "The amount of time in microseconds to wait for a subscription request before closing the connection. This is used for the multiple subscription protocol. The initial connection to the server is not behind authorisation, and hence this timeout mechanism is used to disconnect unwanted connections.")
 
   where
