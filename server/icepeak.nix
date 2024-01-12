@@ -5,8 +5,9 @@
 
 # Haskell packages
 , aeson, async, base, bytestring, clock, containers, directory, hashable, hspec
-, hspec-wai, http-types, jwt, monad-logger, mtl, network, optparse-applicative
-, prometheus-client, prometheus-metrics-ghc, QuickCheck, quickcheck-instances
+, hspec-wai, hspec-expectations-json, http-types, jwt, monad-logger, mtl, network
+, optparse-applicative, prometheus-client
+, prometheus-metrics-ghc, QuickCheck, quickcheck-instances
 , random, raven-haskell, scotty, sqlite-simple, securemem, stm, text, time, unix
 , unordered-containers, uuid, wai, wai-extra, wai-middleware-prometheus
 , wai-websockets, warp, websockets }:
@@ -83,7 +84,7 @@ mkDerivation {
     websockets
   ];
 
-  testHaskellDepends = [ hspec hspec-wai QuickCheck quickcheck-instances ];
+  testHaskellDepends = [ hspec hspec-wai QuickCheck quickcheck-instances hspec-expectations-json ];
 
   license = lib.licenses.bsd3;
 }
