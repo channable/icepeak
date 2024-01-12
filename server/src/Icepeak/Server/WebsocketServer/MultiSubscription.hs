@@ -47,6 +47,7 @@ data Client = Client
   , clientCore :: Core
   , clientIsDirty :: MVar ()
   , clientSubscriptions :: MVar (HashMap Path (MVar Value))
+  , clientHasSubscribed :: MVar Bool
   }
 
 doSubscribe :: Client -> [Path] -> IO ()
@@ -65,6 +66,8 @@ doSubscribe client paths = do
     \path -> do
       valueAtPath <- Core.getCurrentValue core path
       pure (Text.intercalate "/" path, valueAtPath)
+
+  MVar.modifyMVar_ (clientHasSubscribed client) (pure . const True)
 
   WS.sendTextData conn $
     Aeson.encode $
@@ -308,6 +311,7 @@ handleClient :: WS.Connection -> Core -> IO ()
 handleClient conn core = do
   uuid <- Utils.newUUID
   isDirty <- MVar.newMVar ()
+  hasSubscribed <- MVar.newMVar False
   subscriptions <- MVar.newMVar (HashMap.empty :: HashMap [Text] (MVar Value))
 
   let
@@ -318,6 +322,7 @@ handleClient conn core = do
         , clientCore = core
         , clientIsDirty = isDirty
         , clientSubscriptions = subscriptions
+        , clientHasSubscribed = hasSubscribed
         }
 
     manageConnection =
@@ -375,15 +380,14 @@ withSubscribeTimeout client action = do
         Core.coreConfig $
           clientCore client
 
-    clientNoSubscribers = do
-      let subscriptions = clientSubscriptions client
-      HashMap.null <$> MVar.readMVar subscriptions
+    checkClientHasSubscribed = do
+      MVar.readMVar $ clientHasSubscribed client
 
   threadId <- Concurrent.myThreadId
   Monad.void $ Concurrent.forkIO $ do
     Concurrent.threadDelay initalSubscriptionTimeout
-    noSubscribers <- clientNoSubscribers
-    Monad.when noSubscribers (Concurrent.throwTo threadId SubscriptionTimeout)
+    hasSubscribed <- checkClientHasSubscribed
+    Monad.when (not hasSubscribed) (Concurrent.throwTo threadId SubscriptionTimeout)
   action
 
 startMessageHandlerThread :: Client -> IO ()
