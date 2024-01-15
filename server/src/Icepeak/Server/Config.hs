@@ -1,3 +1,5 @@
+{-# LANGUAGE NumericUnderscores #-}
+
 module Icepeak.Server.Config (
   Config (..),
   MetricsConfig (..),
@@ -51,6 +53,11 @@ data Config = Config
   -- to respond with a pong. If no pong is sent within this timeframe then the
   -- connection is considered to have timed out and it will be terminated.
   , configWebSocketPongTimeout:: Int
+  -- | The amount of time in microseconds to wait for a subscription request before closing the connection.
+  -- This is used for the 'MultiSubscription.hs' protocol.
+  -- The initial connection to the server is not behind authorisation, this timeout mechanism
+  -- is used to prevent unwanted connections.
+  , configInitialSubscriptionTimeoutMicroSeconds:: Int
   }
 
 data MetricsConfig = MetricsConfig
@@ -121,6 +128,11 @@ configParser environment = Config
         metavar "WS-PONG-TIMEOUT" <>
         value 30 <>
         help "The timespan in seconds after sending a ping during which the client has to respond with a pong. If no pong is sent within this timeframe then the connection is considered to have timed out and it will be terminated.")
+  <*> option auto
+       (long "first-subscription-deadline-timeout" <>
+        metavar "MICROSECONDS" <>
+        value 1_000_000 <> -- 1 second
+        help "The amount of time in microseconds to wait for a subscription request before closing the connection. This is used for the multiple subscription protocol. The initial connection to the server is not behind authorisation, and hence this timeout mechanism is used to disconnect unwanted connections.")
 
   where
     environ var = foldMap value (lookup var environment)
