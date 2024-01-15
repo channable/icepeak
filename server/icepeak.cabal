@@ -2,7 +2,7 @@ cabal-version: 1.12
 name:          icepeak
 
 -- Note: We follow the PVP here, required by Hackage
-version:       2.0.0.0
+version:       2.1.0.0
 synopsis:      A fast JSON document store with push notification support.
 description:
   Icepeak is a fast JSON document store with push notification support.
