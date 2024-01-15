@@ -14,7 +14,7 @@
 
 mkDerivation {
   pname = "icepeak";
-  version = "2.0.0";
+  version = "2.1.0";
 
   src = let
     # We do not want to include all files, because that leads to a lot of things
