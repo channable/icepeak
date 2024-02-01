@@ -17,6 +17,8 @@ let
       pkgs.haskellPackages.channalu
       pkgs.haskellPackages.haskell-language-server
       pkgs.haskellPackages.implicit-hie
+
+      pkgs.nodejs_21            # for icepeak-ts dev tools
     ];
 
     withHoogle = true;

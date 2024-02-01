@@ -1,0 +1,17 @@
+{
+    "name": "icepeak-ts-client",
+    "type": "module",
+    "version": "1.0.0",
+    "description": "TypeScript client for the Icepeak pub-sub server.",
+    "main": "./dist/lib/icepeak.js",
+    "scripts": {
+	"build": "npx tsc --build lib",
+	"build-test": "npx tsc --build test",
+	"test": "npm run build-test && node ./dist/test/icepeak.spec.js"
+    },
+    "author": "channable",
+    "license": "BSD-3-Clause",
+    "devDependencies": {
+	"typescript": "^5.3.3"
+    }
+}
