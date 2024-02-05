@@ -6,7 +6,7 @@ Informed by:
 
 {
     "extends": "../tsconfig.base.json",
-    "include": ["/**/*.ts"],
+    "include": ["/**/*.mts"],
     "compilerOptions": {
 	"composite": true,
     }
