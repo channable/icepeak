@@ -1,4 +1,5 @@
 import * as icepeak_basic from "./icepeak-basic.mjs";
+import { connect } from "./util.mjs";
 import type * as ws from "ws"
 
 type Token = { token: string };
@@ -120,8 +121,10 @@ class Icepeak<TokenError, TokenData> {
       .then(wsConn => {
 	const connectedWs : WsConnConnected = { connState : 'Connected',  wsConn : wsConn }
 	this._wsConnState = connectedWs;
-	// setup handlers
 
+	wsConn.addEventListener("message", this._messageHandler)
+	wsConn.addEventListener("close", this._closeHandler)
+	wsConn.addEventListener("error", this._errorHandler)
 	this._syncSubscribers(connectedWs)
       })
       .catch(err => {
@@ -141,6 +144,43 @@ class Icepeak<TokenError, TokenData> {
   private _wsConnState : WsConnState
   private _requestToken : TokenRequest<TokenError, TokenData>;
   private _paths : Paths<TokenData>
+
+  private _messageHandler(event : MessageEvent<unknown>) : void {
+    const mbIncomingPayload = icepeak_basic.parseMessageEvent(event)
+    if (mbIncomingPayload.type == "Fail") {
+      console.error("Unexpected websocket payload from icepeak server: ", mbIncomingPayload.error)
+      return
+    }
+    const incomingPayload = mbIncomingPayload.value;
+    switch (incomingPayload.type) {
+    case "update":
+      incomingPayload
+      return;
+    case "subscribe":
+      switch (incomingPayload.code) {
+      case 200:
+	incomingPayload
+        return
+      case 400:
+      case 401:
+      case 403:
+	incomingPayload
+        return
+      }
+    case "unsubscribe":
+      switch (incomingPayload.code) {
+      case 200:
+	incomingPayload
+        return
+      case 400:
+	incomingPayload
+        return
+      }
+    }
+  }
+
+  private _closeHandler(event : CloseEvent) : void { }
+  private _errorHandler(event : Event) : void { }
 
   private _sendSubscribe(
     connectedWs : WsConnConnected,
@@ -238,17 +278,4 @@ class Icepeak<TokenError, TokenData> {
       delete this._paths[path]
     // TODO send unsubscribe request, gracefully handle unsubcribing
   }
-}
-
-
-function connect(wsUrl: string | URL) : Promise<WebSocket> {
-    return new Promise(function(resolve, reject) {
-        const wsconn = new WebSocket(wsUrl);
-        wsconn.onopen = function() {
-            resolve(wsconn);
-        };
-        wsconn.onerror = function(err) {
-            reject(err);
-        };
-    });
 }
