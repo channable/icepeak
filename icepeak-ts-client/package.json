@@ -9,8 +9,8 @@
         "build-test": "npx tsc --build test",
         "test": "npm run build-test && node ./dist/test/icepeak.spec.mjs",
         "watch": "npx tsc --watch ./lib/*.mts",
-	"format": "npx prettier --check ./lib2/*.mts",
-	"format-fix": "npx prettier --write ./lib2/*.mts"
+	"format": "npx prettier --check ./lib/*.mts",
+	"format-fix": "npx prettier --write ./lib/*.mts"
     },
     "author": "channable",
     "license": "BSD-3-Clause",

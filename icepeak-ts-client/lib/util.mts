@@ -6,10 +6,7 @@ export {
   success,
   fail,
   parseArray,
-  connect,
-  timeoutPromise,
 };
-import type * as ws from "ws";
 
 type Maybe<T> = { type: "Success"; value: T } | { type: "Fail" };
 

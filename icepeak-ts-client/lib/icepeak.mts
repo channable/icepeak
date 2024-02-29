@@ -41,6 +41,8 @@ type Subscription = {
   readonly unsubscribe : () => void
 }
 
+// Constructing Icepeak
+
 function createIcepeak(config: IcepeakConfig): Icepeak {
   const icepeakCoreConfig : IcepeakCoreConfig<null, null> = {
     websocketUrl: config.websocketUrl,
