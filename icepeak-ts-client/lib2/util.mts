@@ -43,26 +43,3 @@ function success<E, T>(t: T): Either<E, T> {
 function fail<E, T>(e: E): Either<E, T> {
   return { type: "Fail", error: e };
 }
-
-function connect(
-  WebSocketConstructor: (url: string) => ws.WebSocket,
-  wsUrl: string,
-): Promise<ws.WebSocket> {
-  return new Promise(function (resolve, reject) {
-    const wsconn = WebSocketConstructor(wsUrl);
-    wsconn.onopen = function () {
-      resolve(wsconn);
-    };
-    wsconn.onerror = function (err) {
-      reject(err);
-    };
-  });
-}
-
-function timeoutPromise<T>(f: () => T, milis: number): Promise<T> {
-  return new Promise(function (resolve, _reject) {
-    setTimeout(() => {
-      resolve(f());
-    }, milis);
-  });
-}

@@ -8,12 +8,16 @@
         "build": "npx tsc --build lib",
         "build-test": "npx tsc --build test",
         "test": "npm run build-test && node ./dist/test/icepeak.spec.mjs",
-        "watch": "npx tsc --watch ./lib/*.mts"
+        "watch": "npx tsc --watch ./lib/*.mts",
+	"format": "npx prettier --check ./lib2/*.mts",
+	"format-fix": "npx prettier --write ./lib2/*.mts"
     },
     "author": "channable",
     "license": "BSD-3-Clause",
     "devDependencies": {
         "@types/ws": "^8.5.10",
-        "typescript": "^5.3.3"
+        "prettier": "^3.2.5",
+        "typescript": "^5.3.3",
+        "ws": "^8.16.0"
     }
 }

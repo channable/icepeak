@@ -1,4 +1,5 @@
-export { type Maybe, just, nothing, type Either, success, fail, parseArray, connect }
+export { type Maybe, just, nothing, type Either, success, fail, parseArray, connect, timeoutPromise }
+import type * as ws from "ws"
 
 type Maybe<T> = { type: "Success", value: T } | { type: "Fail" }
 
@@ -34,10 +35,21 @@ function fail<E,T>(e : E) : Either<E,T> {
   return { type: "Fail", error: e }
 }
 
-function connect(wsUrl: string | URL) : Promise<WebSocket> {
+
+function connect(
+  WebSocketConstructor : (url: string) => ws.WebSocket,
+  wsUrl: string) : Promise<ws.WebSocket> {
     return new Promise(function(resolve, reject) {
-        const wsconn = new WebSocket(wsUrl);
+        const wsconn = WebSocketConstructor(wsUrl);
         wsconn.onopen = function() { resolve(wsconn); };
         wsconn.onerror = function(err) { reject(err); };
+    });
+  }
+
+function timeoutPromise<T>(
+  f : () => T,
+  milis: number): Promise<T> {
+    return new Promise(function(resolve, _reject) {
+      setTimeout(() => { resolve(f()) }, milis)
     });
 }

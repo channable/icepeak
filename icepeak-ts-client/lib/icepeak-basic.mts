@@ -1,6 +1,8 @@
-export { type SubscribePayload, type UnsubscribePayload, createSubscribePayload, createUnsubscribePayload, sendPayload, parseMessageEvent }
+export { type SubscribeError, type SubscribeSuccess, type SubscribePayload, type UnsubscribePayload, type IncomingPayload, createSubscribePayload, createUnsubscribePayload, sendPayload, parseMessageEvent }
 
 import { type Maybe, just, nothing, type Either, success, fail, parseArray} from  "./util.mjs"
+
+import * as ws from "ws"
 
 type SubscribePayload =
 { type: string;
@@ -34,12 +36,11 @@ function createUnsubscribePayload(paths: [string]): UnsubscribePayload {
 
 
 function sendPayload(
-  conn: WebSocket,
+  conn: ws.WebSocket,
   payload: UnsubscribePayload | SubscribePayload
 ): void {
     conn.send(JSON.stringify(payload));
 }
-
 
 type ValueUpdate = {
   type: "update",
@@ -99,7 +100,7 @@ function parseString(val: unknown): Maybe<string> {
   return nothing()
 }
 
-function parseMessageEvent(event : MessageEvent<unknown>): Either<unknown, IncomingPayload> {
+function parseMessageEvent(event : ws.MessageEvent): Either<unknown, IncomingPayload> {
   const eventData = event.data
   if (typeof eventData != 'string') return fail(eventData)
   const json : unknown = JSON.parse(eventData);

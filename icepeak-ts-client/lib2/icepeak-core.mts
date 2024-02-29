@@ -102,22 +102,22 @@ type WsConnConnected = { connState: "Connected"; wsConn: ws.WebSocket; };
 
 type IcepeakCoreConfig<FetchTokenError, ExtraTokenData> = {
   websocketUrl: string,
+  websocketConstructor: (url: string) => ws.WebSocket,
   fetchTokenFn: FetchTokenFn<FetchTokenError, ExtraTokenData>,
   calculateRetry: CalculateRetryFn,
-  websocketConstructor: (url: string) => ws.WebSocket,
   logger: LogFn
 }
 
 type FetchTokenFn<FetchTokenError, FetchTokenExtraData> = (
-  path: String,
+  path: string,
   extraTokenData: ExtraTokenData<FetchTokenExtraData>,
 ) => Promise<Token | TokenRequestError<FetchTokenError>>
 
 // Returns the number of milliseconds to wait before retrying.
 type CalculateRetryFn = (event: ws.ErrorEvent | ws.CloseEvent) => null | number
 
-type LogFn = (logType : LogType, logMessage : string, extra? : any) => void
-type LogType = "Debug" | "Error"
+type LogFn = (logType : LogType, logMessage : string, extra? : unknown) => void
+type LogType = "Debug" | "InternalError" | "UserError"
 
 
 // IcepeakCore Public Interface
@@ -154,8 +154,9 @@ function createIcepeakCore<FetchTokenError, FetchTokenExtraData> (
   }
 
   const icepeakCore = {
-    createSubscriptionRef: (createSubscriptionRef as (path: string) => SubscriptionRef<FetchTokenError, FetchTokenExtraData>)
-      .bind(icepeakCorePrivate),
+    createSubscriptionRef: (createSubscriptionRef as
+      (path: string) => SubscriptionRef<FetchTokenError, FetchTokenExtraData>
+    ).bind(icepeakCorePrivate),
     destroy: destroy
       .bind(icepeakCorePrivate)
   };
@@ -275,7 +276,7 @@ function onWsMessageEvent(this: IcepeakCorePrivate<any, any>, event: ws.MessageE
   const mbIncomingPayload = icepeak_payload.parseMessageEvent(event)
   if (mbIncomingPayload.type == "Fail") {
     this.config.logger(
-      "Error",
+      'InternalError',
       "Unexpected websocket payload from icepeak server.",
       mbIncomingPayload.error)
     return
@@ -321,7 +322,7 @@ function onSubscribeResponse(
   case 401:
   case 403:
     if (!("paths" in subscribe)) {
-      this.config.logger('Error',
+      this.config.logger('InternalError',
 	'Subscribe response indicates malformed payload.', subscribe)
       return
     }
@@ -346,7 +347,7 @@ function onUnsubscribeResponse(
   case 200:
     return;
   case 400:
-    this.config.logger('Error',
+    this.config.logger('InternalError',
       'Unsubscribe response indicates malfored unsubscribe.', unsubscribe);
     return;
   }
@@ -370,7 +371,7 @@ function onWsErrorOrClose(
   }
 
   if ("code" in event && event.code > 3000 && event.code < 3006) {
-    this.config.logger('Error', "Received close code indicating internal client error.")
+    this.config.logger('InternalError', "Received close code indicating internal client error.")
     return
   }
 
@@ -384,7 +385,7 @@ function onWsErrorOrClose(
   case "Uninitialised":
   case "Connecting":
   case "Closed":
-    this.config.logger('Error', "Unexpected close while socket not in connected state.", event)
+    this.config.logger('InternalError', "Unexpected close while socket not in connected state.", event)
     return
   }
 }
@@ -458,7 +459,7 @@ function subscribe<FetchTokenExtraData>(
       return "SendingRequest"
 
     case "Subscribed": // This case should not be possible
-      this.config.logger('Error', "Path state should not be subscribed while connection is closed.",
+      this.config.logger('InternalError', "Path state should not be subscribed while connection is closed.",
 	this.state.pathSubscriptions[subscriptionRef.path])
       return "AlreadySubscribed"
     }
@@ -541,6 +542,7 @@ function sendSubscribe<FetchTokenError, FetchTokenExtraData>(
 
       if ("tokenRequestError" in tokenResponse) {
 	this.config.logger('Debug', "Received a token error.", tokenResponse)
+	this.config.logger('UserError', "Received a token error.", tokenResponse)
 	pathSubscription.status = "NotSubscribed";
         pathSubscription.subscribers.forEach(
 	  subscriptionRef => subscriptionRef.onFailure(tokenResponse));

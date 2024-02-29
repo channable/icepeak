@@ -19,7 +19,7 @@ let
       pkgs.haskellPackages.implicit-hie
 
       # for icepeak-ts-client dev tools, npm, npx
-      pkgs.nodejs_21
+      pkgs.nodejs_20
 
       # for icepeak-ts-client langauge server
       pkgs.nodePackages_latest.typescript-language-server
