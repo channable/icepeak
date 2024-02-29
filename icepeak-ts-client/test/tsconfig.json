@@ -1,7 +1,7 @@
 {
     "extends": "../tsconfig.base.json",
     "references": [ { "path": "../lib" } ],
-    "include": ["/**/*.mts", "../../../../.emacs.d/auto-save/!home!ernestskuznecovs!channable-aux!icepeak!icepeak-ts-client!test!icepeak.spec.mts~"],
+    "include": ["/**/*.mts"],
 
     "compilerOptions": {
 	"composite": true,
