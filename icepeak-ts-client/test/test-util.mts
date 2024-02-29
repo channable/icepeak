@@ -3,7 +3,9 @@ fetch_dummy_token,
 put_data,
 Wait,
 fill_node_event_queue,
-handle_test_result
+handle_test_result,
+log_everything,
+simplify_fetch_token
 }
 
 import timers from "timers";
@@ -19,12 +21,27 @@ import WebSocket from 'ws'
 const exec = util.promisify(child_process.exec);
 
 
-import type { FetchTokenFn } from "../lib/icepeak-core.mjs";
+import type { FetchTokenFn, LogFn, Token } from "../lib/icepeak-core.mjs";
+
+const log_everything : LogFn =
+  (logType, logMessage, extra) => {
+    extra
+      ? console.log(logType + "\n", logMessage, "\n", extra)
+      : console.log(logType + "\n", logMessage)
+  }
 
 const fetch_dummy_token : FetchTokenFn<null, null> =
   async (_path, _) => {
     return { token: "dummy-token" }
   };
+
+// Adapt a 'IcepeakCore' FetchTokenFn for the simple fetch
+// token function of the simpler 'Icepeak' interface
+const simplify_fetch_token
+  : (f : FetchTokenFn<null, null>)
+  => (( p : string ) => Promise<Token>) = f =>
+    (path => f(path, { extraTokenData: null })
+      .then(t => { if ("tokenRequestError" in t) throw t; return t }))
 
 function put_data(jsonString : string, path : string) : Promise<any> {
   return exec(
