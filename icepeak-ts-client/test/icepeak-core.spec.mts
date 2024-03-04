@@ -19,7 +19,6 @@ async function icepeakCoreTest() {
   };
 
   await test_util.put_data({}, "")
-  
   const w1 = new test_util.Wait()
   const w2 = new test_util.Wait()
   const icepeakCore  = icepeak_core.createIcepeakCore(config);
