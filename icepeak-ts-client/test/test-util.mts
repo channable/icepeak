@@ -43,10 +43,10 @@ const simplify_fetch_token
     (path => f(path, { extraTokenData: null })
       .then(t => { if ("tokenRequestError" in t) throw t; return t }))
 
-function put_data(jsonString : string, path : string) : Promise<any> {
+function put_data(obj : any, path : string) : Promise<any> {
   return exec(
     "curl -X PUT -H 'Content-Type: application/json' -d " +
-      `'${jsonString}'` +
+      `'${JSON.stringify(obj)}'` +
       " http://localhost:3000" +
       path)
 }

@@ -10,7 +10,7 @@ async function icepeakTest() {
   console.log("Starting Test")
 
   // Clear Icepeak server data
-  await test_util.put_data(JSON.stringify({}), "")
+  await test_util.put_data({}, "")
 
   const config : icepeak.IcepeakConfig = {
     websocketUrl: "ws://localhost:3000/?method=reusable",
@@ -20,10 +20,25 @@ async function icepeakTest() {
   }
 
   const w1 = new test_util.Wait()
+  const w2 = new test_util.Wait()
   const icepeakObj = icepeak.createIcepeak(config);
-  icepeakObj.subscribe("hi", val => console.log("Received value:", val))
-  await w1.wait
+  // const s1 = icepeakObj.subscribe("root", val => { console.log("s1 received:", val); w1.done() })
 
+  // await test_util.put_data(8, "/root")
+  // await test_util.put_data(11, "/root")
+  const s2 = icepeakObj.subscribe("/root/sub1", val => { console.log("s2 received:", val); w2.done() })
+  const s3 = icepeakObj.subscribe("/root/sub1", val => { console.log("s3 received:", val); w2.done() })
+
+  // await test_util.put_data(12, "/root/sub1/sub2")
+  await test_util.put_data({"sub1": { "sub2": 11 }}, "/root")
+  await test_util.put_data({"sub1": { "sub2": 11 }}, "/root")
+  await test_util.put_data({"sub1": { "sub2": 11 }}, "/root")
+  // s1.unsubscribe()
+  // s2.unsubscribe()
+  // s3.unsubscribe()
+
+  await w1.wait
+  await w2.wait
 
 }
 

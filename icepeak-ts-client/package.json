@@ -7,17 +7,22 @@
     "scripts": {
         "build": "npx tsc --build lib",
         "build-test": "npx tsc --build test",
-        "test": "npm run build-test && node ./dist/test/icepeak.spec.mjs",
+        "test-icepeak": "npm run build-test && node ./dist/test/icepeak.spec.mjs",
+        "test-icepeak-core": "npm run build-test && node ./dist/test/icepeak-core.spec.mjs",
         "watch": "npx tsc --watch ./lib/*.mts",
-	"format": "npx prettier --check ./lib/*.mts",
-	"format-fix": "npx prettier --write ./lib/*.mts"
+        "format": "npx prettier --check ./lib/*.mts",
+        "format-fix": "npx prettier --write ./lib/*.mts"
     },
     "author": "channable",
     "license": "BSD-3-Clause",
     "devDependencies": {
+        "@types/react": "^18.2.61",
         "@types/ws": "^8.5.10",
         "prettier": "^3.2.5",
         "typescript": "^5.3.3",
         "ws": "^8.16.0"
+    },
+    "dependencies": {
+        "react": "^18.2.0"
     }
 }

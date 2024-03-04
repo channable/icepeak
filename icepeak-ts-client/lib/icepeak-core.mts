@@ -131,7 +131,7 @@ function createIcepeakCore<FetchTokenError, FetchTokenExtraData> (
   config: IcepeakCoreConfig<FetchTokenError, FetchTokenExtraData>
 ) : IcepeakCore<FetchTokenError, FetchTokenExtraData> {
 
-  const icepeakCorePrivate : IcepeakCorePrivate<FetchTokenError, FetchTokenExtraData>  = {
+  const icepeakCorePrivate : IcepeakCorePrivate<FetchTokenError, FetchTokenExtraData> = {
     config : config,
     state : { pathSubscriptions: {}, wsConnState: { connState: "Uninitialised" } },
 
@@ -239,7 +239,7 @@ function connectWs(this: IcepeakCorePrivate<any, any>): Promise<void> {
     this.config.logger("Debug", "Connecting to server...")
     this.state.wsConnState = { connState: "Connecting" }
     const wsConn = this.config.websocketConstructor(this.config.websocketUrl)
-    wsConn.onopen = _ => { this.connectWsOnOpen(wsConn); resolve()}
+    wsConn.onopen = _ => { this.connectWsOnOpen(wsConn); resolve() }
     wsConn.onerror = e => this.connectWsOnError(e, resolve, reject)
   })
 }
@@ -248,9 +248,9 @@ function connectWsOnOpen(this: IcepeakCorePrivate<any, any>, openedWsConn: ws.We
   this.config.logger("Debug", "Connected to server.")
   const connectedWs: WsConnConnected = { connState: "Connected", wsConn: openedWsConn }
   this.state.wsConnState = connectedWs
-  openedWsConn.onmessage = this.onWsMessageEvent
-  openedWsConn.onclose = this.onWsErrorOrClose
-  openedWsConn.onerror = this.onWsErrorOrClose
+  openedWsConn.onmessage = this.onWsMessageEvent.bind(this)
+  openedWsConn.onclose = this.onWsErrorOrClose.bind(this)
+  openedWsConn.onerror = this.onWsErrorOrClose.bind(this)
   this.syncSubscribers(connectedWs)
 }
 
@@ -282,7 +282,7 @@ function onWsMessageEvent(this: IcepeakCorePrivate<any, any>, event: ws.MessageE
     return
   }
   const incomingPayload = mbIncomingPayload.value
-  this.config.logger("Debug", "Incoming payload.", incomingPayload)
+  this.config.logger("Debug", "Incoming payload.", [incomingPayload, this.state.pathSubscriptions])
   switch (incomingPayload.type) {
   case "update": return this.onUpdatePayload(incomingPayload)
   case "subscribe": return this.onSubscribeResponse(incomingPayload)
@@ -298,6 +298,7 @@ function onUpdatePayload(
   update : icepeak_payload.ValueUpdate
 ): void {
   if (!(update.path in this.state.pathSubscriptions)) return
+  console.log(update.path)
   const subs = this.state.pathSubscriptions[update.path].subscribers;
   for (const sub of subs) sub.onUpdate(update.value);
 }
