@@ -18,6 +18,9 @@ module Icepeak.Server.Persistence
 import           Control.Concurrent.STM
 import           Control.Exception
 import           Control.Monad.Except
+import           Control.Monad              (when)
+import           Control.Monad.Trans.Class  (lift)
+import           Control.Monad.IO.Class     (liftIO)
 import qualified Data.Aeson                 as Aeson
 import qualified Data.Aeson.Types           as Aeson
 import qualified Data.ByteString            as SBS
