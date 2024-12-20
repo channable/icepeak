@@ -16,14 +16,14 @@ library
     -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
 
   build-depends:
-      aeson        >=2.1.2  && <2.2
-    , base         >=4.17.2 && <4.18
-    , binary       >=0.8.9  && <0.9
-    , bytestring   >=0.11.5 && <0.12
-    , exceptions   >=0.10.5 && <0.11
-    , http-client  >=0.7.14 && <0.8
-    , http-types   >=0.12.3 && <0.13
-    , retry        >=0.9.3  && <0.10
-    , text         >=2.0.2  && <2.1
+      aeson        >=2.1.2
+    , base         >=4.17.2
+    , binary       >=0.8.9
+    , bytestring   >=0.11.5
+    , exceptions   >=0.10.5
+    , http-client  >=0.7.14
+    , http-types   >=0.12.3
+    , retry        >=0.9.3
+    , text         >=2.0.2
 
   default-language: Haskell2010
