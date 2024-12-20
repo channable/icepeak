@@ -21,7 +21,7 @@ blocks:
           - sha256sum --check .semaphore/install-nix-2.10.3.sha256
 
           # This prologue contains commands aimed at preparing the Nix environment.
-          - .semaphore/prologue.sh 
+          - .semaphore/prologue.sh
           # Restore `/nix` cache. Create the directory first, otherwise we encounter
           # permission errors. We do this because the Semaphore cache is faster than
           # both Cachix and cache.nixos.org.
@@ -34,7 +34,7 @@ blocks:
           - "sh ./install-nix-2.10.3 --no-daemon"
           # Enable `nix-command` feature, which `nix build` needs to build
           - "sudo mkdir /etc/nix"
-          - "echo 'experimental-features = nix-command' | sudo tee -a /etc/nix/nix.conf"
+          - "echo 'experimental-features = nix-command flakes' | sudo tee -a /etc/nix/nix.conf"
 
           - ". $HOME/.nix-profile/etc/profile.d/nix.sh"
 
@@ -45,7 +45,7 @@ blocks:
       jobs:
         - name: "Check frozen versions"
           commands:
-            - "nix develop -f default.nix -c cabal build --dry-run all"
+            - "nix develop -f default.nix -c cabal --config-file=/dev/null build --dry-run all"
 
         - name: "Build client"
           commands:

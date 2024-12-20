@@ -1,4 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+
 
 module Icepeak.Server.HttpServer (new) where
 
@@ -26,6 +28,7 @@ import qualified Icepeak.Server.Store as Store
 import qualified Icepeak.Server.Core as Core
 import qualified Icepeak.Server.Metrics as Metrics
 
+
 new :: Core -> IO Application
 new core =
   scottyApp $ do
@@ -41,7 +44,7 @@ new core =
     -- Use the Sentry logger if available
     -- Scottys error handler will only catch errors that are thrown from within
     -- a ```liftAndCatchIO``` function.
-    Scotty.defaultHandler (\e -> do
+    Scotty.defaultHandler (Scotty.Handler $ \(e :: Scotty.StatusError) -> do
         liftIO $ postLog (coreLogger core) LogError . pack . show $ e
         status status503
         Scotty.text "Internal server error"
@@ -77,7 +80,7 @@ durationMeasureMiddleware metrics app req respond = do
     respond res
 
 -- | Enqueue modification and wait for it to be processed, if desired by the client.
-postModification :: (Scotty.ScottyError e, MonadIO m) => Core -> Store.Modification -> Scotty.ActionT e m EnqueueResult
+postModification :: (MonadIO m) => Core -> Store.Modification -> Scotty.ActionT m EnqueueResult
 postModification core op = do
   -- the parameter is parsed as type (), therefore only presence or absence is important
   durable <- maybeParam "durable"
@@ -91,6 +94,6 @@ buildResponse :: EnqueueResult -> ActionM ()
 buildResponse Enqueued = status accepted202
 buildResponse Dropped  = status serviceUnavailable503
 
-maybeParam :: (Scotty.Parsable a, Scotty.ScottyError e, Monad m) => LText.Text -> Scotty.ActionT e m (Maybe a)
+maybeParam :: (Scotty.Parsable a, Monad m) => LText.Text -> Scotty.ActionT m (Maybe a)
 maybeParam name = fmap (parseMaybe <=< lookup name) Scotty.params where
   parseMaybe = either (const Nothing) Just . Scotty.parseParam
