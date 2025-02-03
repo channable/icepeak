@@ -17,8 +17,8 @@ blocks:
           - "checkout"
 
           # Download and verify Nix installation script.
-          - curl -o install-nix-2.10.3 https://releases.nixos.org/nix/nix-2.10.3/install
-          - sha256sum --check .semaphore/install-nix-2.10.3.sha256
+          - curl -o install-nix https://releases.nixos.org/nix/nix-2.24.10/install
+          - sha256sum --check .semaphore/install-nix-2.24.10.sha256
 
           # This prologue contains commands aimed at preparing the Nix environment.
           - .semaphore/prologue.sh
@@ -31,7 +31,7 @@ blocks:
           - unset LD_LIBRARY_PATH
 
           # Install Nix and source the shell configuration immediately.
-          - "sh ./install-nix-2.10.3 --no-daemon"
+          - "sh ./install-nix --no-daemon"
           # Enable `nix-command` feature, which `nix build` needs to build
           - "sudo mkdir /etc/nix"
           - "echo 'experimental-features = nix-command flakes' | sudo tee -a /etc/nix/nix.conf"
