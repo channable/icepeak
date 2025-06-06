@@ -216,7 +216,7 @@ syncToBackend File pv = do
     end <- Clock.getTime Clock.Monotonic
     let time = Clock.toNanoSecs (Clock.diffTimeSpec end start) `div` 1000000
     when (pcLogSync $ pvConfig pv) $ do
-      logMessage pv $ Text.concat ["It took ", Text.pack $ show time, " ms to synchronize Icepeak on disk."] 
+      logMessage pv $ Text.concat ["It took ", Text.pack $ show time, " ms to synchronize Icepeak on disk."]
       when (isJust $ pcJournalFile $ pvConfig pv) $ logJournalStats pv
 syncToBackend Sqlite pv = syncSqliteFile pv
 
@@ -239,7 +239,8 @@ readSqliteData filePath = ExceptT $ do
   case jsonRows of
     -- the 'setupStorageBackend' function verifies that we can read the database and that at least one row exists
     [] -> pure $ Right Aeson.emptyObject
-    _  -> case Aeson.eitherDecodeStrict (jsonByteString $ head $ jsonRows) of
+    row : _ ->
+      case Aeson.eitherDecodeStrict (jsonByteString row) of
             Left msg  -> pure $ Left $ "Failed to decode the initial data: " ++ show msg
             Right value -> pure $ Right (value :: Store.Value)
 

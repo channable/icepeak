@@ -15,6 +15,7 @@ import Network.Wai (Application)
 import System.Clock (Clock (..), getTime)
 import Web.Scotty (delete, get, json, jsonData, put, regex, middleware, request, scottyApp, status, ActionM)
 
+import qualified Data.Text as Text
 import qualified Data.Text.Lazy as LText
 import qualified Network.Wai as Wai
 import qualified Web.Scotty.Trans as Scotty
@@ -94,6 +95,8 @@ buildResponse :: EnqueueResult -> ActionM ()
 buildResponse Enqueued = status accepted202
 buildResponse Dropped  = status serviceUnavailable503
 
-maybeParam :: (Scotty.Parsable a, Monad m) => LText.Text -> Scotty.ActionT m (Maybe a)
-maybeParam name = fmap (parseMaybe <=< lookup name) Scotty.params where
-  parseMaybe = either (const Nothing) Just . Scotty.parseParam
+maybeParam :: forall a m. (Scotty.Parsable a, Monad m) => Text.Text -> Scotty.ActionT m (Maybe a)
+maybeParam name = fmap (parseMaybe <=< lookup name) Scotty.queryParams
+  where
+    parseMaybe :: Text.Text -> Maybe a
+    parseMaybe = either (const Nothing) Just . Scotty.parseParam . LText.fromStrict
