@@ -239,7 +239,8 @@ readSqliteData filePath = ExceptT $ do
   case jsonRows of
     -- the 'setupStorageBackend' function verifies that we can read the database and that at least one row exists
     [] -> pure $ Right Aeson.emptyObject
-    _  -> case Aeson.eitherDecodeStrict (jsonByteString $ head $ jsonRows) of
+    row : _moreRows ->
+      case Aeson.eitherDecodeStrict (jsonByteString row) of
             Left msg  -> pure $ Left $ "Failed to decode the initial data: " ++ show msg
             Right value -> pure $ Right (value :: Store.Value)
 
