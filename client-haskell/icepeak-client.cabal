@@ -16,7 +16,7 @@ library
     -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
 
   build-depends:
-      aeson        >=2.1.2
+      aeson        >=2.2.3
     , base         >=4.17.2
     , binary       >=0.8.9
     , bytestring   >=0.11.5

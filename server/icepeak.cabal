@@ -46,7 +46,7 @@ library
     -funbox-strict-fields
 
   build-depends:
-      aeson                      >=2.1.2
+      aeson                      >=2.2.3
     , async                      >=2.2.4
     , base                       >=4.17.2
     , bytestring                 >=0.11.5
@@ -90,7 +90,7 @@ executable icepeak
   hs-source-dirs:   app/Icepeak
   ghc-options:      -Wall -O2 -threaded -rtsopts "-with-rtsopts=-N -I0"
   build-depends:
-      aeson                      >=2.1.2
+      aeson                      >=2.2.3
     , async                      >=2.2.4
     , base                       >=4.17.2
     , bytestring                 >=0.11.5
@@ -133,7 +133,7 @@ executable icepeak-token-gen
   hs-source-dirs:   app/IcepeakTokenGen
   ghc-options:      -Wall
   build-depends:
-      aeson                      >=2.1.2
+      aeson                      >=2.2.3
     , async                      >=2.2.4
     , base                       >=4.17.2
     , bytestring                 >=0.11.5
