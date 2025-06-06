@@ -5,6 +5,7 @@
 module Icepeak.Server.HttpServer (new) where
 
 import Control.Concurrent.MVar (newEmptyMVar, takeMVar)
+import Control.Exception (SomeException)
 import Control.Monad
 import Control.Monad.IO.Class
 import Data.Foldable (for_)
@@ -43,9 +44,7 @@ new core =
     -- Exit on unknown HTTP verb after the request has been stored in the metrics.
     middleware limitHTTPMethods
     -- Use the Sentry logger if available
-    -- Scottys error handler will only catch errors that are thrown from within
-    -- a ```liftAndCatchIO``` function.
-    Scotty.defaultHandler (Scotty.Handler $ \(e :: Scotty.StatusError) -> do
+    Scotty.defaultHandler (Scotty.Handler $ \(e :: SomeException) -> do
         liftIO $ postLog (coreLogger core) LogError . pack . show $ e
         status status503
         Scotty.text "Internal server error"
@@ -56,7 +55,7 @@ new core =
 
     get (regex "^") $ do
       path <- Wai.pathInfo <$> request
-      maybeValue <- Scotty.liftAndCatchIO $ Core.getCurrentValue core path
+      maybeValue <- liftIO $ Core.getCurrentValue core path
       maybe (status status404) json maybeValue
 
     put (regex "^") $ do
@@ -85,10 +84,10 @@ postModification :: (MonadIO m) => Core -> Store.Modification -> Scotty.ActionT 
 postModification core op = do
   -- the parameter is parsed as type (), therefore only presence or absence is important
   durable <- maybeParam "durable"
-  waitVar <- Scotty.liftAndCatchIO $ for durable $ \() -> newEmptyMVar
-  result <- Scotty.liftAndCatchIO $ Core.tryEnqueueCommand (Core.Modify op waitVar) core
+  waitVar <- liftIO $ for durable $ \() -> newEmptyMVar
+  result <- liftIO $ Core.tryEnqueueCommand (Core.Modify op waitVar) core
   when (result == Enqueued) $
-    Scotty.liftAndCatchIO $ for_ waitVar $ takeMVar
+    liftIO $ for_ waitVar $ takeMVar
   pure result
 
 buildResponse :: EnqueueResult -> ActionM ()
