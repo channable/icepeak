@@ -36,7 +36,7 @@ data Modification
   | Delete Path
   deriving (Eq, Show)
 
-modificationToJSON :: (Aeson.KeyValue kv) => Modification -> [kv]
+modificationToJSON :: (Aeson.KeyValue e kv) => Modification -> [kv]
 modificationToJSON modification = case modification of
   Put path value ->
     [ "op" .= ("put" :: Text)
