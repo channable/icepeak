@@ -10,7 +10,7 @@ let
       pkgs.niv
 
       # Used for the integration tests
-      (pkgs.python310.withPackages (p: [ p.websockets p.requests ]))
+      (pkgs.python313.withPackages (p: [ p.websockets p.requests ]))
 
       pkgs.haskellPackages.cabal-install
       pkgs.haskellPackages.cabal-fmt

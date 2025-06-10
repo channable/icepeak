@@ -5,6 +5,7 @@
 module Icepeak.Server.HttpServer (new) where
 
 import Control.Concurrent.MVar (newEmptyMVar, takeMVar)
+import Control.Exception (SomeException)
 import Control.Monad
 import Control.Monad.IO.Class
 import Data.Foldable (for_)
@@ -15,6 +16,7 @@ import Network.Wai (Application)
 import System.Clock (Clock (..), getTime)
 import Web.Scotty (delete, get, json, jsonData, put, regex, middleware, request, scottyApp, status, ActionM)
 
+import qualified Data.Text as Text
 import qualified Data.Text.Lazy as LText
 import qualified Network.Wai as Wai
 import qualified Web.Scotty.Trans as Scotty
@@ -42,9 +44,7 @@ new core =
     -- Exit on unknown HTTP verb after the request has been stored in the metrics.
     middleware limitHTTPMethods
     -- Use the Sentry logger if available
-    -- Scottys error handler will only catch errors that are thrown from within
-    -- a ```liftAndCatchIO``` function.
-    Scotty.defaultHandler (Scotty.Handler $ \(e :: Scotty.StatusError) -> do
+    Scotty.defaultHandler (Scotty.Handler $ \(e :: SomeException) -> do
         liftIO $ postLog (coreLogger core) LogError . pack . show $ e
         status status503
         Scotty.text "Internal server error"
@@ -55,7 +55,7 @@ new core =
 
     get (regex "^") $ do
       path <- Wai.pathInfo <$> request
-      maybeValue <- Scotty.liftAndCatchIO $ Core.getCurrentValue core path
+      maybeValue <- liftIO $ Core.getCurrentValue core path
       maybe (status status404) json maybeValue
 
     put (regex "^") $ do
@@ -84,16 +84,18 @@ postModification :: (MonadIO m) => Core -> Store.Modification -> Scotty.ActionT 
 postModification core op = do
   -- the parameter is parsed as type (), therefore only presence or absence is important
   durable <- maybeParam "durable"
-  waitVar <- Scotty.liftAndCatchIO $ for durable $ \() -> newEmptyMVar
-  result <- Scotty.liftAndCatchIO $ Core.tryEnqueueCommand (Core.Modify op waitVar) core
+  waitVar <- liftIO $ for durable $ \() -> newEmptyMVar
+  result <- liftIO $ Core.tryEnqueueCommand (Core.Modify op waitVar) core
   when (result == Enqueued) $
-    Scotty.liftAndCatchIO $ for_ waitVar $ takeMVar
+    liftIO $ for_ waitVar $ takeMVar
   pure result
 
 buildResponse :: EnqueueResult -> ActionM ()
 buildResponse Enqueued = status accepted202
 buildResponse Dropped  = status serviceUnavailable503
 
-maybeParam :: (Scotty.Parsable a, Monad m) => LText.Text -> Scotty.ActionT m (Maybe a)
-maybeParam name = fmap (parseMaybe <=< lookup name) Scotty.params where
-  parseMaybe = either (const Nothing) Just . Scotty.parseParam
+maybeParam :: forall a m. (Scotty.Parsable a, Monad m) => Text.Text -> Scotty.ActionT m (Maybe a)
+maybeParam name = fmap (parseMaybe <=< lookup name) Scotty.queryParams
+  where
+    parseMaybe :: Text.Text -> Maybe a
+    parseMaybe = either (const Nothing) Just . Scotty.parseParam . LText.fromStrict
