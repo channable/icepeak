@@ -1,0 +1,15 @@
+/*
+Informed by:
+- https://www.typescriptlang.org/docs/handbook/modules/guides/choosing-compiler-options.html#im-writing-a-library
+- https://www.typescriptlang.org/docs/handbook/project-references.html#handbook-content
+*/
+
+{
+    "extends": "../tsconfig.base.json",
+    "include": ["/**/*.mts"],
+    "compilerOptions": {
+	"composite": true,
+    }
+}
+
+
