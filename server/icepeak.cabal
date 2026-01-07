@@ -2,7 +2,7 @@ cabal-version: 1.12
 name:          icepeak
 
 -- Note: We follow the PVP here, required by Hackage
-version:       2.1.0.0
+version:       2.2.0.0
 synopsis:      A fast JSON document store with push notification support.
 description:
   Icepeak is a fast JSON document store with push notification support.
@@ -12,7 +12,7 @@ homepage:      https://github.com/channable/icepeak
 bug-reports:   https://github.com/channable/icepeak/issues
 author:        Channable
 maintainer:    rkrzr
-copyright:     (c) 2023, Channable
+copyright:     (c) 2026, Channable
 license:       BSD3
 build-type:    Simple
 
