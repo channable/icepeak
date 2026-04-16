@@ -29,8 +29,9 @@ metricsApp request respond
 
 runMetricsServer :: Logger -> MetricsConfig -> IO ()
 runMetricsServer logger metricsConfig = do
-  postLog logger LogInfo $ "Metrics provided on "
+  postLog logger LogInfo $ "Metrics and healthcheck provided on "
     <> (Text.pack $ show $ metricsConfigHost metricsConfig)
     <> ":"
     <> (Text.pack $ show $ metricsConfigPort metricsConfig)
+    <> " (/metrics, /healthcheck)"
   Warp.runSettings (metricsServerConfig metricsConfig) metricsApp
