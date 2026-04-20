@@ -183,6 +183,7 @@ test-suite spec
     Icepeak.Server.SocketSpec
     Icepeak.Server.StoreSpec
     Icepeak.Server.SubscriptionTreeSpec
+    Icepeak.Server.MetricsServerSpec
     Icepeak.Server.MultiSubscriptionSpec
     OrphanInstances
     Paths_icepeak
