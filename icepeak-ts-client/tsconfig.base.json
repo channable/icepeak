@@ -1,0 +1,23 @@
+{
+    "references": [
+	{ "path": "./lib" },
+	{ "path": "./test" }
+    ],
+    "compilerOptions": {
+	"rootDir": "./.",
+	"outDir": "./dist/",
+
+	"target": "es2017",
+	"module": "nodenext",
+
+	"verbatimModuleSyntax": true,
+	"forceConsistentCasingInFileNames": true,
+
+	"declaration": true,
+	"declarationMap": true,
+	// "declarationDir": "./lib/types",
+
+	"sourceMap": true,
+	"strict": true,
+    }
+}
