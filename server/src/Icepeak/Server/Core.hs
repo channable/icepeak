@@ -173,7 +173,7 @@ runCommandLoop core = go
         pure True
       Sync -> do
         -- TODO: Remove the specific sync duration metrics after dashboards use
-        -- icepeak_event_handling_seconds_total{event_type="sync"}.
+        -- icepeak_command_events_seconds_total{event_type="sync"}.
         maybe id Metrics.measureSyncDuration (coreMetrics core) $
           Persistence.syncToBackend storageBackend currentValue
         pure True
