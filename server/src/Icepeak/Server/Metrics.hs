@@ -1,11 +1,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Icepeak.Server.Metrics where
 
+import Control.Exception (finally)
+import Control.Monad (void)
 import Control.Monad.IO.Class
 import Data.Text (Text, pack)
 import Data.Text.Encoding (decodeUtf8)
 import Data.Ratio ((%))
-import System.Clock (TimeSpec, diffTimeSpec, toNanoSecs)
+import System.Clock (Clock (..), TimeSpec, diffTimeSpec, getTime, toNanoSecs)
 import Prometheus (Counter, Gauge, Histogram, Info (..), MonadMonitor, Vector, addCounter, counter, defaultBuckets, exponentialBuckets, decGauge,
                    gauge, histogram, incCounter, incGauge, observe, observeDuration, register, setGauge, vector, withLabel)
 import qualified Network.HTTP.Types as Http
@@ -13,10 +15,12 @@ import qualified Network.HTTP.Types as Http
 
 type HttpMethodLabel = Text
 type HttpStatusCode = Text
+type EventTypeLabel = Text
 
 -- We want to store for each (HTTP method, HTTP status code) pair how many times it has been called
 -- as well as the duration of each reaquest.
 type HttpRequestHistogram = Vector (HttpMethodLabel, HttpStatusCode) Histogram
+type EventHandlingCounter = Vector EventTypeLabel Counter
 
 data IcepeakMetrics = IcepeakMetrics
   { icepeakMetricsRequestCounter        :: HttpRequestHistogram
@@ -30,6 +34,8 @@ data IcepeakMetrics = IcepeakMetrics
   , icepeakMetricsSubscriberCount       :: Gauge
   , icepeakMetricsQueueAdded            :: Counter
   , icepeakMetricsQueueRemoved          :: Counter
+  , icepeakMetricsEventHandlingDuration :: EventHandlingCounter
+  , icepeakMetricsEventHandlingCount    :: EventHandlingCounter
   , icepeakMetricsSyncDuration          :: Histogram
   , icepeakMetricsWsQueueAdded          :: Counter
   , icepeakMetricsWsQueueRemoved        :: Counter
@@ -56,6 +62,12 @@ createAndRegisterIcepeakMetrics = IcepeakMetrics
                               "Total number of items added to the queue."))
   <*> register (counter (Info "icepeak_internal_queue_items_removed"
                               "Total number of items removed from the queue."))
+  <*> register (vector "event_type" $
+        counter (Info "icepeak_command_events_seconds_total"
+                      "Total number of seconds spent handling command loop events."))
+  <*> register (vector "event_type" $
+        counter (Info "icepeak_command_events_count_total"
+                      "Total number of command loop events handled."))
   <*> register (histogram (Info "icepeak_sync_duration" "Duration of a Sync command.")
                           syncBuckets)
   <*> register (counter (Info "icepeak_internal_ws_queue_items_added"
@@ -78,7 +90,7 @@ countHttpRequest metrics method status start end = withLabel (icepeakMetricsRequ
     label = (textMethod, textStatus)
     textMethod = decodeUtf8 method
     textStatus = pack $ show (Http.statusCode status)
-    latency = fromRational $ toRational (toNanoSecs (end `diffTimeSpec` start) % 1000000000)
+    latency = durationSeconds start end
 
 setDataSize :: (MonadMonitor m, Real a) => a -> IcepeakMetrics -> m ()
 setDataSize val metrics = do
@@ -115,6 +127,22 @@ incrementQueueAdded = incCounter . icepeakMetricsQueueAdded
 
 incrementQueueRemoved :: MonadMonitor m => IcepeakMetrics -> m ()
 incrementQueueRemoved = incCounter . icepeakMetricsQueueRemoved
+
+measureCoreEventHandling :: EventTypeLabel -> IcepeakMetrics -> IO a -> IO a
+measureCoreEventHandling eventType metrics action = do
+  start <- getTime Monotonic
+  action `finally` countHandledEvent start
+
+  where
+    countHandledEvent start = do
+      end <- getTime Monotonic
+      withLabel (icepeakMetricsEventHandlingDuration metrics) eventType $ \counterMetric -> do
+        void $ addCounter counterMetric (durationSeconds start end)
+      withLabel (icepeakMetricsEventHandlingCount metrics) eventType $ \counterMetric -> do
+        incCounter counterMetric
+
+durationSeconds :: TimeSpec -> TimeSpec -> Double
+durationSeconds start end = fromRational $ toRational (toNanoSecs (end `diffTimeSpec` start) % 1000000000)
 
 measureSyncDuration :: (MonadIO m, MonadMonitor m) => IcepeakMetrics -> m a -> m a
 measureSyncDuration = observeDuration . icepeakMetricsSyncDuration
