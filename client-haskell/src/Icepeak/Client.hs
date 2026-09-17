@@ -120,11 +120,12 @@ deleteAtLeafRequest = deleteAtLeafRequestWithOptions defaultRequestOptions
 -- | Return a HTTP request for setting a value at the leaf of a path.
 setAtLeafRequestWithOptions :: ToJSON a => RequestOptions -> Config -> [Text] -> a -> HTTP.Request
 setAtLeafRequestWithOptions options config path leaf =
-  (baseRequest config)
-    { HTTP.method = "PUT"
-    , HTTP.path = requestPathForIcepeakPath path (optionsToQuery options)
-    , HTTP.requestBody = HTTP.RequestBodyLBS (Aeson.encode leaf)
-    }
+  let req = (baseRequest config)
+   in req { HTTP.method = "PUT"
+          , HTTP.path = requestPathForIcepeakPath path (optionsToQuery options)
+          , HTTP.requestBody = HTTP.RequestBodyLBS (Aeson.encode leaf)
+          , HTTP.requestHeaders = ("Content-Type", "application/json"):(HTTP.requestHeaders req)
+          }
 
 -- | Return a HTTP request for deleting a value at the leaf of a path.
 deleteAtLeafRequestWithOptions :: RequestOptions -> Config -> [Text] -> HTTP.Request
