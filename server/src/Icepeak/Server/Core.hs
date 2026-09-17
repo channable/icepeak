@@ -161,7 +161,8 @@ runCommandLoop core = go
   go = do
     command <- atomically $ readTBQueue (coreQueue core)
     for_ (coreMetrics core) Metrics.incrementQueueRemoved
-    case command of
+
+    continue <- withEventMetrics (eventLabel command) $ case command of
       Modify op maybeNotifyVar -> do
         Persistence.apply op currentValue
         postUpdate (Store.modificationPath op) core
@@ -169,12 +170,26 @@ runCommandLoop core = go
         unless (periodicSyncingEnabled $ coreConfig core) $
           Persistence.syncToBackend storageBackend currentValue
         mapM_ (`putMVar` ()) maybeNotifyVar
-        go
+        pure True
       Sync -> do
+        -- TODO: Remove the specific sync duration metrics after dashboards use
+        -- icepeak_command_events_seconds_total{event_type="sync"}.
         maybe id Metrics.measureSyncDuration (coreMetrics core) $
           Persistence.syncToBackend storageBackend currentValue
-        go
-      Stop -> Persistence.syncToBackend storageBackend currentValue
+        pure True
+      Stop -> do
+        Persistence.syncToBackend storageBackend currentValue
+        pure False
+
+    when continue go
+
+  eventLabel command = case command of
+    Modify{} -> "modify"
+    Sync     -> "sync"
+    Stop     -> "stop"
+
+  withEventMetrics eventType =
+    maybe id (Metrics.measureCoreEventHandling eventType) (coreMetrics core)
 
 -- | Post an update to the core's update queue (read by the websocket subscribers)
 postUpdate :: Path -> Core -> IO ()
