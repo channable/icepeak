@@ -12,7 +12,7 @@ module Icepeak.Server.WebsocketServer (
   processUpdates,
 ) where
 
-import Control.Concurrent (readMVar, threadDelay)
+import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async (race_)
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TBQueue (readTBQueue)
@@ -89,7 +89,7 @@ processUpdates core = go
     for_ (coreMetrics core) Metrics.incrementWsQueueRemoved
     case maybeUpdate of
       Just (Updated path value) -> do
-        clients <- readMVar (coreClients core)
+        clients <- readIORef (coreClients core)
         Subscription.broadcast (\subscriberWrite newValue -> subscriberWrite newValue) path value clients
         go
       -- Stop the loop when we receive a Nothing.

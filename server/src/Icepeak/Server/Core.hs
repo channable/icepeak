@@ -19,7 +19,7 @@ module Icepeak.Server.Core (
 where
 
 import Control.Concurrent (threadDelay)
-import Control.Concurrent.MVar (MVar, newMVar, putMVar)
+import Control.Concurrent.MVar (MVar, putMVar)
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TBQueue (TBQueue, isFullTBQueue, newTBQueueIO, readTBQueue, writeTBQueue)
 import Control.Concurrent.STM.TVar (TVar, newTVarIO)
@@ -27,6 +27,7 @@ import Control.Monad (forever, unless, when)
 import Control.Monad.IO.Class
 import Data.Aeson (Value (..))
 import Data.Foldable (forM_, for_)
+import Data.IORef (IORef, newIORef)
 import Data.Traversable (for)
 import Data.UUID (UUID)
 import Prelude hiding (log, writeFile)
@@ -66,7 +67,7 @@ data Core = Core
     coreValueIsDirty :: TVar Bool
   , coreQueue :: TBQueue Command
   , coreUpdates :: TBQueue (Maybe Updated)
-  , coreClients :: MVar ServerState
+  , coreClients :: IORef ServerState
   , coreLogger :: Logger
   , coreConfig :: Config
   , coreMetrics :: Maybe Metrics.IcepeakMetrics
@@ -108,7 +109,7 @@ newCore config logger metrics = do
     tdirty <- newTVarIO False
     tqueue <- newTBQueueIO queueCapacity
     tupdates <- newTBQueueIO queueCapacity
-    tclients <- newMVar newServerState
+    tclients <- newIORef newServerState
     pure (Core value tdirty tqueue tupdates tclients logger config metrics)
 
 -- Tell the put handler loop and the update handler to quit.
