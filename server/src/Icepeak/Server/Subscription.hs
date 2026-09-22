@@ -1,10 +1,10 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DeriveFunctor #-}
 
 module Icepeak.Server.Subscription
 (
   SubscriptionTree (..),
   broadcast,
-  broadcast',
   empty,
   subscribe,
   unsubscribe,
@@ -12,8 +12,6 @@ module Icepeak.Server.Subscription
 )
 where
 
-import Control.Monad (void)
-import Control.Monad.State.Strict (State, execState, modify')
 import Data.Aeson (Value)
 import Data.Foldable (for_, traverse_)
 import Data.HashMap.Strict (HashMap)
@@ -77,31 +75,16 @@ unsubscribe path subid (SubscriptionTree here inner) =
 -- Invoke f for all subscribers to the path. The subscribers get passed the
 -- subvalue at the path that they are subscribed to.
 broadcast :: (state -> Value -> IO ()) -> [Text] -> Value -> SubscriptionTree id state -> IO ()
-broadcast f path value tree = mapM_ (uncurry f) notifications
-  where notifications = broadcast' path value tree
-
--- Like broadcast, but return a list of notifications rather than invoking an
--- effect on each of them.
-broadcast' :: [Text] -> Value -> SubscriptionTree id state -> [(state, Value)]
-broadcast' = \path value tree -> reverse $ execState (loop path value tree) []
-  where
-  -- To prevent this from accidentally blowing up to @O(n^2)@ time, this uses
-  -- the strict state monad to cons the connections to a list, which then needs
-  -- to be reversed to get the correct order. This way the operation can be done
-  -- in @O(n)@ list operations where @n@ is the number of subscribers matched
-  -- along the path.
-  loop :: [Text] -> Value -> SubscriptionTree id state -> State [(state, Value)] ()
+broadcast f = loop
+ where
   loop path value (SubscriptionTree here inner) = do
+    traverse_ (`f` value) here
     case path of
-      [] -> do
-        -- When the path is empty, all subscribers that are "here" or at a deeper
-        -- level should receive a notification.
-        traverse_ (\v -> modify' ((v, value) :)) here
-        let broadcastInner key = loop [] (Store.lookupOrNull [key] value)
-        void $ HashMap.traverseWithKey broadcastInner inner
-
-      key : pathTail -> do
-        traverse_ (\v -> modify' ((v, value) :)) here
+      [] ->
+        traverse_
+          (\(key, subs) -> loop [] (Store.lookupOrNull [key] value) subs)
+          (HashMap.toList inner)
+      key : pathTail ->
         for_ (HashMap.lookup key inner) $ \subs ->
           loop pathTail (Store.lookupOrNull [key] value) subs
 
