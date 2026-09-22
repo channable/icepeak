@@ -27,7 +27,7 @@ import qualified Icepeak.Server.Store as Store
 -- Keeps subscriptions in a tree data structure, so we can efficiently determine
 -- which clients need to be notified for a given update.
 data SubscriptionTree id conn =
-  SubscriptionTree (HashMap id conn) (HashMap Text (SubscriptionTree id conn))
+  SubscriptionTree !(HashMap id conn) !(HashMap Text (SubscriptionTree id conn))
   deriving (Eq, Functor, Show)
 
 empty :: SubscriptionTree id conn
@@ -49,7 +49,7 @@ subscribe path subid subval (SubscriptionTree here inner) =
     key : pathTail ->
       let
         subscribeInner = subscribe pathTail subid subval
-        newInner = HashMap.alter (Just . subscribeInner . fromMaybe empty) key inner
+        !newInner = HashMap.alter (Just . subscribeInner . fromMaybe empty) key inner
       in
         SubscriptionTree here newInner
 
@@ -68,7 +68,7 @@ unsubscribe path subid (SubscriptionTree here inner) =
         -- inner tree empty, remove the key altogether to keep the tree clean.
         justNotEmpty tree = if isEmpty tree then Nothing else Just tree
         unsubscribeInner = justNotEmpty . unsubscribe pathTail subid
-        newInner = HashMap.update unsubscribeInner key inner
+        !newInner = HashMap.update unsubscribeInner key inner
       in
         SubscriptionTree here newInner
 

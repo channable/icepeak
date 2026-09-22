@@ -1,11 +1,14 @@
+{-# LANGUAGE TupleSections #-}
+
 module Icepeak.Server.WebsocketServer.SingleSubscription (handleClient) where
 
-import Control.Concurrent (modifyMVar_, newEmptyMVar)
+import Control.Concurrent (newEmptyMVar)
 import Control.Concurrent.Async (withAsync)
 import Control.Concurrent.MVar (MVar, takeMVar)
 import Control.Exception (SomeAsyncException, SomeException, catch, finally, fromException, throwIO)
 import Control.Monad (forever)
 import Data.Aeson (Value)
+import Data.IORef (atomicModifyIORef')
 
 import qualified Data.Aeson as Aeson
 import qualified Network.WebSockets as WS
@@ -26,13 +29,13 @@ handleClient conn path core = do
   let
     state = coreClients core
     onConnect = do
-      modifyMVar_ state
-        (pure . Subscription.subscribe path uuid
+      atomicModifyIORef' state
+        ((,()) . Subscription.subscribe path uuid
          (Utils.writeToSub core pathCurentValueMVar)
         )
       withCoreMetrics core Metrics.incrementSubscribers
     onDisconnect = do
-      modifyMVar_ state (pure . Subscription.unsubscribe path uuid)
+      atomicModifyIORef' state ((,()) . Subscription.unsubscribe path uuid)
       withCoreMetrics core Metrics.decrementSubscribers
     sendInitialValue = do
       currentValue <- getCurrentValue core path
