@@ -1,12 +1,14 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections #-}
 
 module Icepeak.Server.WebsocketServer.MultiSubscription (handleClient) where
 
 import Control.Concurrent.MVar (MVar)
-import Control.Exception (Exception)
+import Control.Exception (Exception, evaluate)
 import Data.Aeson (Value, (.=))
 import Data.Functor ((<&>))
 import Data.HashMap.Strict (HashMap)
+import Data.IORef (atomicModifyIORef')
 import Data.Text (Text)
 import Data.UUID (UUID)
 
@@ -84,9 +86,9 @@ doSubscribe client paths = do
       subscriptions
       (pure . HashMap.insert newPath pathValueMVar)
 
-    MVar.modifyMVar_
+    atomicModifyIORef'
       coreClients
-      ( pure
+      ( (,())
           . Subscription.subscribe
             newPath
             uuid
@@ -182,9 +184,9 @@ onPayloadUnsubscribe client (RequestUnsubscribe paths) = do
             pathIsSubscribed <- MVar.readMVar subscriptions <&> HashMap.member path
             case pathIsSubscribed of
               True -> do
-                MVar.modifyMVar_
+                atomicModifyIORef'
                   coreClients
-                  (pure . Subscription.unsubscribe path uuid)
+                  ((,()) . Subscription.unsubscribe path uuid)
 
                 MVar.modifyMVar_
                   subscriptions
@@ -295,9 +297,9 @@ onDisconnect client = do
   Monad.forM_
     paths
     ( \path ->
-        MVar.modifyMVar_
+        atomicModifyIORef'
           (Core.coreClients core)
-          (pure . Subscription.unsubscribe path uuid)
+          ((,()) . Subscription.unsubscribe path uuid)
     )
 
   Core.withCoreMetrics core Metrics.decrementSubscribers

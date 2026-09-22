@@ -3,6 +3,7 @@
 
 module Icepeak.Server.SubscriptionTreeSpec (spec) where
 
+import Data.IORef (modifyIORef', newIORef, readIORef)
 import Data.List (sort)
 import Test.Hspec (Spec, describe, it, shouldBe)
 import Test.Hspec.QuickCheck (prop)
@@ -11,7 +12,7 @@ import Test.QuickCheck.Instances ()
 import qualified Data.Aeson as AE
 import qualified Data.HashMap.Strict as HM
 
-import Icepeak.Server.Subscription (SubscriptionTree (..), broadcast', empty, subscribe, unsubscribe)
+import Icepeak.Server.Subscription (SubscriptionTree (..), broadcast, empty, subscribe, unsubscribe)
 
 spec :: Spec
 spec = do
@@ -89,10 +90,14 @@ spec = do
         value_foo_bar = AE.Null
         value_baz = AE.object []
 
-        broadcast'' path = sort (broadcast' path value root)
+        broadcast'' path = do
+          notifications <- newIORef []
+          broadcast (\conn value' -> modifyIORef' notifications ((conn, value') :)) path value root
+          sort <$> readIORef notifications
 
       it "notifies everyone on root updates" $ do
-        broadcast'' []
+        notifications <- broadcast'' []
+        notifications
           `shouldBe` [ (conn1, value)
                      , (conn2, value_foo)
                      , (conn3, value_foo_bar)
@@ -100,14 +105,16 @@ spec = do
                      ]
 
       it "notifies parents and children about updates" $ do
-        broadcast'' ["foo"]
+        notifications <- broadcast'' ["foo"]
+        notifications
           `shouldBe` [ (conn1, value)
                      , (conn2, value_foo)
                      , (conn3, value_foo_bar)
                      ]
 
       it "notifies parents and children about updates" $ do
-        broadcast'' ["foo", "bar"]
+        notifications <- broadcast'' ["foo", "bar"]
+        notifications
           `shouldBe` [ (conn1, value)
                      , (conn2, value_foo)
                      , (conn3, value_foo_bar)
