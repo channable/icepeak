@@ -77,7 +77,7 @@ unsubscribe path subid (SubscriptionTree here inner) =
 broadcast :: (state -> Value -> IO ()) -> [Text] -> Value -> SubscriptionTree id state -> IO ()
 broadcast f = loop
  where
-  loop path value (SubscriptionTree here inner) = do
+  loop path !value (SubscriptionTree here inner) = do
     traverse_ (`f` value) here
     case path of
       [] ->
