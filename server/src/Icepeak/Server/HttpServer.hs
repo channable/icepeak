@@ -1,6 +1,6 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-
 
 module Icepeak.Server.HttpServer (new) where
 
@@ -81,7 +81,7 @@ durationMeasureMiddleware metrics app req respond = do
 
 -- | Enqueue modification and wait for it to be processed, if desired by the client.
 postModification :: (MonadIO m) => Core -> Store.Modification -> Scotty.ActionT m EnqueueResult
-postModification core op = do
+postModification core !op = do
   -- the parameter is parsed as type (), therefore only presence or absence is important
   durable <- maybeParam "durable"
   waitVar <- liftIO $ for durable $ \() -> newEmptyMVar

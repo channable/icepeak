@@ -112,7 +112,7 @@ apply op val = do
       Metrics.setJournalSize journalPos metrics
   -- update value
   atomically $ do
-    modifyTVar (pvValue val) (Store.applyModification op)
+    modifyTVar' (pvValue val) (Store.applyModification op)
     writeTVar (pvIsDirty val) True
 
 
