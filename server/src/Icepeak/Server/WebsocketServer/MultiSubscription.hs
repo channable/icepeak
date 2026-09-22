@@ -4,7 +4,7 @@
 module Icepeak.Server.WebsocketServer.MultiSubscription (handleClient) where
 
 import Control.Concurrent.MVar (MVar)
-import Control.Exception (Exception, evaluate)
+import Control.Exception (Exception)
 import Data.Aeson (Value, (.=))
 import Data.Functor ((<&>))
 import Data.HashMap.Strict (HashMap)
