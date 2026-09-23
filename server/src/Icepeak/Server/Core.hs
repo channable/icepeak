@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Icepeak.Server.Core (
@@ -45,7 +46,7 @@ import qualified Icepeak.Server.Store as Store
 data Command
   = Sync
     -- ^ The @Sync@ command causes the core to write the JSON value to disk.
-  | Modify Modification (Maybe (MVar ()))
+  | Modify !Modification (Maybe (MVar ()))
     -- ^ The @Modify@ command applies a modification (writing or deleting) to the JSON value.
     -- The optional MVar is used to signal that the command has been processed by the core.
   | Stop
@@ -54,7 +55,7 @@ data Command
 
 -- The main value has been updated at the given path. The payload contains the
 -- entire new value. (So not only the inner value at the updated path.)
-data Updated = Updated Path Value deriving (Eq, Show)
+data Updated = Updated !Path !Value deriving (Eq, Show)
 
 data EnqueueResult = Enqueued | Dropped
   deriving (Show, Eq, Ord, Enum, Bounded)
@@ -125,7 +126,7 @@ postQuit core = do
 -- nothing is changed. This should be used for non-critical commands that can
 -- also be retried later.
 tryEnqueueCommand :: Command -> Core -> IO EnqueueResult
-tryEnqueueCommand cmd core = do
+tryEnqueueCommand !cmd core = do
   res <- atomically $ do
     isFull <- isFullTBQueue (coreQueue core)
     unless isFull $ writeTBQueue (coreQueue core) cmd

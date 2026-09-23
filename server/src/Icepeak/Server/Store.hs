@@ -32,8 +32,8 @@ type Path = [Text]
 
 -- A modification operation.
 data Modification
-  = Put Path Value
-  | Delete Path
+  = Put !Path !Value
+  | Delete !Path
   deriving (Eq, Show)
 
 modificationToJSON :: (Aeson.KeyValue e kv) => Modification -> [kv]
