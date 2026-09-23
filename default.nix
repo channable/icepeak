@@ -17,6 +17,13 @@ let
       pkgs.haskellPackages.channalu
       pkgs.haskellPackages.haskell-language-server
       pkgs.haskellPackages.implicit-hie
+
+      # for icepeak-ts-client dev tools, npm, npx
+      pkgs.nodejs_20
+
+      # for icepeak-ts-client langauge server
+      pkgs.nodePackages_latest.typescript-language-server
+      pkgs.nodePackages_latest.typescript
     ];
 
     withHoogle = true;
